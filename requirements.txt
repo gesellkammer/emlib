@@ -1,0 +1,9 @@
+six
+decorator
+numpy>=1.7
+music21
+scipy
+bpf4
+notifydict
+appdirs
+tabulate
