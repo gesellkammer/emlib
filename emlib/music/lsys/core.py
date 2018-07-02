@@ -322,7 +322,7 @@ class NodeList(list):
         self._drawnode = callback
 
     def flat(self:_T, update=True) -> _T:
-        return self.clone(list(iterlib.flattenlist(self)), update=update)
+        return self.clone(list(iterlib.flatlist(self)), update=update)
 
     def dump(self) -> None:
         return dumpnodes(self)
@@ -507,7 +507,7 @@ class NodeList(list):
 
     def flatview(self) -> Iter[Node]:
         if self._flatview is None:
-            self._flatview = list(iterlib.flattenlist(self))
+            self._flatview = list(iterlib.flatlist(self))
         return self._flatview
 
     def duration(self):
@@ -844,7 +844,7 @@ class LSystem:
         if transforms is not None:
             self.step_transforms.extend(transforms)
 
-    def _generate(self, generation:int, dur:t.Rat=1, axiom=None) -> NodeList:
+    def _generate(self, generation:int, dur:t.Rat=1) -> NodeList:
         """
         Generates the nodes of a given generation.
 
@@ -856,11 +856,8 @@ class LSystem:
         ((A  A) (A  A) ) ((B+A) (A A))
         """
         dur = asFraction(dur)
-        if axiom is None:
-            nodes = _distribute_duration(dur, asNodes(self.axiom, self.alphabet))
-        else:
-            nodes = axiom
-
+        nodes = _distribute_duration(dur, asNodes(self.axiom, self.alphabet))
+        
         def apply_transforms(nodes, transforms, alphabet):
             for transf in transforms:
                 if isinstance(transf, NodeTransform):
@@ -885,7 +882,7 @@ class LSystem:
         out.set_plot_callback(self._plotcallback)
         return out
 
-    def evolve(self, numsteps:int, dur:t.Rat=1, axiom=None) -> Branch:
+    def evolve(self, numsteps:int, dur:t.Rat=1) -> Branch:
         """
         Evolve the system, organize the generated nodes as a recursive
         branch
@@ -894,14 +891,8 @@ class LSystem:
         axiom: if given, it overrides the axiom of this Lsystem
         dur: the duration assigned to the axiom
         """
-        if axiom is None:
-            axiom = self.axiom
-        elif isinstance(axiom, list):
-            axiom = list(iterlib.flattenlist(axiom))
-        else:
-            raise TypeError("axiom: expected a list of nodes (or a Branch), or None to use the"
-                            f"axiom defined in this LSystem, but got {axiom}")
-        nodelist = self._generate(axiom=axiom, generation=numsteps, dur=dur)
+        axiom = self.axiom
+        nodelist = self._generate(generation=numsteps, dur=dur)
         if self._makerests:
             nodelist = nodelist.makerests()
         return nodelist.branched()
@@ -970,7 +961,7 @@ def window(winsize: int,
     collected = []  # type: List[Node]
     deq = deque([], maxlen=winsize)  # type: t.Deque[Node]
     EMPTY = Node("<EMPTY>", weight=0)
-    flatroot = root.flatview() if isinstance(root, NodeList) else iterlib.flattenlist(root)
+    flatroot = root.flatview() if isinstance(root, NodeList) else iterlib.flatlist(root)
     for node in iterlib.chain( flatroot, [EMPTY]*(winsize-1) ):
         if (skipopcodes and node.weight == 0 and node is not EMPTY) and not node.is_branchnode():
             continue
@@ -1222,7 +1213,7 @@ def _branched(seq:Iter[U[Node, list]]) -> List[U[Node, list]]:
     """
     branch = root = []   # type: List[U[Node, List]]
     stack = []
-    for node in iterlib.flattenlist(seq):
+    for node in iterlib.flatlist(seq):
         branch.append(node)
         if node.name == BRANCHBEGIN:
             stack.append(branch)
@@ -1646,8 +1637,3 @@ def dumpnodes(nodes: Iter[Node]) -> None:
         return collected
     lines = rec(nodes, 0)
     print("\n".join(lines))
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-del makeConfig
