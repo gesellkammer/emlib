@@ -6,6 +6,8 @@ from math import sqrt
 from functools import lru_cache
 import subprocess
 import logging
+import os
+import tempfile
 
 import music21 as m21
 
@@ -32,7 +34,9 @@ _defaultconfig = {
     'm21.displayhook.format': 'lily.png',
     'show.split': True,
     'show.centSep': ',',
+    'show.scalefactor': 1.0, 
     'show.format': 'lily.png',
+    'show.external': False,
     'use_musicxml2ly': True,
     'app.png': '/usr/bin/feh',
     'displayhook.install': True,
@@ -80,22 +84,6 @@ def getConfig() -> conftools.ConfigDict:
     logger.warning("getConfig is deprecated, use config directly")
     return config
 
-    
-_initdone = False
-
-
-def _init() -> None:
-    global _initdone
-    if _initdone:
-        return
-    if config["m21.displayhook.install"]:
-        # displayhook for m21 objects
-        m21_ipythonhook()
-    if config["displayhook.install"]:
-        # displayhook for our own objects (Note, Chord, etc)
-        set_ipython_displayhook()
-    _initdone = True
-    
 
 def asNote(n, amp=None):
     # type: (t.U[Note, int, float, str, t.Tup[t.U[str, float], float]], float) -> Note
@@ -132,7 +120,7 @@ def asChord(chord):
 _AmpNote = namedtuple("Note", "note midi freq db step")
 
 
-def split_notes_by_amp(midinotes, amps, numgroups=8, maxnotes_per_group=8):
+def splitByAmp(midinotes, amps, numgroups=8, maxnotes_per_group=8):
     # type: (t.Iter[float], t.Iter[float], int, int) -> t.List[Chord]
     """
     split the notes by amp into groups (similar to a histogram based on amplitude)
@@ -174,7 +162,7 @@ def split_notes_by_amp(midinotes, amps, numgroups=8, maxnotes_per_group=8):
     return [Chord(ch) for ch in chords]
 
 
-def _notename_extract_cents(note):
+def _notenameExtractCents(note):
     # type: (str) -> int
     assert isinstance(note, str)
     if "+" in note:
@@ -196,6 +184,29 @@ class Pitch:
         return f"Pitch(midinote={self.midinote}, cents={self.cents}"
 
 
+def _jupyterMakeImage(path):
+    from IPython.core.display import Image
+    scalefactor = config.get('show.scalefactor', 1.0)
+    if scalefactor != 1.0:
+        imgwidth, imgheight = _imgSize(path)
+        width = imgwidth * scalefactor
+    else:
+        width = None
+    return Image(filename=path, embed=True, width=width) # ._repr_png_()
+    
+
+def _jupyterShowImage(path):
+    img = _jupyterMakeImage(path)
+    return _jupyter_display(img)
+    
+
+def _pngShow(image, external=False):
+    if external or not _state['inside_jupyter']:
+        _pngOpenExternal(image)
+    else:
+        _jupyterShowImage(image)
+        
+
 class _Base:
     _showableInitialized = False
 
@@ -211,7 +222,7 @@ class _Base:
     def freqratio(self, ratio):
         return self.transpose(r2i(ratio))
 
-    def show(self, **options):
+    def show(self, external=None, **options):
         """
         Show this as an image
 
@@ -220,9 +231,10 @@ class _Base:
         NB: to use the music21 show capabilities, use note.asmusic21().show(...) or
             m21show(note.asmusic21())
         """
+        external = external if external is not None else config['show.external']
         png = self.makeImage(**options)
-        return _open_png(png)
-
+        return _pngShow(png, external=external)
+        
     def _changed(self):
         # type: () -> None
         pass
@@ -250,16 +262,23 @@ class _Base:
         pass
 
     @classmethod
-    def _ipython_displayhook(cls):
+    def _ipythonDisplayhook(cls):
         if cls._showableInitialized:
             return
         logger.debug("music: setting ipython displayhook")
         from IPython.core.display import Image
 
         def reprpng(obj):
-            return Image(filename=obj.makeImage(), embed=True)._repr_png_()
+            imgpath = obj.makeImage()
+            scalefactor = config.get('show.scalefactor', 1.0)
+            if scalefactor != 1.0:
+                imgwidth, imgheight = _imgSize(imgpath)
+                width = imgwidth * scalefactor
+            else:
+                width = None
+            return Image(filename=imgpath, embed=True, width=width)._repr_png_()
             
-        _ipython_displayhook(cls, reprpng, fmt='image/png')
+        _ipythonDisplayhook(cls, reprpng, fmt='image/png')
 
     def _playDur(self):
         return config['play.dur']
@@ -318,7 +337,6 @@ class _Base:
         outfile = self._rec(delay=0, dur=dur, gain=gain, csdinstr=csdinstr, outfile=outfile,
                             sr=sr, chan=chan, block=config['rec.block'], fade=fade)
         return outfile
-        
 
 _globalstate = {}
 
@@ -500,6 +518,14 @@ class Note(_Base):
         """
         return self + (cents/100.)
 
+    @property
+    def h(self):
+        return self + 0.5
+
+    @property
+    def f(self):
+        return self - 0.5
+        
     def shift(self, freq):
         # type: (float) -> Note
         """
@@ -666,6 +692,7 @@ class Note(_Base):
     def _csoundEvents(self, delay, dur, chan, gain, fade=0):
         amp, midi = self.amp*gain, self.midi
         event = [delay, dur, chan, amp, midi, amp, midi, fade]
+        event = _eventArgs(delay, dur, chan, amp, midi, endamp=amp, endmidi=midi, fade=fade)
         return [event]
         
     def gliss(self, dur, endpitch, endamp=None) -> 'Event':
@@ -678,6 +705,16 @@ def F(x: t.U[Fraction, float, int]) -> Fraction:
 
 def gliss(pitch, endpitch, dur, start=0, amp=None, endamp=None, label=""):
     return Event()
+
+
+def _eventArgs(delay, dur, chan, amp, midi, endamp=None, endmidi=None, fade=None, *pargs):
+    endamp = endamp if endamp is not None else amp
+    endmidi = endmidi if endmidi is not None else midi
+    fade = fade if fade is not None else config['play.fade']
+    ev = [delay, dur, chan, amp, midi, endamp, endmidi, fade]
+    if pargs:
+        ev.extend(pargs)
+    return ev
 
 
 class Event(Note):
@@ -735,11 +772,23 @@ class Event(Note):
                      start=start if start is not None else self.start,
                      label=label if label is not None else self.label)
         
-    def asmusic21(self, *args, **kws):
+    def asmusic21(self, *args, pure=False, **kws):
         # type: (...) -> m21.note.Note
-        note = Note.asmusic21(self, *args, **kws)
-        note.duration = m21.duration.Duration(self.dur)
-        return note
+        if pure or self.endmidi == self.midi:
+            note = Note.asmusic21(self, *args, **kws)
+            note.duration = m21.duration.Duration(self.dur)
+            return note
+        else:
+            voice = m21.stream.Voice()
+            if self.start > 0:
+                voice.append(m21.note.Rest(quarterLength=self.start))
+            n0 = m21.note.Note(pitch=self.midi, quarterLenght=self.dur)
+            n1 = m21.note.Note(pitch=self.endmidi, quarterLength=0.125)
+            # n1.priority = -1
+            voice.append(n0)
+            voice.append(m21.spanner.Glissando([n0, n1]))
+            voice.append(n1)
+            return voice
 
     def _playDur(self):
         return self.dur
@@ -787,7 +836,7 @@ class EventGroup(_Base, list):
         return hash(tuple(hash(event) for event in self))
 
     def asmusic21(self, pure=False):
-        streams = [event.asmusic21(pure=True) for event in self]
+        streams = [event.asmusic21() for event in self]
         score = m21.stream.Score()
         for stream in streams:
             score.append(stream)
@@ -813,7 +862,7 @@ class NoteSeq(_Base, list):
     A seq. of Notes
     """
 
-    def __init__(self, *notes):
+    def __init__(self, *notes, dur=1):
         # type: (Opt[Seq[Note]]) -> None
         self._hash = None
         self._eventSeq = None
@@ -822,6 +871,7 @@ class NoteSeq(_Base, list):
             if len(notes) == 1 and lib.isiterable(notes[0]):
                 notes = notes[0]
             self.extend(map(asNote, notes))
+        self.dur = dur
 
     def __getitem__(self, *args):
         out = list.__getitem__(self, *args)
@@ -834,7 +884,8 @@ class NoteSeq(_Base, list):
         self._hash = None
         self._eventSeq = None
 
-    def asEventSeq(self, dur=1):
+    def asEventSeq(self, dur=None):
+        dur = dur or self.dur
         if self._eventSeq is None:
             self._eventSeq = EventSeq([Event(pitch=note.midi, amp=note.amp, start=dur*i, dur=dur) for i, note in enumerate(self)])
         return self._eventSeq
@@ -867,7 +918,8 @@ class NoteSeq(_Base, list):
         return self._hash
 
     def _csoundEvents(self, *args, **kws):
-        return self.asEventSeq()._csoundEvents(*args, **kws)
+        dur = kws.get('dur', self.dur)
+        return self.asEventSeq(dur=dur)._csoundEvents(*args, **kws)
 
 
 class ChordSeq(_Base, list):
@@ -1072,7 +1124,7 @@ class Chord(_Base, list):
         note = asNote(note)
         if note.freq < 17:
             logger.debug(f"appending a note with very low freq: {note.freq}")
-        super(self.__class__, self).append(note)
+        list.append(self, note)
 
     def extend(self, notes):
         # type: (t.Iter[t.U[Note, float, str]]) -> None
@@ -1136,7 +1188,7 @@ class Chord(_Base, list):
         # type: (int, int) -> t.List[Chord]
         midinotes = [note.midi for note in self]
         amps = [note.amp for note in self]
-        return split_notes_by_amp(midinotes, amps, numchords,
+        return splitByAmp(midinotes, amps, numchords,
                                   max_notes_per_chord)
 
     def sortbyamp(self, reverse=True, inplace=True):
@@ -1211,10 +1263,8 @@ class Chord(_Base, list):
         return csdinstr.recEvents(outfile=outfile, events=events, sr=sr, nchnls=chan,
                                   block=block)
         
-    def asSeq(self, dur=0.5) -> 'NoteSeq':
-        return NoteSeq(*self)
-        # events = [Event(n.pitch, amp=n.amp, start=i*dur, dur=dur) for i, note in enumerate(self)]
-        # return EventSeq(events)
+    def asSeq(self, dur=None) -> 'NoteSeq':
+        return NoteSeq(*self, dur=dur)
 
     def __repr__(self):
         lines = []
@@ -1225,13 +1275,16 @@ class Chord(_Base, list):
                 return s.ljust(spaces)
             return s.rjust(-spaces)
 
+        cls = self.__class__.__name__
+        indent = " " * len(cls)
+            
         for i, n in enumerate(sorted(self.notes, key=lambda note:note.midi, reverse=True)):
             elements = n._asTableRow()
             line = " ".join(justify(element, justs[i]) for i, element in enumerate(elements))
             if i == 0:
-                line = "Chord | " + line
+                line = f"{cls} | " + line
             else:
-                line = "      | " + line
+                line = f"{indent} | " + line
             lines.append(line)
         return "\n".join(lines)
 
@@ -1402,22 +1455,28 @@ def _m21show(obj, fmt=None, wait=False):
         pool.submit(obj.show, fmt)
 
 
-def _open_png(path, wait=False):
+def _pngOpenExternal(path, wait=False):
     app = config['app.png']
-    proc = subprocess.Popen([app, path])
+    proc = subprocess.Popen(f'{app} "{path}"', shell=True)
     if wait:
         proc.wait()
 
 
-def _ipython_displayhook(cls, func, fmt='image/png'):
+try:
+    from IPython.core.display import display as _jupyter_display
+except ImportError:
+    _jupyter_display = _pngOpenExternal
+
+
+def _ipythonDisplayhook(cls, func, fmt='image/png'):
     """ 
     Register func as a displayhook for class `cls`
     """
+    if not _state['inside_jupyter']:
+        logger.debug("_ipythonDisplayhook: not inside IPython/jupyter, skipping")
+        return 
     import IPython
     ip = IPython.get_ipython()
-    if ip is None:
-        logger.debug("_ipython_displayhook: not inside IPython/jupyter, skipping")
-        return 
     formatter = ip.display_formatter.formatters[fmt]
     return formatter.for_type(cls, func)
 
@@ -1428,103 +1487,32 @@ def _ipython_displayhook(cls, func, fmt='image/png'):
 #
 # ------------------------------------------------------------
 
-@lib.returns_tuple(["chords", "stream"])
-def chords_to_music21(chords, labels=None):
-    # type: (t.Seq[Chord], t.Seq[str]) -> t.Tup[t.List[Chord], m21.stream.Stream]
-    """
-    This function can be used after calling split_notes_by_amp 
-    to generate a music21 stream
 
-    chords: a seq of chords, where each chord is a seq of midinotes
-    labels: labels to use for the chords, or None
-
-    Returns: chords (a List of Chords), music21 stream
-    
-    Example
-    ~~~~~~~
-
-    >>> chords = [(60, 63, 65), (40, 45, 48)]
-    """
-    stream = m21.stream.Stream()
-    chords2 = []
-    for chord in chords:
-        if chord:
-            notes = [Note(note.midi) for note in chord]
-            chord = Chord(notes)
-            chords2.append(chord)
-    chords3 = reversed(chords2)
-    for i, chord in enumerate(chords3):
-        ch = chord.as_m21()
-        if labels is not None:
-            ch.addLyric(labels[i])
-        stream.append(ch)
-    return chords2, stream
-
-
-def showChords(chords, labels=None, method=None):
-    if method is None:
-        method = config['show.format']
-    chords2, stream = chords_to_music21(chords, labels)
-    stream.show(method)
-
-
-show_chords = lib.deprecated(showChords)    
-
-
-def showChord(notes, align='vert', method=None):
-    """
-    Display the notes as a chord
-
-    notes      : a seq of midinotes or Note(s)
-    align      : 'horiz' or 'vert'. Show the notes as chord or arpeggio
-    showmethod : backend:method
-
-    backend     methods available
-
-    music21     musicxml
-                midi
-                lily
-
-    """
-    if method is None:
-        method = config['show.format']
-    if align == 'vert':
-        stream = m21.stream.Stream()
-        notes = [asNote(note) for note in notes]
-        chord = Chord(notes)
-        stream.append(chord.m21)
-        stream.show(method)
-    elif align == 'horiz':
-        chords = [Chord(n) for n in notes]
-        stream = splitchords(chords)
-        stream.show(method)
-        return stream
-
-show_chord = lib.deprecated(showChord)
-
-
-def m21_ipythonhook(enable=True) -> None:
+def _m21_ipythonhook(enable=True) -> None:
     """
     Set an ipython-hook to display music21 objects inline on the
     ipython notebook
     """
-    from IPython.core.getipython import get_ipython
-    ip = get_ipython()
-    if ip is None:
-        logger.debug("m21_ipythonhook: not inside ipython/jupyter, skipping")
+    if not _state['inside_jupyter']:
+        logger.debug("_m21_ipythonhook: not inside ipython/jupyter, skipping")
         return 
+    from IPython.core.getipython import get_ipython
     from IPython.core import display
+    ip = get_ipython()
     formatter = ip.display_formatter.formatters['image/png']
     if enable:
         def showm21(stream):
-            return display.Image(filename=str(stream.write('lily.png')))._repr_png_()
+            fmt = config.get('m21.displayhook.format', 'xml.png')
+            filename = str(stream.write(fmt))
+            return display.Image(filename=filename)._repr_png_()
 
         dpi = formatter.for_type(m21.Music21Object, showm21)
         return dpi
     else:
         logger.debug("disabling display hook")
         formatter.for_type(m21.Music21Object, None)
-        
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #
 # notenames
@@ -1660,8 +1648,8 @@ def _asfreq(n):
         raise ValueError("cannot convert a %s to a frequency" % str(n))
 
 
-def set_ipython_displayhook():
-    _Base._ipython_displayhook()
+def setIpythonDisplayhook():
+    _Base._ipythonDisplayhook()
 
 
 def chordNeedsSplit(chord, splitpoint=60):
@@ -1688,10 +1676,10 @@ def _bestClef(notes):
         return m21.clef.Treble8vaClef()
     elif mean > 58:
         return m21.clef.TrebleClef()
-    elif mean > 36:
-        return m21.clef.BassClef()
     else:
-        return m21.clef.Bass8vbClef()
+        return m21.clef.BassClef()
+    # else:
+    #     return m21.clef.Bass8vbClef()
     
 def _splitNotes(chord, split):
     above, below = [], []
@@ -1747,26 +1735,60 @@ def splitChords(chords, split=60, showcents=True):
                 
 
 @lru_cache(maxsize=1000)
-def makeImage(obj, outfile=None, **options) -> str:
+def makeImage(obj, outfile=None, fmt=None, **options) -> str:
     """
     options: any argument passed to .asmusic21
 
     NB: we put it here in order to make it easier to cache the images
     """
     stream = obj.asmusic21(**options)
-    fmt = config['show.format'].split(".")[0] + ".png"
+    fmt = fmt if fmt is not None else config['show.format'].split(".")[0] + ".png"
     logger.debug(f"makeImage: using format: {fmt}")
     method, fmt3 = fmt.split(".")
-    if outfile is None:
-        import tempfile
-        outfile = tempfile.mktemp(suffix="." + fmt3)
     if method == 'lily' and config['use_musicxml2ly']:
+        if outfile is None:
+            outfile = tempfile.mktemp(suffix="." + fmt3)
         path = m21tools.makeLily(stream, fmt3, outfile=outfile)
     else:
-        path = stream.write(fmt, outfile)
+        tmpfile = stream.write(fmt)
+        if outfile is not None:
+            os.rename(tmpfile, outfile)
+            path = outfile
+        else:
+            path = tmpfile
     return str(path)
 
 
+def _imgSize(path):
+    """ returns (width, height) """
+    import PIL
+    im = PIL.Image.open(path)
+    return im.size
+
+
+def resetImageCache():
+    """
+    Reset the image cache. Useful when changing display format
+    """
+    makeImage.cache_clear()
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+_state = {}
+
+
+def _init() -> None:
+    if _state.get('initdone', False):
+        return
+    _state['inside_jupyter'] = lib.inside_jupyter()
+    if config["m21.displayhook.install"]:
+        # displayhook for m21 objects
+        _m21_ipythonhook()
+    if config["displayhook.install"]:
+        # displayhook for our own objects (Note, Chord, etc)
+        setIpythonDisplayhook()
+    _state['initdone'] = True
+    
 
 _init()

@@ -17,31 +17,20 @@ import sys
 _EPS = sys.float_info.epsilon
 
 
-A4 = 442   # type: float
+_A4 = 442.0
 
 
-def set_reference_freq(a4):
-    # type: (float) -> None
+def set_reference_freq(a4: float) -> None:
     """
     set the global value for A4
 
     NB: you can get the current value calling m2f(69)
-    NB2: to set it temporarilly, for instance, to 435 Hz, use 
-
-    with temporary_A4(435):
-        ...
     """
-    global A4
-    A4 = a4
-    try:
-        import peach
-        peach.set_reference_freq(a4)
-    except ImportError:
-        pass
-
+    global _A4
+    _A4 = a4
     
-def f2m(freq):
-    # type: (float) -> float
+    
+def f2m(freq: float) -> float:
     """
     Convert a frequency in Hz to a midi-note
 
@@ -49,25 +38,17 @@ def f2m(freq):
     """
     if freq < 9:
         return 0
-    return 12.0 * math.log(freq/A4, 2) + 69.0
+    return 12.0 * math.log(freq/_A4, 2) + 69.0
 
 
-def f2m_np(*args, **kws):
-    warnings.warn("deprecated, use emlib.pitchnp.f2m_np")
-    from emlib import pitchnp
-    return pitchnp.f2m_np(*args, **kws)
-    
-
-def freqround(freq):
-    # type: (float) -> float
+def freqround(freq: float) -> float:
     """
     round freq to next semitone
     """
     return m2f(round(f2m(freq)))
     
 
-def m2f(midinote):
-    # type: (float) -> float
+def m2f(midinote: float) -> float:
     """
     Convert a midi-note to a frequency
 
@@ -76,13 +57,7 @@ def m2f(midinote):
     :type midinote: float|np.ndarray
     :rtype : float
     """
-    return 2**((midinote - 69) / 12.) * A4
-
-
-def m2f_np(*args, **kws):
-    warnings.warn("deprecated, use emlib.pitchnp")
-    from emlib import pitchnp
-    return pitchnp.m2f_np(*args, **kws)
+    return 2**((midinote - 69) / 12.) * _A4
 
 
 _notes = (
@@ -172,8 +147,7 @@ _notes2 = {
 }
 
 
-def n2m(note):
-    # type: (str) -> float
+def n2m(note: str) -> float:
     # first format: C#2, D+2, Db4+20
     # snd format  : 2C#, 4D+, 7Eb-14
     regexes = [
@@ -221,16 +195,14 @@ def n2m(note):
     return (octave + 1) * 12 + pc + micro
 
 
-def f2n(freq):
-    # type: (float) -> str
+def f2n(freq: float) -> str:
     """
     Convert freq. to notename
     """
     return m2n(f2m(freq))
 
 
-def n2f(note):
-    # type: (str) -> float
+def n2f(note: str) -> float:
     """
     notename -> freq
     """
@@ -239,8 +211,7 @@ def n2f(note):
     return f
 
 
-def db2amp(db):
-    # type: (float) -> float
+def db2amp(db: float) -> float:
     """ 
     convert dB to amplitude (0, 1) 
 
@@ -255,8 +226,7 @@ def db2amp_np(*args, **kws):
     return pitchnp.db2amp_np(*args, **kws)
 
 
-def amp2db(amp):
-    # type: (float) -> float
+def amp2db(amp: float) -> float:
     """
     convert amp (0, 1) to dB
 
@@ -268,12 +238,6 @@ def amp2db(amp):
     """
     amp = max(amp, _EPS)
     return math.log10(amp)*20
-
-
-def amp2db_np(*args, **kws):
-    warnings.warn("deprecated, use emlib.pitchnp")
-    from emlib import pitchnp
-    return pitchnp.amp2db_np(*args, **kws)
 
 
 def logfreqs(notemin=0, notemax=139, notedelta=1.0):
@@ -305,8 +269,7 @@ def pianofreqs(start='A0', stop='C8'):
     return pitchnp.pianofreqs(start=start, stop=stop)
 
 
-def ratio2interval(ratio):
-    # type: (float) -> float
+def ratio2interval(ratio: float) -> float:
     """
     Given two frequencies f1 and f2, calculate the interval between them
     
@@ -317,14 +280,7 @@ def ratio2interval(ratio):
     return 12 * math.log(ratio, 2)
 
 
-def ratio2interval_np(*args, **kws):
-    warnings.warn("deprecated, use emlib.pitchnp")
-    from emlib import pitchnp
-    return pitchnp.ratio2interval_np(*args, **kws)
-
-
-def interval2ratio(interval):
-    # type: (float) -> float
+def interval2ratio(interval: float) -> float:
     """
     Calculate the ratio r so that f1*r gives f2 so that
     the interval between f2 and f1 is the given one
@@ -336,19 +292,13 @@ def interval2ratio(interval):
     return 2 ** (interval / 12.)
 
 
-def interval2ratio_np(*args, **kws):
-    warnings.warn("deprecated, use emlib.pitchnp")
-    from emlib import pitchnp
-    return pitchnp.interval2ratio_np(*args, **kws)
-
-
 r2i = ratio2interval
 i2r = interval2ratio 
 
 
-def pitchbend2cents(pitchbend, maxcents=200):
+def pitchbend2cents(pitchbend: int, maxcents=200) -> int:
     return int(((pitchbend/16383.0)*(maxcents*2.0))-maxcents+0.5)
 
 
-def cents2pitchbend(cents, maxcents=200):
+def cents2pitchbend(cents:int, maxcents=200) -> int:
     return int((cents+maxcents)/(maxcents*2.0)* 16383.0 + 0.5)

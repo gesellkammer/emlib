@@ -11,6 +11,7 @@ from emlib.lib import runonce as _runonce
 from emlib.snd import csound
 from string import Template as _Template
 from collections import namedtuple as _namedtuple
+import time
 
 
 __all__ = [
@@ -384,6 +385,10 @@ class AbstrSynth:
     def isPlaying(self):
         pass
 
+    def wait(self):
+        while self.isPlaying():
+            time.sleep(0.05)
+
 
 class Synth(AbstrSynth):
     """
@@ -406,6 +411,7 @@ class Synth(AbstrSynth):
     def stop(self, delay=0) -> None:
         self.getManager().unsched(self.synthid, delay=delay)
         self._playing = False
+
 
 
 class SynthGroup(AbstrSynth):

@@ -338,11 +338,9 @@ class ConfigDict(CheckedDict):
         super().update(d)
 
     def openInEditor(self, app=None):
-        cfgpath = self.getPath()
-        if not os.path.exists(cfgpath):
-            self._save()
+        self._save()
         if app is None:
-            _openInEditor(cfgpath)
+            _openInEditor(self.getPath())
         else:
             subprocess.call([app, self.getPath()])
         _waitForClick()

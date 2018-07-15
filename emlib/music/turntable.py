@@ -1,11 +1,10 @@
 from emlib.pitch import m2f, f2m, n2m, r2i
 from emlib.mus import Note, Chord
-import typing as _
+from emlib import typehints as t
 import warnings as _warnings
 
 
-
-Pitch = _.Union[float, str, Note]
+Pitch = t.U[float, str, Note]
 
 
 def _asmidi(x:Pitch) -> float:
@@ -45,6 +44,14 @@ def soundingPitch(pitch:Pitch, shift=0, rpm=45, origRpm=45) -> Note:
     return Note(f2m(freq))
 
 
+def ratio2shift(ratio:float):
+    return (ratio - 1) * 100
+
+
+def shift2ratio(shift:float):
+    return (shift + 100) / 100
+
+
 def shiftPercent(newPitch:Pitch, origPitch:Pitch, newRpm=45, origRpm=45) -> float:
     """
     Find the pitch shift (as percent, 0%=no shift) to turn origPitch into newPitch
@@ -67,7 +74,7 @@ def shiftRatio(newPitch:Pitch, origPitch:Pitch, newRpm=45, origRpm=45) -> float:
 
 
 def findShifts(newPitch:Pitch, origPitch:Pitch, rpm=45, maxshift=10, possibleRpms=(33.33, 45)
-               ) -> _.List[_.Tuple[int, float]]:
+               ) -> t.List[t.Tup[int, float]]:
     """
     Given a recorded pitch at a given rpm, find configuration(s) (if possible)
     of rpm and shift which produces the desired pitch.
@@ -94,6 +101,15 @@ def findShifts(newPitch:Pitch, origPitch:Pitch, rpm=45, maxshift=10, possibleRpm
             solutions.append(solution)
     return solutions
 
+def findRatios(newPitch:Pitch, origPitch:Pitch, rpm=45, maxdev=0.1, possibleRpms=(33.33, 45)
+               ) -> t.List[t.Tup[int, float]]:
+    """
+    Returns a list of (rpm, ratio)
+    """
+    shiftSolutions = findShifts(newPitch=newPitch, origPitch=origPitch, rpm=rpm, maxshift=maxdev*100, possibleRpms=possibleRpms)
+    ratioSolutions = [(rpm, shift2ratio(shift)) for rpm, shift in shiftSolutions]
+    return ratioSolutions
+    
 
 def findSourcePitch(sounding:Pitch, shift:float, rpm=45, origRpm=45) -> Note:
     """
@@ -105,7 +121,7 @@ def findSourcePitch(sounding:Pitch, shift:float, rpm=45, origRpm=45) -> Note:
     return Note(f2m(origFreq))
 
 
-def _normalizeRpm(rpm):
+def _normalizeRpm(rpm: float) -> float:
     if 33 <= rpm <= 33.34:
         rpm = 33.333
     assert rpm in (33.333, 45, 78)
@@ -113,19 +129,41 @@ def _normalizeRpm(rpm):
 
 
 class TurntableChord(Chord):
-    def __init__(self, rpm, *notes):
+    def __init__(self, rpm:float, notes:t.List[Pitch], currentRpm=None, ratio=1) -> None:
         rpm = _normalizeRpm(rpm)
-        super().__init__(notes)
+        origChord = Chord(notes)
         self.rpm = rpm
+        self.ratio = ratio
+        self.original = origChord
+        self.currentRpm = currentRpm or rpm
+        interval = self.interval
+        notes = [note.transpose(interval) for note in origChord]
+        super().__init__(notes)
+        
+    @property
+    def interval(self):
+        return r2i(self.speed)
 
-    def at(self, rpm, ratio=1):
+    @property
+    def speed(self):
+        return (self.currentRpm / self.rpm) * self.ratio
+    
+    def at(self, rpm=None, ratio=1):
+        rpm = rpm or self.currentRpm
         rpm = _normalizeRpm(rpm)
-        finalratio = ratio * (rpm / self.rpm)
-        ch = self.asChord().transpose(r2i(finalratio))
-        ch.label = f"{rpm}x{int(ratio*100)}%"   
-        return ch 
+        return TurntableChord(self.rpm, self.original, currentRpm=rpm, ratio=ratio)
 
-    def asChord(self):
-        notes = [note for note in self]
-        return Chord(notes)
+    def findRatios(self, pitch: Pitch, maxdev=0.1) -> t.List[t.Tup[int, float]]:
+        if len(self) > 1:
+            raise ValueError("This chord has multiple pitches")
+        return findRatios(newPitch=pitch, origPitch=self.original[0], rpm=self.rpm, maxdev=maxdev)
 
+    def findShifts(self, pitch:Pitch, maxshift=10):
+        return findShifts(newPitch=pitch, origPitch = self.original[0], rpm=self.rpm, maxshift=maxshift)
+
+    def findRatio(self, pitch: Pitch, maxdev=0.1) -> t.Opt[float]:
+        """
+        find ratio to make this turntable sound like pitch at the current rpm
+        """
+        ratios = self.findRatios(pitch=pitch, maxdev=maxdev)
+        return ratios[0][1] if ratios else None
