@@ -1,4 +1,5 @@
 import sys
+import os
 import ctcsound
 import uuid as _uuid
 from typing import Dict, List, Optional as Opt
@@ -7,12 +8,14 @@ import atexit as _atexit
 import textwrap as _textwrap
 import logging
 from emlib import conftools
-from emlib.lib import runonce as _runonce
 from emlib.snd import csound
 from string import Template as _Template
 from collections import namedtuple as _namedtuple
-import time
+from contextlib import contextmanager as _contextmanager
 
+import time
+import json
+import signal
 
 __all__ = [
     'makeInstr',
@@ -41,7 +44,8 @@ _defaultconfig = {
     'fallback_backend': 'portaudio',
     'A4': 442,
     'multisine.maxosc': 200,
-    'fail_if_unmatched_pargs': False
+    'fail_if_unmatched_pargs': False,
+    'wait_poll_interval': 0.020
 }
 
 _validator = {
@@ -53,7 +57,7 @@ _validator = {
     'A4::range': (410, 460)
 }
 
-config = conftools.makeConfig(modulename.replace(".", ":"), default=_defaultconfig, validator=_validator)
+config = conftools.ConfigDict(modulename.replace(".", ":"), default=_defaultconfig, validator=_validator)
         
 
 _SynthDef = _namedtuple("_SynthDef", "qname instrnum")
@@ -87,17 +91,24 @@ endin
     instr_turnoff=_csound_reserved_instr_turnoff)
 
 
-@_runonce
+_registry = {}
+
+
 def fluidsf2Path():
     """
     Returns the path of the fluid sf2 file
     """
+    key = 'fluidsf2_path'
+    path = _registry.get(key)
+    if path:
+        return path
     if sys.platform == 'linux':
-        sf2path = "/usr/share/sounds/sf2/FluidR3_GM.sf2"
+        path = "/usr/share/sounds/sf2/FluidR3_GM.sf2"
     else:
         raise RuntimeError("only works for linux right now")
-    return sf2path
-
+    _registry[key] = path
+    return path
+   
 
 def testout(dur=20, nchnls=2, group="default", sr:int=None, backend:str=None, outdev="dac"):
     """
@@ -117,14 +128,47 @@ def testout(dur=20, nchnls=2, group="default", sr:int=None, backend:str=None, ou
     return instr.play(dur=dur)
 
 
+def _sigint_handler(sig, frame):
+    raise KeyboardInterrupt("SIGINT (CTRL-C) while waiting")
+
+
+def _set_sigint_handler():
+    if _registry.get('sigint_handler_set'):
+        return 
+    original_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, _sigint_handler)
+    _registry['original_sigint_handler'] = original_handler
+    _registry['sigint_handler_set'] = True
+
+
+def _remove_sigint_handler():
+    if not _registry.get('sigint_handler_set'):
+        return 
+    signal.signal(signal.SIGINT, _registry['original_sigint_handler'])
+    _registry['sigint_handler_set'] = False
+
+
+@_contextmanager
+def safe_sigint():
+    _set_sigint_handler()
+    try:
+        yield
+    except:
+        raise  # Exception is dropped if we don't reraise it.
+    finally:
+        _remove_sigint_handler()
+        
+
 class CsoundError(Exception): 
     pass
 
 
 class CsoundEngine:
 
+    tmpdir = "/tmp/emlib.csoundEngine"
+
     def __init__(self, sr:int=None, ksmps:int=None, backend:str=None, outdev="dac", a4:int=None, nchnls:int=None,
-                 name:str=None):
+                 name:str=None, oscport:int=0):
         """
         NB: don't create instances directly, call getEngine
         """
@@ -154,8 +198,11 @@ class CsoundEngine:
         self.a4 = a4
         self.ksmps = ksmps
         self.outdev = outdev
-        self.name = name
+        self.uuid = _getUUID()
+        self.name = name or "Unnamed"
         self.nchnls = nchnls if nchnls is not None else cfg['numchannels']
+        self.oscport = oscport
+        self.qualifiedName = f"{self.name}:{self.uuid}"
         self._fracnumdigits = 4
         self._cs = None
         self._pt = None
@@ -166,13 +213,32 @@ class CsoundEngine:
         self._outcallbacks = {}
         self._isOutCallbackSet = False
         self._globalcode = set()
-        self._startCsound()
-
+        self._start()
+        
     def __repr__(self):
         return f"CsoundEngine(name={self.name}, backend={self.backend}, out={self.outdev}, nchnls={self.nchnls}"
 
     def __del__(self):
         self.stop()
+
+    @staticmethod
+    def getTempDir():
+        return CsoundEngine.tmpdir
+
+    def _writeEngineInfo(self):
+        info = self._getInfo()
+        filename = self._getInfoPath()
+        with open(filename, "w") as f:
+            json.dump(info, f)
+
+    def _getInfoPath(self):
+        tmpdir = self.getTempDir()
+        basename = self.qualifiedName + '.json'
+        filename = os.path.join(tmpdir, basename)
+        return filename
+
+    def _getInfo(self):
+        return {'name': self.name, 'uuid': self.uuid, 'oscport': self.oscport}
 
     def _getInstance(self, instnum):
         n = self._instcounter.get(instnum, 0)
@@ -216,11 +282,18 @@ class CsoundEngine:
         self._pt = None
         self._instcounter = {}
         self._instrRegistry = {}
-        
-    def restart(self) -> None:
-        self.stop()
+        infopath = self._getInfoPath()
+        if os.path.exists(infopath):
+            os.remove(infopath)
+
+    def _start(self):
+        self._writeEngineInfo()
         self._startCsound()
 
+    def restart(self) -> None:
+        self.stop()
+        self._start()
+        
     def _outcallback(self, _, chan, valptr, chantypeptr):
         func = self._outcallbacks.get(chan)
         if not func:
@@ -385,10 +458,21 @@ class AbstrSynth:
     def isPlaying(self):
         pass
 
-    def wait(self):
-        while self.isPlaying():
-            time.sleep(0.05)
+    def wait(self, pollinterval=None, sleepfunc=None):
+        """
+        Wait until this synth has stopped
 
+        pollinterval: polling interval in seconds
+        sleepfunc: the function to call when sleeping, defaults to time.sleep
+        """
+        if pollinterval is None:
+            pollinterval = max(0.005, config['wait_poll_interval'])
+        if sleepfunc is None: 
+            sleepfunc = time.sleep
+        with safe_sigint():
+            while self.isPlaying():
+                sleepfunc(pollinterval)
+        
 
 class Synth(AbstrSynth):
     """
@@ -413,7 +497,6 @@ class Synth(AbstrSynth):
         self._playing = False
 
 
-
 class SynthGroup(AbstrSynth):
     """
     A SynthGroup is used to control multiple (similar) synths created
@@ -433,9 +516,9 @@ class SynthGroup(AbstrSynth):
 
 
 class CsoundInstr:
-    __slots__ = ['body', 'name', 'initcode', 'group', '_numpargs', '_recproc']
+    __slots__ = ['body', 'name', 'initcode', 'group', 'meta', '_numpargs', '_recproc']
 
-    def __init__(self, name:str, body: str, initcode: str = None, group="default",
+    def __init__(self, name:str, body: str, initcode: str = None, group="default", meta=None,
                  ) -> None:
         """
         *** A CsoundInstr is created via makeInstr, DON'T CREATE IT DIRECTLY ***
@@ -454,6 +537,7 @@ class CsoundInstr:
         self.name = name if name is not None else _getUUID()
         self.body = body
         self.initcode = initcode if initcode else None
+        self.meta = meta if meta is not None else {}
         self._numpargs = None
         self._recproc = None
 
@@ -662,12 +746,13 @@ class _InstrManager:
         bucket[instrname] = instrnum 
         return instrnum
 
-    def defInstr(self, name, body, initcode=""):
+    def defInstr(self, name, body, initcode="", meta:dict=None):
         # type: (str, str, Opt[str]) -> CsoundInstr
         """
         name (str)     : a name to identify this instr, or None, in which case a UUID is created
         body (str)     : the body of the instrument
         initcode (str) : initialization code for the instr (ftgens, global vars, etc.)
+        meta (dict)    : A dictionary to store metadata
         """
         if name is None:
             instr = self.findInstrByBody(body=body, initcode=initcode)
@@ -688,7 +773,7 @@ class _InstrManager:
             logger.debug("old init: ")
             logger.debug(instr.initcode)
             self._resetSynthdefs(name)
-        instr = CsoundInstr(name=name, body=body, initcode=initcode, group=self.name)
+        instr = CsoundInstr(name=name, body=body, initcode=initcode, group=self.name, meta=meta)
         self.registerInstr(instr)
         return instr
 
@@ -920,5 +1005,9 @@ def InstrSines(numsines, group='default', sineinterp=True):
         name += ".interp"
     return makeInstr(body=body, name=name, group=group)
 
+
+_engineTempDir = CsoundEngine.getTempDir()
+if not os.path.exists(_engineTempDir):
+    os.makedirs(_engineTempDir)
 
 del Dict, Opt, List

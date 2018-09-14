@@ -37,6 +37,20 @@ def _asmidi(x: _Pitch) -> float:
     raise TypeError(f"expected a Note, a notename or a midinote, got {x}")
 
 
+def _parsePitches(*pitches):
+    midis = []
+    for p in pitches:
+        if isinstance(p, str):
+            midis.extend(map(n2m, p.split()))
+        elif isinstance(p, (Note, int, float)):
+            midis.append(_asmidi(p))
+        elif isinstance(p, (list, tuple)):
+            midis.extend(_parsePitches(*p))
+        else:
+            raise TypeError(p)
+    return midis
+
+
 def ringmod(*pitches):
     # type: (*_Pitch) -> t.List[Note]
     """
@@ -46,7 +60,9 @@ def ringmod(*pitches):
 
     Returns the notes of the sidebands
     """
-    freqs = [m2f(_asmidi(pitches)) for pitch in pitches]
+    midis = _parsePitches(*pitches)
+    freqs = list(map(m2f, midis))
+    # freqs = [m2f(_asmidi(pitch)) for pitch in pitches]
     sidebands = [_ringmod2f(f1, f2) for f1, f2 in combinations(freqs, 2)]
     sidebands = list(set(flatten(sidebands)))
     sidebands.sort()
@@ -61,7 +77,8 @@ def sumtones(*pitches):
     pitches: a seq. of Notes
     notes: a seq of notes as strings "C4", "C5+", etc. or frequencies.
     """
-    freqs = [m2f(_asmidi(p)) for p in pitches]
+    midis = _parsePitches(pitches)
+    freqs = list(map(m2f, midis))
     return [Note(f2m(f1+f2)) for f1, f2 in combinations(freqs, 2)]
     
 
@@ -73,21 +90,10 @@ def difftones(*pitches):
     
     SEE ALSO: difftones_sources, difftone_sources_in_range
     """
-    freqs = [m2f(_asmidi(pitch)) for pitch in flatten(pitches)]
+    midis = _parsePitches(*pitches)
+    freqs = [m2f(m) for m in midis]
     return [Note(f2m(abs(f2 - f1))) for f1, f2 in combinations(freqs, 2)]
     
-
-def difftones_show(*pitches):
-    # type: (*_Pitch) -> None
-    """
-    pitches: a seq. of notenames or midinotes
-    """
-    # type: (*Union[str, float]) -> None
-    midinotes = [_asmidi(pitch) for pitch in pitches]
-    diffs = [f2m(diff) for diff in difftones(*[m2f(midinote) for midinote in midinotes])]
-    from . import shownotes
-    shownotes.showChords([midinotes, diffs])
-
 
 def difftones_cubic(*notes):
     # type: (*_Pitch) -> t.List[Note]
@@ -145,6 +151,8 @@ def difftone_sources_in_range(difftone, minnote=None, maxnote="D8", resolution=0
 
     returns: a list of Difftones
     """
+    import warnings
+    warnings.warn("Deprecrated! Use difftone_sources")
     diffmidi = _asmidi(difftone)
     if minnote is None:
         minnote = diffmidi + 13
@@ -378,10 +386,10 @@ def difftone_sources(result: _Pitch,
     if display:
         # ipython?
         chordseq = ChordSeq([Chord(diff.note0, diff.note1, diff.diff) for diff in difftones])
-        jupyter_display = _get_jupyter_display()
-        if jupyter_display:
-            jupyter_display(chordseq)
-            jupyter_display(reclist)
+        if lib.inside_jupyter():
+            chordseq.show(split=midiresult+5)
+            disp = _get_jupyter_display()
+            disp(reclist)
         else:
             chordseq.show()
             print(reclist)
@@ -656,7 +664,7 @@ def difftones_beatings(pitch1, pitch2, maxbeatings=20, minbeatings=0.3, wave="sa
     return pairs2
 
 
-def fm_sidebands(carrierfreq, modfreq, index, minamp=0.01):
+def fm_sidebands(carrierfreq, modfreq, index, minamp=0.01, minfreq=0, maxfreq=0):
     # type: (float, float, int, float) -> t.List[t.Tup[float, float]]
     """
     Returns a list of bands which have the minimum relative amp `minamp`
@@ -675,5 +683,30 @@ def fm_sidebands(carrierfreq, modfreq, index, minamp=0.01):
             if freq1 != freq0 and freq1 > 0:
                 bands.append((freq1, amp))
     bands.sort()
+    if minfreq > 0 or maxfreq > 0:
+        maxfreq = maxfreq if maxfreq > 0 else 24000
+        bands = [band for band in bands if minfreq <= band[0] < maxfreq]
     return bands
 
+
+def _checkpitch(p):
+    if isinstance(p, str):
+        return True
+    if isinstance(p, (int, float)):
+        if p > 127:
+            raise ValueError(f"Expected a pitch (a notename or a midinote) but got {p}")
+    raise TypeError(f"Expected a str or a float, but got {type(p)}")
+
+
+def fm_chord(carrierfreq: float, modfreq: float, index: float, minamp=0.01, minpitch=None, maxpitch=None) -> Chord:
+    maxfreq = 24000 if maxpitch is None else asNote(maxpitch).freq
+    minfreq = 0 if minpitch is None else asNote(minpitch).freq
+    bands = fm_sidebands(carrierfreq=carrierfreq, modfreq=modfreq, index=index, minamp=minamp, minfreq=minfreq, maxfreq=maxfreq)
+    notes = [Note(f2m(freq), amp=amp) for freq, amp in bands]
+    return Chord(notes)
+    
+
+def fm_chord_ratio(carrier: _Pitch, ratio: float, index: float, minamp=0.01, minpitch=None, maxpitch=None) -> Chord:
+    carrierfreq = asNote(carrier).freq
+    modfreq = carrierfreq * ratio
+    return fm_chord(carrierfreq=carrierfreq, modfreq=modfreq, index=index, minamp=minamp, minpitch=minpitch, maxpitch=maxpitch)

@@ -60,49 +60,6 @@ def m2f(midinote: float) -> float:
     return 2**((midinote - 69) / 12.) * _A4
 
 
-_notes = (
-    '-1C', '-1C#', '-1D', '-1D#', '-1E', '-1F', 
-    '-1F#', '-1G', '-1G#', '-1A', '-1A#', '-1B', 
-    '0C', '0C#', '0D', '0D#', '0E', '0F', '0F#', 
-    '0G', '0G#', '0A', '0A#', '0B', '1C', '1C#', 
-    '1D', '1D#', '1E', '1F', '1F#', '1G', '1G#', 
-    '1A', '1A#', '1B', '2C', '2C#', '2D', '2D#', 
-    '2E', '2F', '2F#', '2G', '2G#', '2A', '2A#', 
-    '2B', '3C', '3C#', '3D', '3D#', '3E', '3F', 
-    '3F#', '3G', '3G#', '3A', '3A#', '3B', '4C', 
-    '4C#', '4D', '4D#', '4E', '4F', '4F#', '4G', 
-    '4G#', '4A', '4A#', '4B', '5C', '5C#', '5D', 
-    '5D#', '5E', '5F', '5F#', '5G', '5G#', '5A', 
-    '5A#', '5B', '6C', '6C#', '6D', '6D#', '6E', 
-    '6F', '6F#', '6G', '6G#', '6A', '6A#', '6B', 
-    '7C', '7C#', '7D', '7D#', '7E', '7F', '7F#', 
-    '7G', '7G#', '7A', '7A#', '7B', '8C', '8C#', 
-    '8D', '8D#', '8E', '8F', '8F#', '8G', '8G#', 
-    '8A', '8A#', '8B', '9C', '9C#', '9D', '9D#', 
-    '9E', '9F', '9F#')
-
-
-def m2n_(midinote):
-    # type: (float) -> str
-    base = int(midinote)
-    rest = midinote - base
-    if rest > 0.5:
-        base += 1
-        rest = rest - 1
-    rest = int(rest * 100 + 0.5)
-    if rest == 0:
-        reststr = ""  
-    elif rest == 50:
-        reststr = '+'
-    elif rest == -50:
-        reststr = '-'
-    elif rest > 0:
-        reststr = '+%d' % rest
-    elif rest < 0:
-        reststr = '-%d' % abs(rest)
-    return _notes[base] + reststr
-
-
 _notes3      = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
 _enharmonics = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", "C"]
 
@@ -164,9 +121,7 @@ def n2m(note: str) -> float:
     pitchstr = groups['pch']
     octavestr = groups['oct']
     microstr = groups['micro']
-    pc = _notes2.get(pitchstr[0].lower())
-    if pc is None:
-        raise ValueError("Could not parse pitch: %s" % str(m.groups()))
+    pc = _notes2[pitchstr[0].lower()]
     if len(pitchstr) == 2:
         alt = pitchstr[1]
         if alt == "#":

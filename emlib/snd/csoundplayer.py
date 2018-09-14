@@ -32,7 +32,7 @@ _validator = {
     'A4::range': (410, 460)
 }
 
-config = conftools.makeConfig("emlib:synthplayer", default=_defaultconfig, validator=_validator)
+config = conftools.ConfigDict("emlib:synthplayer", default=_defaultconfig, validator=_validator)
         
 
 class CsdInstrError(ValueError): 
@@ -326,6 +326,7 @@ class Synth(AbstrSynth):
     A user does NOT normally create a Synth. A Synth is created
     when a CsoundInstr is scheduled
     """
+
     def __init__(self, group:str, synthid:float) -> None:
         self.group = group
         self.synthid = synthid
@@ -342,12 +343,12 @@ class Synth(AbstrSynth):
         self._playing = False
 
 
-
 class SynthGroup(AbstrSynth):
     """
     A SynthGroup is used to control multiple (similar) synths created
     to work together (in additive synthesis, for example)
     """
+
     def __init__(self, synths: List[AbstrSynth]) -> None:
         self.synths = synths
 
@@ -423,6 +424,7 @@ class _InstrManager:
     a csound engine. It can have an exclusive CsoundPlayer associated,
     but this is an implementation detail.
     """
+
     def __init__(self, name:str="default") -> None:
         self.name: str = name
         self.instrDefs = {}  # type: Dict[str, '_CsoundInstr']

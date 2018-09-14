@@ -2,7 +2,7 @@ from emlib import conftools
 import sys
 import ctcsound
 
-config = conftools.makeConfig(
+config = conftools.ConfigDict(
     "emlib:synthplayer", 
     default = {
         'sr': 44100,
@@ -14,9 +14,6 @@ config = conftools.makeConfig(
     }
 )
 
-
-def getConfig():
-    return config
 
 
 _csd_multisine = '''
@@ -101,7 +98,7 @@ class MultiSineSynth:
         maxosc:
             the maximum number of oscillators.
         """
-        cfg = getConfig()
+        cfg = config
         sr = sr if sr is not None else cfg['sr']
         backend = backend if backend is not None else cfg[f'{sys.platform}.backend']
         self.sr = sr

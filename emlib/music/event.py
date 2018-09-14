@@ -20,6 +20,7 @@ from typing import Optional as Opt, Sequence as Seq, List, \
     Callable
 
 
+raise DeprecationWarning("This module is deprecated. Use emlib.mus")
 
 logger = logging.getLogger(f"emlib.event")
 

@@ -6,6 +6,9 @@ from math import sqrt, inf
 import bpf4 as bpf
 import typing as t
 import copy
+import logging
+
+logger = logging.getLogger("emlib.timescale")
 
 
 default = {
@@ -28,25 +31,31 @@ def indexDistance(seq, elem0, elem1, exact=True):
 
 class Solver:
     def __init__(self, *, values=None, dur=None, absError=None, relError=None, timeout=None, fixedslots=None, 
-                 maxIndexJump=None, maxRepeats=None, maxSlotDifference=None, minSlotDifference=None, 
+                 maxIndexJump=None, maxRepeats=None, maxSlotDelta=None, minSlotDelta=None, 
                  monotonous='up', minvalue=None, maxvalue=None, callback=None):
         """
-        maxIndexJump:   max index distance between two consecutive slots
-        absError:       absolute error
-        relError:       relative error (only one of absError or relError should be given)
-        timeout:        timeout for the solve function, in seconds
-        fixedslots:     a dictionary of the form {0: 0.5, 2: 3} would speficy that the 
-                        slot 0 should have a value of 0.5 and the slot 2 a value of 3
-        maxIndexJump:   max. distance, in indices, between two slots
-        maxRepeats:     how many consecutive slots can have the same value
-        maxSlotDifference: the max. difference between two slots
-        minSlotDifference: the min. difference between two slots
-        monotonous:     possible values: 'up', 'down'. It indicates that all values 
-                        should grow monotonously in the given direction
-        minvalue:       min. value for a slot
-        maxvalue:       max. value for a slot
-        callback:       a function of the form callback(problem, slots) -> None. 
-                        It should add constraints via problem.addConstraint  
+        Partition dur into timeslices
+
+        dur            sum of all values
+        values         possible values         
+        maxIndexJump   max index distance between two consecutive slots
+        absError       absolute error of dur
+        relError       relative error (only one of absError or relError should be given)
+        timeout        timeout for the solve function, in seconds
+        fixedslots     a dictionary of the form {0: 0.5, 2: 3} would speficy that the 
+                       slot 0 should have a value of 0.5 and the slot 2 a value of 3
+        maxIndexJump   max. distance, in indices, between two slots
+        maxRepeats     how many consecutive slots can have the same value
+        maxSlotDelta   the max. difference between two slots
+        minSlotDelta   the min. difference between two slots
+        monotonous     possible values: 'up', 'down'. It indicates that all values 
+                       should grow monotonously in the given direction
+        minvalue       min. value for a slot
+        maxvalue       max. value for a slot
+                       These are convenience values, we could just filter values (from param. `values`)
+                       which fall between these constraints (in fact this is what we do)
+        callback       a function of the form callback(problem, slots) -> None. 
+                       It should add constraints via problem.addConstraint  
         """
         self.dur = dur
         self.values = values or default['values'] 
@@ -55,8 +64,8 @@ class Solver:
         self.timeout = timeout
         self.maxIndexJump = maxIndexJump
         self.maxRepeats = maxRepeats
-        self.maxSlotDifference = maxSlotDifference
-        self.minSlotDifference = minSlotDifference
+        self.maxSlotDelta = maxSlotDelta
+        self.minSlotDelta = minSlotDelta
         self.monotonous = monotonous
         self.relError = relError
         self._constraintCallbacks = []
@@ -65,6 +74,7 @@ class Solver:
         maxvalue = maxvalue if maxvalue is not None else inf
         self.values = [v for v in self.values if minvalue <= v <= maxvalue]
         if callback:
+            logger.warning("callback param is deprecated. Use solver = Solver(....).addCallback(callback)")
             self.addCallback(callback)
     
     def copy(self):
@@ -130,18 +140,18 @@ class Solver:
                     constr(lambda s0, s1:  s0 >= s1, variables=[s0, s1])
             else:
                 raise ValueError("monotonous should be 'up' or 'down'")
-        if self.minSlotDifference is not None:
+        if self.minSlotDelta is not None:
             for s0, s1 in pairwise(slots):
-                constr(lambda s0, s1: abs(s1 - s0) >= self.minSlotDifference, variables=[s0, s1])
+                constr(lambda s0, s1: abs(s1 - s0) >= self.minSlotDelta, variables=[s0, s1])
         if self.maxIndexJump is not None:
             for s0, s1 in pairwise(slots):
                 constr(lambda s0, s1: abs(indexDistance(self.values, s0, s1)) <= self.maxIndexJump, variables=[s0, s1])
         if self.maxRepeats is not None:
             for group in window(slots, self.maxRepeats + 1):
                 constr(lambda *values: len(set(values)) > 1, variables=group)
-        if self.maxSlotDifference is not None:
+        if self.maxSlotDelta is not None:
             for s0, s1 in pairwise(slots):
-                constr(lambda s0, s1: abs(s1 - s0) <= self.maxSlotDifference, variables=[s0, s1])
+                constr(lambda s0, s1: abs(s1 - s0) <= self.maxSlotDelta, variables=[s0, s1])
 
     def addCallback(self, func):
         """
@@ -151,6 +161,7 @@ class Solver:
         solver.addCallback(growing)
         """
         self._constraintCallbacks.append(func)
+        return self
 
 
 def asCurve(curve) -> bpf.BpfInterface:
@@ -334,5 +345,4 @@ def reportSolutions(solutions: t.List[Solution], plotbest=0, rater=None) -> None
     if plotbest and rater is not None and rater.relcurve is not None:
         for sol in solutions[:plotbest]:
             rateRelativeCurve(sol.slots, rater.relcurve)
-
 

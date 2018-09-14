@@ -11,9 +11,8 @@ import weakref
 
 
 __all__ = [
-    "makeConfig",
     "getConfig",
-    "CheckedDict"
+    "ConfigDict"
 ]
 
 
@@ -217,7 +216,6 @@ class CheckedDict(dict):
         super().update(d)
 
 
-    
 class ConfigDict(CheckedDict):
 
     registry:dict = {}
@@ -279,7 +277,11 @@ class ConfigDict(CheckedDict):
                 func(self, key, value)
         self._save()
 
-    def register_callback(self, func, pattern=None):
+    def register_callback(self, *args, **kws):
+        import warnings
+        warnings.warn("Deprecated! use registerCallback")
+
+    def registerCallback(self, func, pattern=None):
         """
         Register a callback to be fired when a key matching the given pattern is
         changed. If no pattern is given, your function will be called for
@@ -460,7 +462,7 @@ def makeConfig(name: str, default: dict, validator: dict=None, force=False, vali
         by appending "::choices" or "::types" to any key in default
 
         original key    validator key
-        -----------------------------
+        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         mykey           mykey::choices
         mykey           mykey::type
 
@@ -476,6 +478,8 @@ def makeConfig(name: str, default: dict, validator: dict=None, force=False, vali
         force needs to be set to True to force the creation of the given
         config, otherwise an exception will be raised
     """
+    import warnings
+    warnings.warn("DEPRECATED. Use ConfigDict instead")
     cfg = getConfig(name)
     if cfg and default != cfg.default:
         if not force:
@@ -519,6 +523,9 @@ def getConfig(name: str) -> t.Optional[ConfigDict]:
     
 
 def activeConfigs() -> t.Dict[str, ConfigDict]:
+    """
+    Returns a dict of active configs
+    """
     out = {}
     for name, configref in ConfigDict.registry.items():
         config = configref()
@@ -529,7 +536,7 @@ def activeConfigs() -> t.Dict[str, ConfigDict]:
 
 def removeConfig(name:str) -> bool:
     """
-    Remove the given config, returns True if it was found and removed,
+    Remove the given config from disc, returns True if it was found and removed,
     False otherwise
     """
     configpath = getPath(name)

@@ -10,12 +10,11 @@ from emlib import lib
 from emlib import iterlib
 from emlib.music import packing
 from emlib.music import lilytools
-from emlib.conftools import makeConfig, getConfig as _getConfig
+from emlib.conftools import ConfigDict
 
-_moduleid = 'emlib:scoring'
 
-config = makeConfig(
-    _moduleid,
+config = ConfigDict(
+    name="emlib.scoring",
     default={
         'apps.pdf': '',
         'score.includebranch': True,
@@ -29,10 +28,6 @@ config = makeConfig(
         'score.annotation.fontsize': 5
     }
 )
-
-
-def getConfig():
-    return _getConfig(_moduleid)
 
 
 class Note(t.NamedTuple):
@@ -450,7 +445,7 @@ def _abj_save_pdf(score: abj.Score, outfile: str,
 
 
 def _openpdf(pdf:str) -> None:
-    app = getConfig().get('apps.pdf')
+    app = config.get('apps.pdf')
     pdf = os.path.abspath(os.path.expanduser(pdf))
     if not app:
         lib.open_with_standard_app(pdf)

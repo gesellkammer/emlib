@@ -1,5 +1,5 @@
 from emlib.pitch import m2f, f2m, n2m, r2i
-from emlib.mus import Note, Chord
+from emlib.mus import Note, Chord, ChordSeq
 from emlib import typehints as t
 import warnings as _warnings
 
@@ -139,7 +139,11 @@ class TurntableChord(Chord):
         interval = self.interval
         notes = [note.transpose(interval) for note in origChord]
         super().__init__(notes)
-        
+
+    @property
+    def chord(self):
+        return Chord(self)
+    
     @property
     def interval(self):
         return r2i(self.speed)
@@ -153,10 +157,17 @@ class TurntableChord(Chord):
         rpm = _normalizeRpm(rpm)
         return TurntableChord(self.rpm, self.original, currentRpm=rpm, ratio=ratio)
 
+    def percent(self, percent, rpm=None):
+        """
+        Shift speed by given percentage
+
+        percent: shift percentage, where 0 means no shift, 10 indicates a speed ratio of 1.1
+        """
+        return self.at(rpm=rpm, ratio=shift2ratio(percent))
+
     def findRatios(self, pitch: Pitch, maxdev=0.1) -> t.List[t.Tup[int, float]]:
-        if len(self) > 1:
-            raise ValueError("This chord has multiple pitches")
-        return findRatios(newPitch=pitch, origPitch=self.original[0], rpm=self.rpm, maxdev=maxdev)
+        highest = max(self.notes)
+        return findRatios(newPitch=pitch, origPitch=highest, rpm=self.rpm, maxdev=maxdev)
 
     def findShifts(self, pitch:Pitch, maxshift=10):
         return findShifts(newPitch=pitch, origPitch = self.original[0], rpm=self.rpm, maxshift=maxshift)
@@ -164,6 +175,26 @@ class TurntableChord(Chord):
     def findRatio(self, pitch: Pitch, maxdev=0.1) -> t.Opt[float]:
         """
         find ratio to make this turntable sound like pitch at the current rpm
+
+        If this chord has multiple pitches, the highest pitch is used to find 
+        a ratio (the pitch argument always identifies a single pitch)
+
+        This responds to the fact that by changing the ratio, all pitches are 
+        transposed by the same interval and the internal structure of the chord
+        is maintained
         """
         ratios = self.findRatios(pitch=pitch, maxdev=maxdev)
         return ratios[0][1] if ratios else None
+
+    def report(self, show=True):
+        def makeChord(rpm, ratio):
+            ch = self.at(rpm, ratio)
+            ch.label = f"{rpm}@{ratio}"
+            return ch
+        from itertools import product
+        chs = [makeChord(rpm, ratio) for rpm, ratio in product((33, 45), (0.9, 1, 1.1))]
+        seq = ChordSeq(chs)
+        if show:
+            seq.show()
+        return seq
+        

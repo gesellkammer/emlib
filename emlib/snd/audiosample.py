@@ -27,7 +27,7 @@ import sys
 from emlib.snd import sndfiletools
 from emlib.snd.resample import resample as _resample
 from emlib.pitch import amp2db, db2amp
-from emlib.conftools import makeConfig
+from emlib.conftools import ConfigDict
 from emlib.snd.sndfile import sndread
 
 from typing import Optional as Opt, List, Sequence as Seq, Tuple as Tup, Union, Callable, Iterator
@@ -35,7 +35,7 @@ from typing import Optional as Opt, List, Sequence as Seq, Tuple as Tup, Union, 
 logger = logging.getLogger("emlib:audiosample")
 
 
-config = makeConfig(
+config = ConfigDict(
     name='emlib:audiosample',
     default = {
         'editor': '/usr/bin/audacity',

@@ -17,6 +17,9 @@ def sndread(sndfile:str, start=0.0, end=0.0) -> Tuple[np.ndarray, int]:
     """
     Reads samples between start and end, returns (samples, samplerate)
     """
+    ext = os.path.splitext(sndfile)[1]
+    if ext == '.mp3':
+        return _sndread_mp3(sndfile, start=start, end=end)
     sf = pysndfile.PySndfile(sndfile)
     sr = sf.samplerate()
     duration = sf.frames() / sr
@@ -30,6 +33,30 @@ def sndread(sndfile:str, start=0.0, end=0.0) -> Tuple[np.ndarray, int]:
         sf.seek(int(start * sr))
     frames = sf.read_frames(int((end - start)*sr))
     return frames, sr
+
+def _convert_mp3_wav(mp3, wav, start=0, end=0):
+    import subprocess
+    import shutil
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("Can't read mp3: ffmpeg is not present")
+    cmd = [ffmpeg]
+    if start > 0:
+        cmd.extend(["-ss", str(start)])
+    if end > 0:
+        cmd.extend(["-t", str(end - start)])
+    cmd.extend(["-i", mp3])
+    cmd.append(wav)
+    subprocess.call(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
+def _sndread_mp3(mp3, start=0, end=0):
+    import tempfile
+    wav = tempfile.mktemp(suffix=".wav")
+    _convert_mp3_wav(mp3, wav, start=start, end=end)
+    out = sndread(wav)
+    os.remove(wav)
+    return out
 
 
 def sndinfo(sndfile:str) -> SndInfo:

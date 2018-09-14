@@ -2,8 +2,7 @@ import os
 
 import music21 as m21
 from emlib import typehints as t
-from emlib.lib import quarters_to_timesig
-from emlib.iterlib import flatten
+from emlib import lib
 import warnings
 
 
@@ -194,7 +193,7 @@ def makeTimesig(num_or_dur, den=0):
     """
     if den == 0:
         dur = num_or_dur
-        num, den = quarters_to_timesig(num_or_dur)
+        num, den = lib.quarters_to_timesig(num_or_dur)
     else:
         num = num_or_dur
     return m21.meter.TimeSignature(f"{num}/{den}")
@@ -269,11 +268,23 @@ def scoreSchema(durs: t.Seq[float],
     return part
 
 
-def makeLily(m21stream, fmt, outfile):
+def makeLily(m21stream, fmt=None, outfile=None, show=False):
     """
     Create a pdf or png via lilypond, bypassing the builtin converter
     (use musicxml2ly instead)
     """
+    if outfile is None and fmt is None:
+        fmt = 'png'
+    elif fmt is None:
+        fmt = os.path.splitext(outfile)[1][1:]
+    elif outfile is None:
+        import tempfile
+        assert fmt in ('png', 'pdf')
+        outfile = tempfile.mktemp(suffix="."+fmt)
+    else:
+        ext = os.path.splitext(outfile)[1][1:]
+        if fmt != ext:
+            raise ValueError(f"outfile has an extension ({ext}) which does not match the format given ({fmt})")
     assert fmt in ('png', 'pdf')
     from emlib.music import lilytools
     xmlpath = str(m21stream.write('xml'))
@@ -290,4 +301,8 @@ def makeLily(m21stream, fmt, outfile):
         raise ValueError(f"fmt should be png or pdf, got {fmt}")
     if not os.path.exists(outfile):
         raise RuntimeError(f"Could not convert lilypond file {lypath} to {fmt} {outfile}")
+    if show:
+        lib.open_with_standard_app(outfile)
     return outfile
+
+

@@ -1,8 +1,8 @@
-from emlib.conftools import makeConfig
+from emlib.conftools import ConfigDict
 
 APPNAME = 'emlib:lsys'
 
-config = makeConfig(
+config = ConfigDict(
     APPNAME,
     default = {
         'plot.node.linewidth': 4,

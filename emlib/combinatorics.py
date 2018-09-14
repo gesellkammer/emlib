@@ -30,14 +30,6 @@ def combinations_with_repetition(seq, size):
         yield group
 
 
-def all_permutations(seq):
-    """
-    returns a generator with all the permutations of the elements in seq
-    """
-    _warnings.warn("Use permutations")
-    return permutations(seq)
-
-
 def derangements(seq):
     """compute permutations of seq where each element is not in its original position"""
     queue = [-1]
@@ -74,7 +66,7 @@ def random_range(length):
     
 
 def _random_range_purepython(length):
-    indices = range(length)
+    indices = list(range(length))
     orders = [random.randint(0, length*1000) for i in indices]
     indices.sort(key=lambda i:orders[i])
     return indices
@@ -109,8 +101,7 @@ def random_distance(length, numseqs=1000):
     if length < len(_cached_random_distances):
         return _cached_random_distances[length]
     accum = 0
-    for i in _six.moves.xrange(numseqs):
-    # for i in xrange(numseqs):
+    for _ in range(numseqs):
         seq = random_range(length)
         distance = distance_from_sorted(seq)
         accum += distance
@@ -223,19 +214,15 @@ def unsort(seq, entropy, margin=0, tolerance=0.05, numiter=100, timeout=None):
     if timeout is not None:
         numiter = 9999999999999
         checkint = 100 if len(seq) < 50 else 1
-    for i in _six.moves.xrange(numiter):
-    # for i in xrange(numiter):
+    for i in range(numiter):
         result, rating = _unsortx(seq, entropy, margin)
         if minentropy <= unsortedness(result) <= maxentropy:
-            # print(i)
             return result
         if timeout is not None and i % checkint == 0:
             t1 = _time.time()
             if timeout is not None and t1 - t0 > timeout:
                 break
         results.append((result, rating))
-    #results.sort(key=lambda result: result[1])
-    #return results[-1][0]
     if not results:
         return None
     results.sort(key=lambda result: abs(unsortedness(result[0]) - entropy))
@@ -325,7 +312,6 @@ def _unsort(xs, entropy=1, margin=0):
             if out[poss_i] != NAN:
                 out[poss_i] = i0
                 break
-    #n_missing = _np.count_nonzero(_np.isnan(out))
     n_missing = out[_np.isnan(out)].size
     if n_missing > 0:
         missing = [i for i in idxs0 if i not in out]
@@ -346,8 +332,7 @@ def _unsort(xs, entropy=1, margin=0):
     return xs[indices]
 
 
-def permutation_further_than(
-        xs, min_distance, rand=True, return_distance=False):
+def permutation_further_than(xs, min_distance, rand=True, return_distance=False):
     """
     return a permutation of xs so that the relative
     distance between the new seq. and xs is higher than
@@ -365,15 +350,13 @@ def permutation_further_than(
     scaled_distance = min_distance * _max_distance(xs)
     best_distance = _max_distance(xs)
     #best_result = range(len(xs))[::-1]
-    all_perm = all_permutations(len(xs))
+    all_perm = permutations(len(xs))
     if rand:
         num_perm = reduce(mul, range(1, len(xs) * 1), 1)
         i = random.randint(0, int(num_perm / 5 + 1))
         i = min(i, 5000)
-        #all_perm = list(all_perm)
         all_perm0 = _iterlib.take(i, all_perm)
         all_perm = _iterlib.chain(all_perm, all_perm0)
-        #all_perm = all_perm[i:] + all_perm[:i]
     perm = None
     for perm0, perm1 in all_perm:
         dist = distance_from_origin(perm0)

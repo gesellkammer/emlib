@@ -6,7 +6,7 @@ from ..pitch import m2f, f2m, m2n, n2m
 import subprocess
 import tempfile
 import os
-from .. import conftools
+from emlib import conftools
 
 _DEFAULTSERVER = None
 
@@ -22,7 +22,7 @@ _validator = {
     'm21.showformat::choices': ['musicxml', 'musicxml.png', 'lily.pdf', 'lily.png']
 }
 
-config = conftools.makeConfig("emlib:shownotes", default=_defaultcfg, validator=_validator)
+config = conftools.ConfigDict("emlib:shownotes", default=_defaultcfg, validator=_validator)
 
 
 def getConfig():

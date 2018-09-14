@@ -4,11 +4,11 @@ import sys as _sys
 import random as _random
 from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
-from math import sqrt as _sqrt
+from contextlib import contextmanager as _contextmanager
+
 import numpy as np
 from functools import reduce
 from fractions import Fraction
-from collections import OrderedDict
 import emlib.typehints as t
 
 Num = t.U[int, float, Fraction]
@@ -372,7 +372,7 @@ def sort_natural_dict(d, recursive=True):
     else:
         keys = list(d.keys())
         sorted_rows = [(key, d[key]) for key in sort_natural(keys)]
-    return OrderedDict(sorted_rows)
+    return dict(sorted_rows)
 
 
 def issorted(seq, key=None):
@@ -504,8 +504,9 @@ def fib(n):
     """
     # matrix code from http://blog.richardkiss.com/?p=398
     if n < 60:
-        SQRT5 = _sqrt(5)
-        PHI = (SQRT5 + 1) / 2
+        SQRT5 = 2.23606797749979  # sqrt(5)
+        PHI = 1.618033988749895
+        # PHI = (SQRT5 + 1) / 2
         return int(PHI ** n / SQRT5 + 0.5)
     else:
         return _fib2(n)[0]
@@ -704,6 +705,15 @@ def isiterable(obj, exceptions=(str, bytes)):
     return hasattr(obj, '__iter__') and not isinstance(obj, exceptions)
 
 
+def isgenerator(obj):
+    import types
+    return isinstance(obj, types.GeneratorType)
+
+
+def isgeneratorlike(obj):
+    return hasattr(obj, '__iter__') and not hasattr(obj, '__len__')
+
+
 def unzip(seq):
     # type: (t.Iter) -> t.List
     """
@@ -761,6 +771,21 @@ def could_be_number(x):
     """
     n = asnumber(x)
     return n is not None
+
+
+def str_is_number(s:str, accept_exp=False, accept_fractions=False):
+    """
+    NB: fractions should have the form num/den, like 3/4, with no spaces in between
+    """
+    if accept_exp and accept_fractions:
+        return could_be_number(s)
+    import re
+    if accept_exp:
+        return re.fullmatch(r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?", s) is not None
+    elif accept_fractions:
+        return bool(re.fullmatch(r"[-+]?[0-9]+/[0-9]+", s) or re.fullmatch(r"[-+]?[0-9]*\.?[0-9]+", s))
+    else:
+        return re.fullmatch(r"[-+]?[0-9]*\.?[0-9]+", s) is not None
 
 
 def dictmerge(dict1, dict2):
@@ -1527,6 +1552,9 @@ def open_with_standard_app(path):
     """
     Open path with the app defined to handle it by the user
     at the os level (xdg-open in linux, start in win, open in osx)
+
+    In Linux and macOS this opens the default application in the background
+    and returns immediately
     """
     import subprocess
     platform = _sys.platform
@@ -1604,6 +1632,27 @@ def quarters_to_timesig(quarters:float, snap=True, mindiv=64) -> t.Tup[int, int]
     }
     timesig = transforms.get(timesig0, timesig0)
     return timesig
+
+
+def replace_sigint_handler(handler):
+    import signal
+    original_handler = signal.getsignal(signal.SIGINT)
+    signal.signal(signal.SIGINT, handler)
+    return original_handler
+
+
+def temporary_sigint_handler(handler=None):
+    def dummy_handler():
+        raise KeyboardInterrupt()
+
+    handler = handler or dummy_handler
+    original_handler = replace_sigint_handler(handler)
+    try:
+        yield
+    except:
+        raise
+    finally:
+        replace_sigint_handler(original_handler)
 
 
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––

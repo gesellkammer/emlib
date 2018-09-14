@@ -9,7 +9,6 @@ import logging as _logging
 import textwrap as _textwrap
 import tempfile
 import typing as t
-from dataclasses import dataclass 
 
 import numpy as np
 
@@ -438,8 +437,12 @@ def get_sr(backend:str="") -> float:
     failed_sr = 0
     if not backend:
         backend = get_default_backend()
-    proc = csound_subproc(f"-odac -+rtaudio={backend} --get-system-sr".split())
-    proc.wait()
+    if backend == 'jack':
+        sr = int(_subprocess.getoutput("jack_samplerate"))
+        return sr 
+    else:
+        proc = csound_subproc(f"-odac -+rtaudio={backend} --get-system-sr".split())
+        proc.wait()
     srlines = [line for line in proc.stdout.readlines() 
                if line.startswith(b"system sr:")]
     if not srlines:
@@ -467,9 +470,9 @@ def is_backend_available(backend):
         
 
 _platform_backends = {
-    'linux' : ["jack", "pa_cb", "alsa", "pa_bl", "pulse"],
+    'linux': ["jack", "pa_cb", "alsa", "pa_bl", "pulse"],
     'darwin': ["auhal", "pa_cb", "pa_bl", "auhal"],
-    'win32' : ["pa_cb", "pa_bl"]
+    'win32': ["pa_cb", "pa_bl"]
 }
 
 _backends_always_on = {'pa_cb', 'pa_bl', 'auhal', 'alsa'}
@@ -689,7 +692,7 @@ endin
 
 
 def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002, 
-           lock=False, fftsize=2048, debug=False):
+           lock=False, fftsize=2048, ksmps=128, debug=False):
     """
     sndfile: the path to a soundfile
     timecurve: a bpf mapping time to playback time or a scalar indicating a timeratio
@@ -701,25 +704,32 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
 
     outfile: the path to a resulting outfile
 
-    Returns: the path to the newly created outfile
+    Returns: a dictionary with information about the process 
 
     NB: if the mapped time excedes the bounds of the sndfile,
         silence is generated. For example, a negative time
         or a time exceding the duration of the sndfile
 
-    Example 1: stretch a soundfile 2x
+    NB2: the samplerate and number of channels of of the generated file matches 
+         that of the input file
 
-    timecurve = bpf.linear(0, 0, totaldur*2, totaldur)
-    outfile = mincer(sndfile, timecurve, 1)
+    NB3: the resulting file is always a 32-bit float .wav file
+
+    ** Example 1: stretch a soundfile 2x
+
+       timecurve = bpf.linear(0, 0, totaldur*2, totaldur)
+       outfile = mincer(sndfile, timecurve, 1)
     """
+    import bpf4 as bpf
+    import sndfileio
+    
     if outfile is None:
         outfile = _lib.add_suffix(sndfile, "-mincer")
-    import sndfileio
     info = sndfileio.sndinfo(sndfile)
     sr = info.samplerate
     nchnls = info.channels
-    import bpf4 as bpf
     pitchbpf = bpf.asbpf(pitchcurve)
+    
     if isinstance(timecurve, (int, float)):
         t0, t1 = 0, info.duration / timecurve
         timebpf = bpf.linear(0, 0, t1, info.duration)
@@ -728,12 +738,13 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
         timebpf = timecurve
     else:
         raise TypeError("timecurve should be either a scalar or a bpf")
+    
     assert isinstance(pitchcurve, (int, float, bpf.core._BpfInterface))
     ts = np.arange(t0, t1+dt, dt)
     fmt = "%.12f"
-    time_fd, time_gen23 = tempfile.mkstemp(prefix='time-', suffix='.gen23')
+    _, time_gen23 = tempfile.mkstemp(prefix='time-', suffix='.gen23')
     np.savetxt(time_gen23, timebpf.map(ts), fmt=fmt, header=str(dt), comments="")
-    pitch_fd, pitch_gen23 = tempfile.mkstemp(prefix='pitch-', suffix='.gen23')
+    _, pitch_gen23 = tempfile.mkstemp(prefix='pitch-', suffix='.gen23')
     np.savetxt(pitch_gen23, pitchbpf.map(ts), fmt=fmt, header=str(dt), comments="")
     if outfile is None:
         outfile = _lib.add_suffix(sndfile, '-mincer')
@@ -745,7 +756,7 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
     <CsInstruments>
 
     sr = {sr}
-    ksmps = 128
+    ksmps = {ksmps}
     nchnls = {nchnls}
     0dbfs = 1.0
 
@@ -765,8 +776,8 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
         it1 = (inumsamps-2) * idt           ; account for idt and last value
         kt timeinsts
         aidx    linseg 1, it1, inumsamps-1
-        at1  tablei aidx, gi_time, 0, 0, 0
-        kpitch tablei k(aidx), gi_pitch, 0, 0, 0
+        at1     tablei aidx, gi_time, 0, 0, 0
+        kpitch  tablei k(aidx), gi_pitch, 0, 0, 0
         kat1 = k(at1)
         kgate = (kat1 >= 0 && kat1 <= isndfiledur) ? 1 : 0
         agate = interp(kgate) 
@@ -786,7 +797,6 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
         endif
     endin
 
-
     instr exit
         puts "exiting!", 1
         exitnow
@@ -803,13 +813,12 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
     _, csdfile = tempfile.mkstemp(suffix=".csd")
     with open(csdfile, "w") as f:
         f.write(csd)
-    # csound_subproc([csdfile])
-    os.system("csound -f " + csdfile)
+    _subprocess.call(["csound", "-f", csdfile])
     if not debug:
         os.remove(time_gen23)
         os.remove(pitch_gen23)
         os.remove(csdfile)
-    return {'dt': dt, 'outfile': outfile, 'csdstr': csd, 'csd': csdfile}
+    return {'outfile': outfile, 'csdstr': csd, 'csd': csdfile}
 
 
 def _instrAsOrc(instrid, body, initstr, sr, ksmps, nchnls):
@@ -863,7 +872,7 @@ def numPargs(body:str) -> int:
 
 def pargNames(body:str) -> t.Dict[int, str]:
     """
-    Analyze bod yto determine the names (if any) of the pargs used
+    Analyze body to determine the names (if any) of the pargs used
 
     iname = p6
     kfoo, ibar passign 4
@@ -887,7 +896,7 @@ def pargNames(body:str) -> t.Dict[int, str]:
         argnames.pop(idx, None)
     return argnames
 
-def numPargsMatchDefinition(instrbody, args) -> bool:
+def numPargsMatchDefinition(instrbody: str, args: t.List) -> bool:
     lenargs = 0 if args is None else len(args)
     numargs = numPargs(instrbody)
     if numargs != lenargs:
@@ -898,7 +907,7 @@ def numPargsMatchDefinition(instrbody, args) -> bool:
 
 def recInstr(body:str, init="", outfile="", events:t.List=None,
              sr=44100, ksmps=64, nchnls=2, samplefmt='float',
-             comment=None, quiet=True) -> t.Tuple[str, _subprocess.Popen]:
+             dur=None, comment=None, quiet=True) -> t.Tuple[str, _subprocess.Popen]:
     """
     Record one instrument for a given duration
 
@@ -943,10 +952,14 @@ endin"""
             logger.error(f"mismatch in number of pargs passed to instrument. pargs={event}")
         argstr = ' '.join(str(arg) for arg in event) if event else ''
         score.append(f'i {instrnum} {argstr}')
+    if dur is not None:
+        score.append(f'e {dur}')
     sco = "\n".join(score)
     if not outfile:
         outfile = tempfile.mktemp(suffix='.wav', prefix='csdengine-rec-')
     outfile = normalizePath(outfile)
+    if outfile[-4:] != ".wav":
+        raise ValueError(f"only .wav files are supported as output at the moment (given: {outfile})")
     fmtoption = {16: '', 24: '-3', 32: '-f', 'float': '-f'}.get(samplefmt)
     if fmtoption is None:
         raise ValueError("samplefmt should be one of 16, 24, 32, or 'float'")
@@ -961,19 +974,23 @@ def normalizePath(path):
     return os.path.abspath(os.path.expanduser(path))
 
     
-def genBodyStaticSines(numsines, sineinterp=True, attack=0.05, release=0.1):
+def genBodyStaticSines(numsines, sineinterp=True, attack=0.05, release=0.1, curve='cos', extend=False):
     """
     Generates the body of an instrument for additive synthesis. In order to be
     used it must be wrapped inside "instr xx" and "endin"
 
     numsines: the number of sines to generate
     sineinterp: if True, the oscilators use interpolation (oscili)
+    extend: extend duration for the release, using linsegr (otherwise a fixed envelope is used)
 
     It takes the following p-fields:
 
     chan, gain, freq1, amp1, ..., freqN, ampN
 
-    where N is numsines
+    Where:
+        N is numsines
+        gain is a gain factor affecting all sines
+        ampx represent the relative amplitude of each sine
 
     Example:
 
@@ -983,6 +1000,7 @@ def genBodyStaticSines(numsines, sineinterp=True, attack=0.05, release=0.1):
     recInstr(dur=2, outfile="out.wav", body=body, args=[1, 1] + list(flatten(zip(freqs, amps))))
     """
     lines = [
+        "idur = p3",
         "ichan = p4",
         "igain = p5",
         "aout = 0",
@@ -1000,10 +1018,29 @@ def genBodyStaticSines(numsines, sineinterp=True, attack=0.05, release=0.1):
         _(f"if itot == {i+1} goto exit")
     _(f"aout += {sinopcode}:a(iamp_{numsines-1}, ifreq_{numsines-1})")
     _("exit:")
-    _(f"aout *= linsegr:a(0, {attack}, igain, {release}, 0)")
+    if curve == 'linear':
+        if extend:
+            env = f"linsegr:a(0, {attack}, igain, {release}, 0)"
+        else:
+            env = f"linseg:a(0, {attack}, igain, idur-{attack+release}, igain, {release}, 0)"
+    elif curve == 'cos':    
+        if extend:
+            env = f"cossegr:a(0, {attack}, igain, {release}, 0)"
+        else:
+            env = f"cosseg:a(0, {attack}, igain, idur-{attack+release}, igain, {release}, 0)"
+    else:
+        raise ValueError(f"curve should be one of 'linear', 'cos', got {curve}")
+    _( f"aout *= {env}" )
     _("outch ichan, aout")
     body = "\n".join(lines)
     return body
+
+
+def genSoundfontInstr(sf2path):
+    """
+    returns (body, init)
+    """
+    pass
 
 
 def _ftsave_read_text(path):

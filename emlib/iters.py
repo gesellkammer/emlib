@@ -357,7 +357,7 @@ def butn(n, seq):
 def intercalate(item, seq):
     """
     Example
-    =======
+    ~~~~~~~
     
     >>> list(intercalate(range(5), "X"))
     [0, 'X', 1, 'X', 2, 'X', 3, 'X', 4]
@@ -480,42 +480,6 @@ def interleave(seqs, pass_exceptions=()):
                 pass
         iters = newiters
 
-        
-# def unpack(iterable, result=tuple):
-#     """
-#     Similar to python 3's *rest unpacking (don't use it in Python3)
-
-#     result: how to pack the rest items. Pass None to get an iterator.
-    
-#     >>> x, y, rest = unpack('test')
-#     >>> assert x == 't' and y == 'e' and rest == ('s', 't')
-#     """
-#     def how_many_unpacked():
-#         import inspect, opcode
-#         f = inspect.currentframe().f_back.f_back
-#         if ord(f.f_code.co_code[f.f_lasti]) == opcode.opmap['UNPACK_SEQUENCE']:
-#             return ord(f.f_code.co_code[f.f_lasti+1])
-#         raise ValueError("Must be a generator on RHS of a multiple assignment!!")
-#     iterator = iter(iterable)
-#     has_items = True
-#     amount_to_unpack = how_many_unpacked() - 1
-#     item = None
-#     for num in xrange(amount_to_unpack):
-#         if has_items:        
-#             try:
-#                 item = next(iterator)
-#             except StopIteration:
-#                 item = None
-#                 has_items = False
-#         yield item
-#     if has_items:
-#         if result is not None:
-#             yield result(iterator)
-#         else:
-#             yield iterator
-#     else:
-#         yield None
-       
 
 if __name__ == '__main__':
     import doctest
