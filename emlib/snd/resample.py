@@ -14,6 +14,7 @@ def _resample_cli(samples, orig_samplerate, new_samplerate):
         sndfile_resample = subprocess.check_output("which sndfile-resample", shell=True)
     except subprocess.CalledProcessError:
         return None
+    import tempfile
     tmpfile = tempfile.mktemp(suffix='.wav')
     tmpfile2 = "%s-%d.wav" % (tmpfile, new_samplerate)
     from sndfileio import sndwrite, sndread

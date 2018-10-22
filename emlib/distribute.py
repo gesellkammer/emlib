@@ -240,8 +240,8 @@ def partition_recur(n, partitions, homogeneity, minval, maxval, type='fib'):
     len(partitions) == len(homogeneity) must be true
     """
     func = {
-        'fib'   : partition_fib,
-        'expon' : partition_expon
+        'fib': partition_fib,
+        'expon': partition_expon
     }
     p = partitions[0]
     h = homogeneity[0]
@@ -520,15 +520,6 @@ def onepulse(x, resolution, entropy=0):
         bins = _combinatorics.unsort(bins, entropy)
     return bins
 
-
-def bpfavg(b, dx):
-    # type: (_Bpf, float) -> _Bpf
-    """
-    Return a Bpf which is the average of b over the range `dx`
-    """
-    dx2 = dx/2
-    avg = ((b<<dx2)+b+(b>>dx2))/3.0
-    return avg[b.x0:b.x1]
 
 
 def dither_curve(curve, numsamples, resolution=2):

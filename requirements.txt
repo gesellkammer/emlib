@@ -7,3 +7,6 @@ bpf4
 notifydict
 appdirs
 tabulate
+sounddevice
+sndfileio
+pillow

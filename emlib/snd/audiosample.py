@@ -30,7 +30,8 @@ from emlib.pitch import amp2db, db2amp
 from emlib.conftools import ConfigDict
 from emlib.snd.sndfile import sndread
 
-from typing import Optional as Opt, List, Sequence as Seq, Tuple as Tup, Union, Callable, Iterator
+from emlib import typehints as t
+
 
 logger = logging.getLogger("emlib:audiosample")
 
@@ -62,7 +63,7 @@ def _increase_suffix(filename):
 
 
 def _arrays_match_length(a, b, mode='longer', pad=0):
-    # type: (np.ndarray, np.ndarray, str, int) -> Tup[np.ndarray, np.ndarray]
+    # type: (np.ndarray, np.ndarray, str, int) -> t.Tup[np.ndarray, np.ndarray]
     """
     match the lengths of arrays a and b
 
@@ -102,7 +103,7 @@ def _arrays_match_length(a, b, mode='longer', pad=0):
 
 
 def split_channels(sndfile, labels=None, basename=None):
-    # type: (str, Opt[List[str]], Opt[str]) -> List[Sample]
+    # type: (str, t.Opt[t.List[str]], t.Opt[str]) -> t.List[Sample]
     """
     split a multichannel sound-file and name the individual files
     with a suffix specified by labels
@@ -198,7 +199,7 @@ def list_audio_devices():
 class Sample(object):
 
     def __init__(self, sound, samplerate=None, start=0, end=0):
-        # type: (Union[str, np.ndarray], Opt[int]) -> None
+        # type: (t.U[str, np.ndarray], t.Opt[int]) -> None
         """
         sound: str or np.array
             either sample data or a path to a soundfile
@@ -209,18 +210,17 @@ class Sample(object):
         if isinstance(sound, str):
             sndfile = sound
             tmp = Sample.read(sndfile, start=start, end=end)
-            samples = tmp.samples
-            samplerate = tmp.samplerate
+            self.samples = tmp.samples
+            self.samplerate = tmp.samplerate
         elif isinstance(sound, np.ndarray):
-            samples = sound
             assert samplerate is not None
+            self.samples = sound
+            self.samplerate = samplerate
         else:
             raise TypeError(
                 "sound should be a path to a sndfile or a seq. of samples")
-        self.samples = np.asarray(samples, dtype=float)  # type: np.ndarray
-        self.samplerate = samplerate          # type: int
-        self.channels = numchannels(samples)  # type: int
-        self._asbpf = None                    # type: Opt[_bpf.BpfInterface]
+        self.channels = numchannels(self.samples)  # type: int
+        self._asbpf = None                    # type: t.Opt[_bpf.BpfInterface]
 
     @property
     def nframes(self):
@@ -269,50 +269,79 @@ class Sample(object):
             self._asbpf = _bpf.Sampled(self.samples, 1 / self.samplerate)
             return self._asbpf
 
-    def plot(self):
+    def plot(self, profile='medium'):
         """
         plot the sample data
+
+        profile: one of 'low', 'medium', 'high'
         """
         from . import plotting
-        plotting.plot_samples(self.samples, self.samplerate)
+        plotting.plot_samples(self.samples, self.samplerate, profile=profile)
 
-    def plotspectrum(self, framesize=2048, window='hamming'):
+    def plot_spectrum(self, framesize=2048, window='hamming', at=0, dur=0):
         """
         window: As passed to scipy.signal.get_window
                 `blackman`, `hamming`, `hann`, `bartlett`, `flattop`, `parzen`, `bohman`, 
                 `blackmanharris`, `nuttall`, `barthann`, `kaiser` (needs beta), 
                 `gaussian` (needs standard deviation)
 
+        Plots the spectrograph of the entire sample (slice before to use only
+        a fraction)
+
         See Also: .spectrum
         """
         from . import plotting
-        plotting.plot_power_spectrum(self.samples, self.samplerate, framesize=framesize)
+        if self.channels > 1:
+            samples = self.samples[:,0]
+        else:
+            samples = self.samples
+        s0 = 0 if at == 0 else int(at*self.samplerate)
+        s1 = self.nframes if dur == 0 else min(self.nframes, int(dur*self.samplerate) - s0)
+        if s0 > 0 or s1 != self.nframes:
+            samples = samples[s0:s1]
+        plotting.plot_power_spectrum(samples, self.samplerate, framesize=framesize, window=window)
+
+    def plot_spectrogram(self, fftsize=2048, window='hamming', overlap=4):
+        from . import plotting
+        if self.channels > 1:
+            samples = self.samples[:,0]
+        else:
+            samples = self.samples
+        return plotting.spectrogram(samples, self.samplerate, window=window, fftsize=fftsize, overlap=overlap)
 
     def spectrum(self, resolution=50, **options):
-        import sndtrck
-        return sndtrck.analyze_samples(self.samples, self.samplerate, resolution=resolution, **options)
+        """
+        Creates a Spectrum by analyzing this samples through partial-tracking
+        See sndtrck.analyze_samples for options
 
-    def open_in_editor(self, wait=True, app=None):
-        # type: (bool) -> Opt['Sample']
+        NB: this needs the package sndtrck to be installed
+        """
+        samples = np.ascontiguousarray(self.get_channel(0).samples)
+        import sndtrck
+        return sndtrck.analyze_samples(samples, self.samplerate, resolution=resolution, **options)
+
+    def open_in_editor(self, wait=True, app=None, format='wav'):
+        # type: (bool) -> t.Opt['Sample']
         """
         Open the sample in an external editor. The original
         is not changed.
 
         wait:
             if wait, the editor is opened in blocking mode, the results of the edit are returned as a new Sample
-        editorpath:
+        app:
             if given, this application is used to open the sample. Otherwise, the application configured
             via the key 'editor' is used
 
         """
-        sndfile = tempfile.mktemp(suffix=".wav")
+        assert format in {'wav', 'aiff', 'flac'}
+        sndfile = tempfile.mktemp(suffix="." + format)
         self.write(sndfile)
         logger.debug(f"open_in_editor: opening {sndfile}")
         if wait:
             open_in_editor(sndfile, wait=True, app=app)
             return Sample.read(sndfile)
         else:
-            open_in_editor(sndfile, wait=True, app=app)
+            open_in_editor(sndfile, wait=False, app=app)
             return None
 
     def write(self, outfile, bits=None, **metadata):
@@ -348,7 +377,7 @@ class Sample(object):
         return Sample(self.samples.copy(), self.samplerate)
         
     def __add__(self, other):
-        # type: (Union[float, 'Sample']) -> 'Sample'
+        # type: (t.U[float, 'Sample']) -> 'Sample'
         if isinstance(other, Sample):
             s0, s1, sr = broadcast_samplerate(self, other)
             assert isinstance(s0, np.ndarray)
@@ -360,7 +389,7 @@ class Sample(object):
             return Sample(self.samples + other, self.samplerate)
 
     def __iadd__(self, other):
-        # type: (Union[float, 'Sample']) -> 'Sample'
+        # type: (t.U[float, 'Sample']) -> 'Sample'
         if isinstance(other, Sample):
             s0, s1, sr = broadcast_samplerate(self, other)
             s0, s1 = _arrays_match_length(s0, s1, mode='longer')
@@ -372,7 +401,7 @@ class Sample(object):
         return self
 
     def __mul__(self, other):
-        # type: (Union[float, 'Sample']) -> 'Sample'
+        # type: (t.U[float, 'Sample']) -> 'Sample'
         if isinstance(other, Sample):
             s0, s1, sr = broadcast_samplerate(self, other)
             s0, s1 = _arrays_match_length(s0, s1)
@@ -382,7 +411,7 @@ class Sample(object):
         return Sample(self.samples * other, self.samplerate)
 
     def __imul__(self, other):
-        # type: (Union[float, 'Sample']) -> 'Sample'
+        # type: (t.U[float, 'Sample']) -> 'Sample'
         if isinstance(other, Sample):
             s0, s1, sr = broadcast_samplerate(self, other)
             s0, s1 = _arrays_match_length(s0, s1)
@@ -485,8 +514,7 @@ class Sample(object):
         data = np.abs(data)
         for pos in np.arange(0, self.nframes, chunksize):
             maximum = np.max(data[pos:pos+chunksize])
-            t = pos / samplerate
-            X.append(t)
+            X.append(pos/samplerate)
             Y.append(maximum)
         return _bpf.Linear.fromxy(X, Y)
 
@@ -505,7 +533,7 @@ class Sample(object):
         period = int(self.samplerate * dt + 0.5)
         dt = period / self.samplerate
         periods = int(len(s) / period)
-        values = []  # type: List[float]
+        values = []  # type: t.List[float]
         _rms = rms
         for i in range(periods):
             chunk = s[i * period:(i + 1) * period]
@@ -530,8 +558,8 @@ class Sample(object):
         period = int(window * self.samplerate)
         first_sound_sample = first_sound(self.samples, threshold, period)
         if first_sound is not None:
-            t = max(first_sound_sample / self.samplerate - margin, 0)
-            return self[t:]
+            time = max(first_sound_sample / self.samplerate - margin, 0)
+            return self[time:]
         return self
 
     def remove_silence_right(self, threshold=-120.0, margin=0.01, window=0.02):
@@ -542,8 +570,8 @@ class Sample(object):
         period = int(window * self.samplerate)
         lastsample = last_sound(self.samples, threshold, period)
         if first_sound is not None:
-            t = min(lastsample / self.samplerate + margin, self.duration)
-            return self[:t]
+            time = min(lastsample / self.samplerate + margin, self.duration)
+            return self[:time]
         return self
 
     def remove_silence(self, threshold=-120.0, margin=0.01, window=0.02):
@@ -665,7 +693,7 @@ def rms(arr):
 
 
 def broadcast_samplerate(a, b):
-    # type: (Sample, Sample) -> Tup[Sample, Sample, int]
+    # type: (Sample, Sample) -> t.Tup[Sample, Sample, int]
     """
     Match the samplerates of audio samples a and b to the highest one
     the audio sample with the lowest samplerate is resampled to the
@@ -699,7 +727,7 @@ def numchannels(samples):
     
 
 def _as_numpy_samples(samples):
-    # type: (Union[Sample, np.ndarray]) -> np.ndarray
+    # type: (t.U[Sample, np.ndarray]) -> np.ndarray
     if isinstance(samples, Sample):
         return samples.samples
     elif isinstance(samples, np.ndarray):
@@ -709,7 +737,7 @@ def _as_numpy_samples(samples):
 
 
 def as_sample(source):
-    # type: (Union[str, Sample, Tup[np.ndarray, int]]) -> Sample
+    # type: (t.U[str, Sample, t.Tup[np.ndarray, int]]) -> Sample
     """
     return a Sample instance
 
@@ -727,7 +755,7 @@ def as_sample(source):
 
 
 def mono(samples):
-    # type: (Union[Sample, np.ndarray]) -> np.ndarray
+    # type: (t.U[Sample, np.ndarray]) -> np.ndarray
     """
     If samples are multichannel, it mixes down the samples
     to one channel.
@@ -740,7 +768,7 @@ def mono(samples):
 
 
 def concat(sampleseq):
-    # type: (Seq[Sample]) -> Sample
+    # type: (t.Seq[Sample]) -> Sample
     """
     sampleseq: a seq. of Samples
 
@@ -748,7 +776,7 @@ def concat(sampleseq):
     Samples should share samplingrate and numchannels 
     """
     s = np.concatenate([s.samples for s in sampleseq])
-    return Sample(s, sampleseq[0].samplerate)
+    return Sample(s, samplet.Seq[0].samplerate)
 
 
 def _mapn_between(func, n, t0, t1):
@@ -811,7 +839,7 @@ def _modify_metadata(path, metadata):
 
 
 def open_sndfile_to_write(filename, channels=1, samplerate=48000, bits=None):
-    # type: (str, int, int, Opt[int]) -> pysndfile.PySndfile
+    # type: (str, int, int, t.Opt[int]) -> pysndfile.PySndfile
     """
     The format is inferred from the extension (wav, aiff, flac, etc.)
 
