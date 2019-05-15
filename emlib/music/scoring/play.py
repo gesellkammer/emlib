@@ -1,12 +1,15 @@
-from .scoring import *
-from typing import Dict
-import bpf4 as bpf
+import sys
 import logging
 import subprocess
-from operator import attrgetter
-from emlib.pitch import m2n
 import re
 from functools import lru_cache
+
+import bpf4 as bpf
+
+from emlib.pitchtools import m2n
+from emlib.music.scoring import *
+import emlib.typehints as t
+from emlib import iterlib
 
 logger = logging.getLogger("emlib.scoring")
 
@@ -28,14 +31,11 @@ nchnls = 2
 gisf  sfload "{sf2path}"
 
 instr piano
-    idur = p3
-    inote0 = p4
-    inote1 = p5
-    idb = p6
+    idur, inote0, inote1, idb passign 3
     ivel bpf idb, -120, 0, -90, 10, -70, 20, -24, 90, 0, 127
     knote = linseg(inote0, idur, inote1)
     kfreq = mtof(knote)
-    kamp = 1/32768
+    kamp = 2/32768
     a0, a1 sfinstr ivel, inote0, kamp, kfreq, 147, gisf, 1
     aenv linsegr 1, 0.0001, 1, 0.2, 0
     a0 *= aenv
@@ -44,10 +44,7 @@ instr piano
 endin 
 
 instr sine
-    idur = p3
-    inote0 = p4
-    inote1 = p5
-    idb = p6
+    idur, inote0, inote1, idb passign 3
     iamp ampdb idb
     iamp *= 0.7
     knote = linseg(inote0, idur, inote1)
@@ -63,10 +60,7 @@ instr sine
 endin 
 
 instr sine_trem
-    idur = p3
-    inote0 = p4
-    inote1 = p5
-    idb = p6
+    idur, inote0, inote1, idb passign 3
     iamp ampdb idb
     iamp *= 0.7
     knote = linseg(inote0, idur, inote1)
@@ -84,10 +78,7 @@ instr sine_trem
 endin 
 
 instr saw
-    idur = p3
-    inote0 = p4
-    inote1 = p5
-    idb = p6
+    idur, inote0, inote1, idb passign 3
     iamp ampdb idb
     knote = linseg(inote0, idur, inote1)
     kfreq = mtof(knote)
@@ -100,10 +91,7 @@ instr saw
 endin 
 
 instr square
-    idur = p3
-    inote0 = p4
-    inote1 = p5
-    idb = p6
+    idur, inote0, inote1, idb passign 3
     iamp ampdb idb
     knote = linseg(inote0, idur, inote1)
     kfreq = mtof(knote)
@@ -133,11 +121,10 @@ instr saw_trem
     a0 *= aenv
     outs a0, a0
 endin 
-
-"""  # .format(sr=44100, sf2path=_get_fluidsf2())
+"""
 
 @lru_cache()
-def make_orc(sr=44100, instrs=None):
+def makeCsoundOrc(sr=44100, instrs=None):
     """
     instrs: a list of csound instr definitions
     """
@@ -148,9 +135,28 @@ def make_orc(sr=44100, instrs=None):
     return orc
 
 
+def makeInstr(name, audiogen):
+    template = r"""
+    instr {name}
+        idur, inote0, inote1, idb passign 3
+        iamp ampdb idb
+        iamp *= 0.7
+        knote = linseg(inote0, idur, inote1)
+        kfreq = mtof(knote)
+        {audiogen}
+        ; a0 oscili iamp, kfreq
+        aenv cossegr 0, 0.05, 1*iamp, 0.1, 0.8*iamp, 0.2, 0
+        a0 *= aenv
+        outs a0, a0
+    endin
+    """
+    return template.format(name=name, audiogen=audiogen)
+
+
 def _get_possible_instrs(orc=None):
     matches = re.findall(r"\binstr\s+\b\S+\b", _orc)
     return [match.split()[1] for match in matches]
+
 
 _possible_instrs = _get_possible_instrs()
 
@@ -163,10 +169,10 @@ _db2vel = bpf.linear(
 )
 
 
-def _notes_to_csdscore_gliss(notes: t.List[Note], defaultinstr='piano') -> str:
+def makeCsoundScore(notes: t.List[Note], defaultinstr='piano',
+                    allowDiscontinuousGliss=True) -> str:
     notes = sorted(notes, key=lambda note: note.offset)
     lines = []
-    allowDiscontinuousGliss = config['play.allowDiscontinuousGliss']
 
     def scoreline(note0:Note, note1:t.Opt[Note]):
         if note0.db <= -120:
@@ -204,11 +210,11 @@ def _notes_to_csdscore_gliss(notes: t.List[Note], defaultinstr='piano') -> str:
     return "\n".join(lines)
 
 
-def playnotes(notes: t.List[Note], defaultinstr='piano', gliss=True, sr=None, instrs=None) -> subprocess.Popen:
+def playNotes(events: t.List[Event], defaultinstr=None, sr=None, instrs=None) -> subprocess.Popen:
     """
     gliss:
         if True, the metadata value "gliss" is honoured and a gliss is generated
-        between adjacent notes wherever this value is set and True
+        between adjacent events wherever this value is set and True
         The .stepend value is also taken into account, so if both are set
         the gliss value has priority
     defaultinstr:
@@ -220,10 +226,10 @@ def playnotes(notes: t.List[Note], defaultinstr='piano', gliss=True, sr=None, in
 
     """
     from emlib.snd import csound
-    sco = _notes_to_csdscore_gliss(notes)
+    defaultinstr = defaultinstr or 'piano'
+    sco = makeCsoundScore(events, defaultinstr=defaultinstr)
     if sr is None:
         sr = csound.get_sr()
-    orc = make_orc(sr, instrs)
+    orc = makeCsoundOrc(sr, instrs)
     proc = csound.run_csd(orc=orc, sco=sco, output="dac", piped=True, extradur=0.5)
     return proc
-

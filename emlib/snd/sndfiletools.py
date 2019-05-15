@@ -1,18 +1,17 @@
 """
 Utilities to edit sound-files in chunks
 """
-from __future__ import division, print_function, absolute_import
-
 import tempfile
-import numpy as np
 import os
 from math import sqrt
-import pysndfile
 from collections import namedtuple as _namedtuple
+import pysndfile
+import numpy as np
+import bpf4 as bpf
 from emlib.iterlib import flatten
 from emlib.lib import returns_tuple
-from emlib.pitch import db2amp, amp2db
-import bpf4 as bpf
+from emlib.pitchtools import db2amp, amp2db
+
 from emlib import typehints as t
 import logging
 

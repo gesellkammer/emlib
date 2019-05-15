@@ -1,5 +1,6 @@
-from emlib.pitch import m2f, f2m, n2m, r2i
-from emlib.mus import Note, Chord, ChordSeq
+from emlib.pitchtools import m2f, f2m, n2m, r2i
+from emlib.music.core import Note, Chord, ChordSeq
+from emlib.music import m21tools
 from emlib import typehints as t
 import warnings as _warnings
 
@@ -42,6 +43,12 @@ def soundingPitch(pitch:Pitch, shift=0, rpm=45, origRpm=45) -> Note:
     pitch = _asmidi(pitch)
     freq = m2f(pitch) * speed
     return Note(f2m(freq))
+
+
+def soundingChord(pitches, shift=0, rpm=45, origRpm=45) -> Chord:
+    notes = [soundingPitch(p, shift=shift, rpm=rpm, origRpm=origRpm) 
+             for p in pitches]
+    return Chord(notes) 
 
 
 def ratio2shift(ratio:float):
@@ -106,7 +113,8 @@ def findRatios(newPitch:Pitch, origPitch:Pitch, rpm=45, maxdev=0.1, possibleRpms
     """
     Returns a list of (rpm, ratio)
     """
-    shiftSolutions = findShifts(newPitch=newPitch, origPitch=origPitch, rpm=rpm, maxshift=maxdev*100, possibleRpms=possibleRpms)
+    shiftSolutions = findShifts(newPitch=newPitch, origPitch=origPitch, rpm=rpm,
+                                maxshift=maxdev*100, possibleRpms=possibleRpms)
     ratioSolutions = [(rpm, shift2ratio(shift)) for rpm, shift in shiftSolutions]
     return ratioSolutions
     
@@ -140,10 +148,19 @@ class TurntableChord(Chord):
         notes = [note.transpose(interval) for note in origChord]
         super().__init__(notes)
 
+    def soundingChord(self):
+        shift = ratio2shift(self.ratio)
+        notes = [soundingPitch(p, shift=shift, rpm=self.currentRpm, origRpm=self.rpm)
+                 for p in self]
+        return Chord(notes)
+
     @property
     def chord(self):
-        return Chord(self)
-    
+        return self.soundingChord()
+
+    #def scoringEvents(self):
+    #    return self.soundingChord().scoringEvents()
+
     @property
     def interval(self):
         return r2i(self.speed)
@@ -170,7 +187,8 @@ class TurntableChord(Chord):
         return findRatios(newPitch=pitch, origPitch=highest, rpm=self.rpm, maxdev=maxdev)
 
     def findShifts(self, pitch:Pitch, maxshift=10):
-        return findShifts(newPitch=pitch, origPitch = self.original[0], rpm=self.rpm, maxshift=maxshift)
+        return findShifts(newPitch=pitch, origPitch=self.original[0],
+                          rpm=self.rpm, maxshift=maxshift)
 
     def findRatio(self, pitch: Pitch, maxdev=0.1) -> t.Opt[float]:
         """
@@ -186,15 +204,43 @@ class TurntableChord(Chord):
         ratios = self.findRatios(pitch=pitch, maxdev=maxdev)
         return ratios[0][1] if ratios else None
 
-    def report(self, show=True):
+    def report(self, show=True, kind='full', shifts=None):
+        """
+        kind: what kind of report. 
+            'simple': show limits of shifting (-10%, 0, +10%)
+            'full': shows pair shifts (-10, -8, -6, ..., +10)
+            You can also specify which shifts to report directly via the shifts param
+        shifts: if given, it overrides the settings in `kind`
+        show: if True, the report is also grafical 
+        """
+        import music21 as m21 
+
         def makeChord(rpm, ratio):
             ch = self.at(rpm, ratio)
-            ch.label = f"{rpm}@{ratio}"
+            shift = int(round(ratio2shift(ratio)))
+            ch.label = f"{rpm}/{shift}"
             return ch
-        from itertools import product
-        chs = [makeChord(rpm, ratio) for rpm, ratio in product((33, 45), (0.9, 1, 1.1))]
-        seq = ChordSeq(chs)
+        if shifts is None:
+            if kind == 'simple':
+                shifts = [-10, 0, 10]
+            elif kind == 'full':
+                shifts = [-10, -8, -6, -4, -2, 0, 2, 4, 6, 8, 10]
+            else:
+                raise ValueError("kind: expected either 'simple' or 'full'")
+        ratios = [shift2ratio(shift) for shift in shifts]
+        seqs = []
+        for rpm in (45, 33):
+            chs = [makeChord(rpm, ratio) for ratio in ratios]
+            seq = ChordSeq(chs)
+            seqs.append(seq)
         if show:
-            seq.show()
-        return seq
-        
+            parts = []
+            for seq in seqs:
+                rpmscore = seq.asmusic21()
+                for part in rpmscore:
+                    parts.append(part)
+            score = m21.stream.Score(parts)
+            m21tools.showImage(score)
+            
+        return seqs
+

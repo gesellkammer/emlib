@@ -16,7 +16,7 @@ class PlatformNotSupported(Exception):
     pass
 
 
-def _loggedcall(args: t.U[str, t.List[str]], shell=False) -> t.Tup[_str, str]:
+def _logged_call(args: t.U[str, t.List[str]], shell=False) -> t.Tup[_str, str]:
     """
     Call a subprocess with args
 
@@ -91,11 +91,11 @@ def _lily(lilyfile:str, outfile:_str=None, fmt='pdf'):
     if sys.platform == "win32":
         # in windows we call lilypond through the shell
         s = f'lilypond --{fmt} -o "{out}" "{lilyfile}"'
-        error, output = _loggedcall(s, shell=True)
+        error, output = _logged_call(s, shell=True)
     else:
         # in unix we can find the binary so we can call directly
         lilybinary = find_lilypond()
-        error, output = _loggedcall([lilybinary, f'--{fmt}', '-o', basefile, lilyfile])
+        error, output = _logged_call([lilybinary, f'--{fmt}', '-o', basefile, lilyfile])
     if not os.path.exists(out):
         logger.error(f"Failed to produce a {fmt} file: {out}")
         return None
@@ -139,7 +139,8 @@ def postprocess(lilyfile:str, outfile:str, remove_header=True, book=True) -> Non
     def _add_preamble(s):
         version = re.search(r"\\version.+", s)
         if version:
-            s = s[:version.span()[1]] + '\n\\include "lilypond-book-preamble.ly"\n' + s[version.span()[1]:]
+            preamble = '\n\\include "lilypond-book-preamble.ly"\n'
+            s = s[:version.span()[1]] + preamble + s[version.span()[1]:]
         return s
 
     s = open(lilyfile).read()

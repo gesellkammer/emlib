@@ -1,8 +1,25 @@
 from emlib import numpytools
 from scipy import signal
 import numpy as np
+from emlib import conftools
 # import matplotlib as mpl
 # from matplotlib.ticker import Formatter as _Formatter
+
+
+def _get_cmaps():
+    import matplotlib.pyplot as plt
+    return plt.colormaps()
+
+
+config = conftools.ConfigDict(
+    __name__, 
+    default={
+        'spectrogram_colormap': 'inferno'
+    },
+    validator={
+        'spectrogram_colormap::choices': _get_cmaps
+    }
+)
 
 
 def plot_power_spectrum(samples, samplerate, framesize=2048, window=('kaiser', 9)):
@@ -56,6 +73,24 @@ def _frames_to_samples(frames, hop_length=512, n_fft=None):
     offset = int(n_fft//2) if n_fft else 0
     return (np.asanyarray(frames) * hop_length + offset).astype(int)
 
+def _plot_matplotlib(samples, samplerate):
+    import matplotlib.pyplot as plt
+    numch = get_num_channels(samples)
+    numsamples = samples.shape[0]
+    dur = numsamples / samplerate
+    times = np.linspace(0, dur, numsamples)    
+    for i in range(numch):
+        if i == 0:
+            axes = ax1 = plt.subplot(numch, 1, i+1)
+        else:
+            axes = plt.subplot(numch, 1, i+1, sharex=ax1, sharey=ax1)
+        if i < numch - 1:
+            plt.setp(axes.get_xticklabels(), visible=False)
+        chan = get_channel(samples, i)
+        axes.plot(times, chan, linewidth=1)
+        plt.xlim([0, dur])
+    return True
+
 
 def _plot_samples_matplotlib2(samples, samplerate, profile):
     # todo: copiar plot de librosa
@@ -67,8 +102,7 @@ def _plot_samples_matplotlib2(samples, samplerate, profile):
         maxpoints = 40000
         maxsr = 2000
     elif profile == 'high':
-        _plot_samples_matplotlib(samples, samplerate, subsampling=1)
-        return True
+        return _plot_matplotlib(samples, samplerate)
     else:
         raise ValueError("profile should be one of 'low', 'medium' or 'high'")
     targetsr = samplerate
@@ -98,6 +132,7 @@ def _plot_samples_matplotlib2(samples, samplerate, profile):
         axes.set_xlim([locs.min(), locs.max()])
     return True
 
+
 def _plot_samples_pyqtgraph(samples, samplerate, profile):
     # TODO
     return False
@@ -114,12 +149,13 @@ def plot_samples(samples, samplerate, profile="medium"):
             break
 
 
-def spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap=4):
+def spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap=4, cmap=None, mindb=-90):
     mpl_spectrogram(samples=samples, samplerate=samplerate, fftsize=fftsize, 
-                    window=window, overlap=overlap)
+                    window=window, overlap=overlap, mindb=mindb)
 
 
-def mpl_spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap=4, axes=None):
+def mpl_spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap=4, axes=None, cmap=None, 
+                    interpolation='bilinear', mindb=-90):
     """
     samples: a channel of audio data
     samplerate: the samplerate of the audio data
@@ -132,6 +168,9 @@ def mpl_spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap
     if axes is None:
         axes = plt.subplot(1, 1, 1)
     hopsize = int(fftsize / overlap)
+    noverlap = fftsize - hopsize
     win = signal.get_window(window, fftsize)
-    axes.specgram(samples, NFFT=fftsize, Fs=samplerate, noverlap=hopsize, window=win)
+    cmap = cmap if cmap is not None else config['spectrogram_colormap']
+    axes.specgram(samples, NFFT=fftsize, Fs=samplerate, noverlap=noverlap, window=win, cmap=cmap, 
+                  interpolation=interpolation, vmin=mindb)
     return axes

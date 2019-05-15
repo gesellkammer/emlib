@@ -5,30 +5,31 @@
 
 from bisect import bisect as _bisect
 import bpf4 as _bpf
-from ..pitch import db2amp, amp2db
-from typing import Optional as Opt, List, Sequence as Seq
+from emlib.pitchtools import db2amp, amp2db
+from emlib import typehints as t
+from emlib import lib
 
 _DYNAMICS = ('pppp', 'ppp', 'pp', 'p', 'mp',
              'mf', 'f', 'ff', 'fff', 'ffff')
 
 
 class DynamicsCurve(object):
-    def __init__(self, bpf, dynamics=None):
-        # type: (_bpf.BpfInterface, Opt[Seq[str]]) -> None
+    
+    def __init__(self, bpf, dynamics:t.Seq[str]=None):
         """
         shape: a bpf mapping 0-1 to amplitude(0-1)
         dynamics: a list of possible dynamics, or None to use the default
 
         NB: see .fromdescr
         """
-        self.dynamics = dynamics if dynamics is not None else _DYNAMICS
+        self.dynamics = lib.astype(tuple, dynamics if dynamics else _DYNAMICS)
         bpf = bpf.fit_between(0, len(self.dynamics)-1)
         self._amps2dyns, self._dyns2amps = _create_dynamics_mapping(bpf, self.dynamics)
         assert len(self._amps2dyns) == len(self.dynamics)
 
     @classmethod
-    def fromdescr(cls, shape, mindb, maxdb=0, dynamics=None):
-        # type: (str, float, float, Opt[Seq[str]]) -> DynamicsCurve
+    def fromdescr(cls, shape:float, mindb:-100.0, maxdb=0.0,
+                  dynamics:t.Seq[str]=None) -> 'DynamicsCurve':
         """
         shape: the shape of the mapping ('linear', 'expon(2)', etc)
         mindb, maxdb: db value of minimum and maximum amplitude
@@ -42,8 +43,7 @@ class DynamicsCurve(object):
         bpf = create_shape(shape, mindb, maxdb)
         return cls(bpf, dynamics)
 
-    def amp2dyn(self, amp, nearest=True):
-        # type: (float, bool) -> str
+    def amp2dyn(self, amp:float, nearest=True) -> str:
         """
         convert amplitude to a string representation of its corresponding
         musical dynamic as defined in DYNAMIC_TABLE
@@ -66,8 +66,7 @@ class DynamicsCurve(object):
         db = amp2db(amp)
         return dyn0 if abs(db-amp2db(amp0)) < abs(db-amp2db(amp1)) else dyn1
 
-    def dyn2amp(self, dyn):
-        # type: (str) -> float
+    def dyn2amp(self, dyn:str) -> float:
         """
         convert a dynamic expressed as a string to its 
         corresponding amplitude
@@ -87,8 +86,7 @@ class DynamicsCurve(object):
         """
         return self.amp2dyn(db2amp(db))
 
-    def dyn2index(self, dyn):
-        # type: (str) -> int
+    def dyn2index(self, dyn:str) -> int:
         """
         Convert the given dynamic to an integer index
         """
@@ -97,24 +95,17 @@ class DynamicsCurve(object):
         except ValueError:
             raise ValueError("Dynamic not defined, should be one of %s" % self.dynamics)
 
-    def index2dyn(self, idx):
-        # type: (int) -> str
-        """
-        :type idx: int
-        :rtype : str
-        """
+    def index2dyn(self, idx:int) -> str:        
         return self.dynamics[idx]
 
-    def amp2index(self, amp):
-        # type: (float) -> str
+    def amp2index(self, amp:float) -> str:
         return self.dyn2index(self.amp2dyn(amp))
 
-    def index2amp(self, index):
+    def index2amp(self, index:int) -> float:
         # type: (int) -> float
         return self.dyn2amp(self.index2dyn(index))
 
-    def asdbs(self, step=1):
-        # type: (int) -> List[float]
+    def asdbs(self, step=1) -> 't.List[float]':
         """
         Convert the dynamics defined in this curve to dBs
         """
@@ -124,12 +115,12 @@ class DynamicsCurve(object):
         return dbs
 
 
-def _validate_dynamics(dynamics):
+def _validate_dynamics(dynamics: t.Seq[str]) -> None:
     assert not set(dynamics).difference(_DYNAMICS), \
         "Dynamics not understood"
 
 
-def _create_dynamics_mapping(bpf, dynamics=None):
+def _create_dynamics_mapping(bpf, dynamics:t.Seq[str]=None):
     """
     Calculate the global dynamics table according to the bpf given
 
@@ -151,8 +142,7 @@ def _create_dynamics_mapping(bpf, dynamics=None):
     return dynamics_table, dynamics_dict
 
 
-def create_shape(shape='expon(3)', mindb=-90, maxdb=0):
-    # type: (str, float, float) -> _bpf.BpfInterface
+def create_shape(shape='expon(3)', mindb=-90, maxdb=0) -> _bpf.BpfInterface:
     """
     Return a bpf mapping 0-1 to amplitudes, as needed to be passed
     to DynamicsCurve
@@ -171,7 +161,7 @@ def create_shape(shape='expon(3)', mindb=-90, maxdb=0):
     return _bpf.util.makebpf(shape, [0, 1], [minamp, maxamp])
     
 
-_default  = DynamicsCurve(create_shape("expon(4.0)", -80, 0))
+_default = DynamicsCurve(create_shape("expon(4.0)", -80, 0))
 
 
 def amp2dyn(amp, nearest=True):

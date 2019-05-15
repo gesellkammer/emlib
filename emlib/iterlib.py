@@ -209,9 +209,9 @@ def iterchunks(seq, chunksize):
 
 def isiterable(obj, exclude=(str,)):
     # type: (Any, Tup) -> bool
-    if exclude is None:
-        return hasattr(obj, '__iter__')
-    return hasattr(obj, '__iter__') and (not isinstance(obj, exclude))
+    if exclude:
+        return hasattr(obj, '__iter__') and (not isinstance(obj, exclude))
+    return hasattr(obj, '__iter__')
     
 
 def grouper(seq, n, fillvalue=None):
@@ -227,23 +227,6 @@ def grouper(seq, n, fillvalue=None):
     """
     args = [iter(seq)] * n
     return zip_longest(fillvalue=fillvalue, *args)
-
-
-def groupby(f, coll):
-    # type: (Callable, Iter) -> dict
-    """ Group a collection by a key function
-
-    >>> names = ['Alice', 'Bob', 'Charlie', 'Dan', 'Edith', 'Frank']
-    >>> groupby(len, names)
-    {3: ['Bob', 'Dan'], 5: ['Alice', 'Edith', 'Frank'], 7: ['Charlie']}
-    """
-    d = dict()
-    for item in coll:
-        key = f(item)
-        if key not in d:
-            d[key] = []
-        d[key].append(item)
-    return d
 
 
 def random_combination(iterable, r):
@@ -313,15 +296,35 @@ def flatten(s, exclude=(str,), levels=inf):
     return an iterator to the flattened items of sequence s
     strings are not flattened
     """
-    if not isiterable(s):
+    if not hasattr(s, '__iter__') or isinstance(s, exclude):
         yield s
-        raise StopIteration
-    for elem in iter(s):
-        if isinstance(elem, exclude) or levels <= 0:
-            yield elem
-        else:
-            yield from flatten(elem, exclude, levels-1)
+    else:
+        for elem in s:
+            if isinstance(elem, exclude) or levels <= 0:
+                yield elem
+            else:
+                yield from flatten(elem, exclude, levels-1)
 
+
+# as a reference, a non-recursive version. It is slower than flatten
+def _flatten_nonrec(iterable):
+    iterator, sentinel, stack = iter(iterable), object(), []
+    while True:
+        value = next(iterator, sentinel)
+        if value is sentinel:
+            if not stack:
+                break
+            iterator = stack.pop()
+        elif isinstance(value, str):
+            yield value
+        else:
+            try:
+                new_iterator = iter(value)
+            except TypeError:
+                yield value
+            else:
+                stack.append(iterator)
+                iterator = new_iterator
 
 def flatlist(s: Iter, exclude=(str,), levels=inf) -> list:
     return list(flatten(s, exclude=exclude, levels=levels))

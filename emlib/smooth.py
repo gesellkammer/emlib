@@ -10,8 +10,8 @@
 
 import numpy
 from collections import deque
-from .lib import isiterable
-from .iterlib import window, izip
+from emlib.lib import isiterable
+from emlib.iterlib import window, izip
 
 
 def wavg(values, weights):

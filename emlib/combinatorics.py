@@ -9,8 +9,6 @@ import itertools
 from itertools import combinations, permutations
 from functools import reduce
 import time as _time
-import six as _six
-from typing import Iterator
 
 
 def all_combinations(seq, size=2):
@@ -19,7 +17,6 @@ def all_combinations(seq, size=2):
 
 
 def combinations_with_repetition(seq, size):
-    # type: (Iterator, int) -> Iterator
     """
     Yield all combinations of the elements of seq where:
 
@@ -60,17 +57,13 @@ def _max_distance(xs):
 
 
 def random_range(length):
+    """
+    Return an array of ints from 0 to length-1, in random order
+    """
     s = _np.arange(length)
     _np.random.shuffle(s)
     return s
     
-
-def _random_range_purepython(length):
-    indices = list(range(length))
-    orders = [random.randint(0, length*1000) for i in indices]
-    indices.sort(key=lambda i:orders[i])
-    return indices
-
 
 def distance_from_sorted(seq, offset=0):
     """
@@ -85,12 +78,17 @@ def distance_from_sorted(seq, offset=0):
     return dist
 
 
-_cached_random_distances = [0, 0, 1, 2, 4, 8, 11, 15, 21, 26, 33, 
-                            39, 47, 56, 64, 74, 84, 96, 107, 119, 
+_cached_random_distances = [0,   0,  1,  2,  4,  8, 11, 15, 21, 26, 
+                            33, 39, 47, 56, 64, 74, 84, 96, 107, 119, 
                             132, 146, 160, 175, 191, 208, 225, 242, 
-                            260, 280, 300, 320, 340, 363, 385, 407, 
-                            431, 456, 480, 506, 532, 560, 587, 615, 
-                            645, 674, 705, 734, 769, 799]
+                            260, 280, 300, 320, 340, 363, 385, 407, 431, 456, 
+                            480, 506, 532, 560, 587, 615, 645, 674, 705, 734, 
+                            769, 799, 834, 866, 900, 937, 970, 1007, 1043, 1082, 
+                            1120, 1159, 1198, 1240, 1280, 1323, 1366, 1408, 1450, 1495, 
+                            1540, 1584, 1634, 1679, 1728, 1775, 1823, 1874, 1925, 1975,
+                            2029, 2077, 2135, 2185, 2241, 2296, 2352, 2405, 2460, 2524,
+                            2579, 2641, 2698, 2756, 2821, 2882, 2945, 3007, 3072, 3131,
+                            3200, 3266]
 
 
 def random_distance(length, numseqs=1000):
@@ -132,8 +130,8 @@ def _unsortx(seq, entropy, margin=0, debug=False, calculate_rating=False):
 
     def max_distance(N):
         delta = int(N * 0.5 + 0.5)
-        I = _np.arange(N, dtype=int)
-        return _np.abs((I - ((I + delta) % N))).sum()
+        idxs = _np.arange(N, dtype=int)
+        return _np.abs((idxs - ((idxs + delta) % N))).sum()
 
     def worst_distribution(N):
         distance_left = max_distance(N)
@@ -220,7 +218,7 @@ def unsort(seq, entropy, margin=0, tolerance=0.05, numiter=100, timeout=None):
             return result
         if timeout is not None and i % checkint == 0:
             t1 = _time.time()
-            if timeout is not None and t1 - t0 > timeout:
+            if t1 - t0 > timeout:
                 break
         results.append((result, rating))
     if not results:
@@ -274,7 +272,7 @@ def _unsort(xs, entropy=1, margin=0):
         margin0, margin1 = margin
         margin1 = len(xs) - margin1
         unsorted = unsort(xs[margin0:margin1], entropy, 0)
-        out =_lib.copyseq(xs)
+        out = _lib.copyseq(xs)
         out[margin0:margin1] = unsorted
         return out
     if entropy == 0:

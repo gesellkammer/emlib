@@ -1,12 +1,11 @@
-from __future__ import absolute_import
+import math
 from sndtrck.spectrum import Spectrum
 import bpf4 as bpf
-import math
-from .lib import intersection, returns_tuple
+from emlib.lib import intersection, returns_tuple
 
 
 class Camera(object):
-    def __init__(self, x=0, z=0, alpha=90, scanrate=1):
+    def __init__(self, x=0, z=0, alpha=90, scanrate=1, focusdist=1):
         """
         Notes on settings:
 
@@ -14,12 +13,19 @@ class Camera(object):
             - the scanperiod. The longer the period, the greater the zoom
             - the aperture (alpha) angle. This determines de length of the
               visible-field. The wider the angle, the smaller the zoom.
+
+        x: position in the x-axis (time)
+        z: position in the z-axis (the y-axis is frequency)
+        alpha: aperture angle
+        scanrate: a scanrate of 2 scans two secods in 1 second
+        focusdist: distance at which scanrate operates
+
         """
         self.x = x
         self.z = z
         self.alpha = alpha
         self.scanrate = scanrate
-        self.focusdist = 1
+        self.focusdist = focusdist
 
     def zoomfactor(self, z=None):
         """
@@ -163,10 +169,10 @@ class Timeline(object):
 
         x, z: position of the camera (x is "time", z is depth). Can be a bpf
         angle: the aperture of the camera. Can be a bpf.
-        focus: the distance at which the dynamic is maximum
+        focus: xxxx
         maxdist: the distance at which the dynamic is minimum
         scanrate: the rate at which the visible field is rendered
-        scanperdio: you can alternative set the scanrate by setting the period. 
+        scanperiod: you can alternative set the scanrate by setting the period. 
                     One of them has to be unset
         """
         self.x = bpf.asbpf(x)
@@ -195,8 +201,7 @@ class Timeline(object):
         layer, as the layer is evaluated. This can be usefull if, for instance,
         the layer has been shrunk and needs to be reanalyzed
 
-        callback: a function called for each layer. 
-                  def callback(layers, info) -> Spectrum or None
+        callback: a function (layers, info) -> Spectrum, called for each layer. 
         """
         cam = self.get_camera(t)
         curve = self.get_gaincurve(t)
@@ -212,6 +217,10 @@ def make_gaincurve(maxdist, focus=1, exp=1):
     In the normal case, the bigger the distance `z`, the lower the gain.
     For negative z (an object behind the camera) it is still possible
     to define a positive gain
+
+    maxdist: the distance at which the gain decays to 0
+    focus: the distance at which the gain has its maximum
+    exp: the shape of the gain curve
     """
     return bpf.halfcosm(0, 0, focus, 1, maxdist, 0, exp=exp)
 
@@ -224,7 +233,7 @@ def evalspace(space, camera, gaincurve, simulate=False, callback=None,
     camera: a Camera
     gaincurve: a bpf (normally the result of calling make_gaincurve), 
                mapping distance to gain
-    callback: def callback(spectrum, info) -> Spectrum or None
+    callback: a function (spectrum, info) -> Spectrum
               will be called for each layer
               info = {'layerindex': ..}
               To pass extra parameters to callback, use functools.partial

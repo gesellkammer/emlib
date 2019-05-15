@@ -1,7 +1,7 @@
 from collections import deque
-from emlib import iters
+from emlib import iterlib
 from emlib import distribute
-from .misc import split_mask, normalize_mask
+from emlib.music.misc import split_mask, normalize_mask
 
 
 def morph(streams, curve, numsteps, hook=None):
@@ -16,7 +16,7 @@ def morph(streams, curve, numsteps, hook=None):
     """
     indexes = distribute.dither_curve(curve, numsteps)
     out = []
-    seqs = [iters.take(numsteps, stream) for stream in streams]
+    seqs = [iterlib.take(stream, numsteps) for stream in streams]
     for i, index in enumerate(indexes):
         if hook:
             index = hook(i, out)
@@ -38,7 +38,7 @@ def masked(stream, mask):
     masked(range(20), (0, 1)) -> yields the even numbers between 0 and 20
     """
     mask = normalize_mask(mask)
-    maskstream = iters.cycle(mask)
+    maskstream = iterlib.cycle(mask)
     for x, maskvalue in zip(stream, maskstream):
         if maskvalue:
             yield x
@@ -81,7 +81,7 @@ def traverse(seq, chunks, advance=1):
         chunksfunc = lambda cursor: next(chunks)
     else:
         chunksfunc = chunks
-    it_advance = iter(advance) if hasattr(advance, '__iter__') else iter(iters.repeat(advance))
+    it_advance = iter(advance) if hasattr(advance, '__iter__') else iter(iterlib.repeat(advance))
 
     def parsemask(obj):
         if isinstance(obj, tuple):
@@ -115,7 +115,7 @@ class Zip(object):
 
     def __iter__(self):
         constraintfunc = self.constraintfunc
-        for items in iters.izip(*self.streams):
+        for items in zip(*self.streams):
             if constraintfunc is None:
                 yield items
                 continue

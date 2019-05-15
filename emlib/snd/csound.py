@@ -843,7 +843,7 @@ def extractPargs(body:str) -> t.Set[int]:
     pargs = re.findall(regex, body)
     nums = [int(parg[1:]) for parg in pargs]
     for line in body.splitlines():
-        if "passign" not in line:
+        if not re.search(r"\bpassign\b", line):
             continue
         left, right = line.split("passign")
         numleft = len(left.split(","))
@@ -857,7 +857,10 @@ def numPargs(body:str) -> int:
     """
     analyze body to determine the number of pargs needed for this instrument
     """
-    pargs = extractPargs(body)
+    try:
+        pargs = extractPargs(body)
+    except ValueError:
+        pargs = None
     if not pargs:
         return 0
     pargs = [parg for parg in pargs if parg >= 4]
@@ -878,8 +881,9 @@ def pargNames(body:str) -> t.Dict[int, str]:
     kfoo, ibar passign 4
     """
     argnames = {}
+
     for line in body.splitlines():
-        if "passign" in line:
+        if re.search(r"\bpassign\b", line):
             names, firstidx = line.split("passign")
             firstidx = int(firstidx)
             names = names.split(",")
@@ -905,8 +909,8 @@ def numPargsMatchDefinition(instrbody: str, args: t.List) -> bool:
         return False
     return True
 
-def recInstr(body:str, init="", outfile="", events:t.List=None,
-             sr=44100, ksmps=64, nchnls=2, samplefmt='float',
+def recInstr(body:str, events:t.List, init="", outfile="",
+             sr=44100, ksmps=64, nchnls=2, a4=442, samplefmt='float',
              dur=None, comment=None, quiet=True) -> t.Tuple[str, _subprocess.Popen]:
     """
     Record one instrument for a given duration
@@ -935,6 +939,7 @@ sr = {sr}
 ksmps = {ksmps}
 nchnls = {nchnls}
 0dbfs = 1
+A4 = {a4}
 
 {init}
 

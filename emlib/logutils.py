@@ -15,3 +15,11 @@ def fileLogger(path, level='DEBUG', fmt='%(levelname)s: %(message)s'):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
+
+
+def reloadBasicConfig(level='DEBUG', otherLoggers=[]):
+    import importlib
+    importlib.reload(logging)
+    logging.basicConfig(level="DEBUG")
+    for logger in otherLoggers:
+        logger.setLevel(level)

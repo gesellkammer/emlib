@@ -1,6 +1,7 @@
 import bpf4 as bpf
 import bisect
-from .interpol import interpol_linear
+from emlib.interpol import interpol_linear
+
 
 class Linear(object):
     def __init__(self, xs, bpfs):

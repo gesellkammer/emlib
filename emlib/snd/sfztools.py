@@ -1,11 +1,10 @@
 """
 Utilities to edit and generate sfz files
 """
-
 import os
 import math
-from .snd import audiosample as smpl
-from .pitch import n2m
+from emlib.snd import audiosample as smpl
+from emlib.pitchtools import n2m
 import collections
 
 

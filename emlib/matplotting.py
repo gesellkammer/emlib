@@ -13,7 +13,6 @@ defaultprofile = {
     'label_font': 'sans-serif',
     'label_size': 10,
     'label_alpha': 0.75,
-    'line_width': 1,
     'line_alpha': 0.8,
     'line_style': 'solid',
     'edgecolor': 1,
@@ -25,6 +24,16 @@ defaultprofile = {
     'autoscale': True,
     'background': (0, 0, 0)
 }
+
+
+
+def makeProfile(default=defaultprofile, **kws):
+    out = default.copy()
+    for key, value in kws.items():
+        if key not in default:
+            raise KeyError(f"Key {key} not in default profile")
+        out[key] = value
+    return out
 
 
 _colormap = cm.cmap_d['jet']   # type: t.Callable[[float], t.Tuple[float, float, float, float]]

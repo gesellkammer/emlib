@@ -1,10 +1,10 @@
 from collections import namedtuple as _namedtuple
 from emlib.containers import RecordList 
-from emlib.pitch import f2n, n2f, m2n, n2m, f2m, m2f, interval2ratio
+from emlib.pitchtools import f2n, n2f, m2n, n2m, f2m, m2f, interval2ratio
 from emlib import lib
 from emlib.iterlib import flatten, product
 from itertools import combinations
-from emlib.mus import Note, Chord, asNote, ChordSeq
+from emlib.music.core import Note, Chord, asNote, ChordSeq
 from emlib import typehints as t
 import warnings
 
@@ -17,6 +17,9 @@ _Pitch = t.U[str, float, Note]
 
 
 def _ringmod2f(f1: float, f2: float) -> t.Tup[float, float]:
+    """
+    Calculate the difference and combination freqs. between f1 and f2
+    """
     comb = f1+f2
     diff = max(9, abs(f1-f2))
     return diff, comb
@@ -30,11 +33,11 @@ def _asmidi(x: _Pitch) -> float:
         return x.midi
     elif isinstance(x, (int, float)):
         if x > 127:
-            warnings.warn("A midinote expected, but got a value of {x}, which is higher than 127!")
+            raise ValueError("A midinote expected (< 128), but got a value of {x}!")
         return x
     elif isinstance(x, str):
         return n2m(x)
-    raise TypeError(f"expected a Note, a notename or a midinote, got {x}")
+    raise TypeError(f"Expected a Note, a notename or a midinote, got {x}")
 
 
 def _parsePitches(*pitches):
@@ -54,15 +57,16 @@ def _parsePitches(*pitches):
 def ringmod(*pitches):
     # type: (*_Pitch) -> t.List[Note]
     """
-    Calculate the ring-modulation between the given notes/frequencies
+    Calculate the ring-modulation between the given notes
 
-    pitches: a midinote, a notename or a Note
+    pitches:
+        a midinote, a notename or a Note (no frequencies!)
+        Many notenames can be given as one string, separated by spaces
 
-    Returns the notes of the sidebands
+    Returns the notes of the sidebands, as Notes
     """
     midis = _parsePitches(*pitches)
     freqs = list(map(m2f, midis))
-    # freqs = [m2f(_asmidi(pitch)) for pitch in pitches]
     sidebands = [_ringmod2f(f1, f2) for f1, f2 in combinations(freqs, 2)]
     sidebands = list(set(flatten(sidebands)))
     sidebands.sort()
@@ -81,6 +85,73 @@ def sumtones(*pitches):
     freqs = list(map(m2f, midis))
     return [Note(f2m(f1+f2)) for f1, f2 in combinations(freqs, 2)]
     
+
+class Difftone:  
+    _fields = ("note0", "note1", "freq0", "freq1", "diff", "freq", "desired", "beating")
+
+    def __init__(self, note0, note1, desired=None):
+        self.note0 = n0 = asNote(note0)
+        self.note1 = n1 = asNote(note1)
+        self.freq0 = round(n0.freq)
+        self.freq1 = round(n1.freq)
+        self.diff = Note(f2m(abs(n0.freq - n1.freq)))
+        self.desired = asNote(desired) if desired is not None else self.diff 
+        self.beatings = round(abs(self.desired.freq - self.diff.freq))
+        self._notes = None
+
+    @property
+    def notes(self):
+        if self._notes is None:
+            self._notes = Chord(self.note0, self.note1)
+        return self._notes
+
+    def __iter__(self):
+        # these correspond to _fields
+        return iter((self.note0, self.note1, self.freq0, self.freq1, self.diff,
+                     round(self.diff.freq), self.desired, self.beatings))
+
+    def __repr__(self):
+        if self.desired == self.diff:
+            return f"Difftone(note0={self.note0}, note1={self.note1}, diff={self.diff})"
+        return f"Difftone(note0={self.note0}, note1={self.note1}, diff={self.diff}, desired={self.desired}, beatings={self.beatings})"
+        
+    def transpose(self, interval):
+        note0 = self.note0 + interval
+        note1 = self.note1 + interval 
+        return Difftone(note0, note1)
+
+    def asChord(self, diff=True):
+        """
+        diff: if True, the resulting difftone is included in the chord
+        """
+        if diff:
+            ch = Chord(self.note0, self.note1, self.diff)
+        else:
+            ch = Chord(self.note0, self.note1)
+        return ch
+
+    def show(self):
+        ch = self.asChord(diff=True)
+        ch.show()
+
+    def play(self, *args, **kws):
+        return self.asChord(diff=False).play(*args, **kws)
+
+    def shiftRatio(self, result):
+        """
+        Find a ratio r to multiply the freq. of the sources of this difftone so
+        that they produce a difftone `result`
+
+        NB: if note1 and note2 produce a difftone d, when note1 and note2
+            both are transposed by the same interval i, the resulting 
+            difftone is also transposed by the same interval i
+
+        Example
+
+        d = difftone_source("A3", interval=1)
+        """
+        return interval2ratio(self.diff.midi - _asmidi(result))
+
 
 def difftones(*pitches):
     # type: (*_Pitch) -> t.List[Note]
@@ -114,7 +185,7 @@ def difftones_cubic(*notes):
     return out
 
 
-def difftone_source(difftone, interval, resolution=0):
+def difftone_source(difftone:_Pitch, interval:float, resolution=0.0) -> Difftone:
     # type: (_Pitch, float, float) -> Difftone
     """
     difftone: the resulting difftone
@@ -160,7 +231,8 @@ def difftone_sources_in_range(difftone, minnote=None, maxnote="D8", resolution=0
     difftones = [difftone_source(diffmidi, interval, resolution) for interval in intervals]
     minmidi = _asmidi(minnote)
     maxmidi = _asmidi(maxnote)
-    sources = [difftone for difftone in difftones if minmidi <= difftone.note0.midi and difftone.note1.midi <= maxmidi]
+    sources = [difftone for difftone in difftones
+               if minmidi <= difftone.note0.midi and difftone.note1.midi <= maxmidi]
     return RecordList(sources)
 
 
@@ -189,22 +261,29 @@ def _difftone_find_source(pitch, maxdist=0.5, intervals=None,
     return out
 
 
-def _difftone_find_source2(pitch, maxdist=0.5, intervals=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-                           minnote='A0', maxnote='C8', sumtonegap=0, resolution=1):
+def _difftone_find_source2(pitch, maxdist=0.5, intervals:t.List=None, minnote='A0', maxnote='C8',
+                           sumtonegap=0, resolution=1):
     # type: (t.U[str, float], float, t.List[int], str, str, float) -> t.List[t.Tup[float, float]]
     """
-    pitch (notename or midinote): The resulting pitch generated as a difftone
-    maxdist: the max. distance between the given note and the produced difftone
-    intervals: allowed intervals for the source pitches
-    minnote, maxnote: the range to look for difftones
-    sumtonegap: the minimal distance to the corresponding sumtone
-    resolution: the resolution of the pitch grid (in semitones). 1 will search among
+    pitch (notename or midinote):
+        The resulting pitch generated as a difftone
+    maxdist:
+        the max. distance between the given note and the produced difftone
+    intervals:
+        allowed intervals for the source pitches
+    minnote, maxnote:
+        the range to look for difftones
+    sumtonegap:
+        the minimal distance to the corresponding sumtone
+    resolution:
+        the resolution of the pitch grid (in semitones). 1 will search among
         all semitones betweeen minnote and maxnote, 0.5 will search all quarter-tones, etc.
 
     Returns: a list of pairs (note1:str, note2:str) representing notes which produce
              the given pitch as a difference tone
              (or an empty list if no pairs are found)
     """
+    intervals = intervals or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     m0 = _asmidi(pitch)
     n0 = lib.snap_to_grid(_asmidi(minnote), resolution)
     n1 = lib.snap_to_grid(_asmidi(maxnote), resolution)
@@ -231,8 +310,7 @@ def _difftone_find_source2(pitch, maxdist=0.5, intervals=[1, 2, 3, 4, 5, 6, 7, 8
     return pairs
     
 
-def _sumtone_find_source(pitch, maxdist=0.5,
-                         intervals=[1,2,3,4,5,6,7,8,9,10],
+def _sumtone_find_source(pitch, maxdist=0.5, intervals:t.List=None,
                          minnote='A0', maxnote='C8', difftonegap=0):
     # type: (t.U[str, float], float, t.List[t.U[float, int]], str, str, float) -> t.List[t.Tup[str, str]]
     """
@@ -247,6 +325,7 @@ def _sumtone_find_source(pitch, maxdist=0.5,
              the given pitch as a sumtone
              (or an empty list if no pairs are found)
     """
+    intervals = intervals or [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     m0 = _asmidi(pitch)
     midimin = int(n2m(minnote)) if isinstance(minnote, str) else int(minnote)
     midimax = int(n2m(maxnote)) if isinstance(maxnote, str) else int(maxnote)
@@ -274,73 +353,6 @@ def _sumtone_find_source(pitch, maxdist=0.5,
     out = [(m2n(m1), m2n(m2)) for m1, m2 in pairs]
     assert all(isinstance(n0, str) and isinstance(n1, str) for n0, n1 in out)
     return out
-
-
-class Difftone:  
-    # namedtuple("_Difftone", "note0 note1 desired diff beatings")):
-    _fields = ("note0", "note1", "freq0", "freq1", "diff", "freq", "desired", "beating")
-
-    def __init__(self, note0, note1, desired=None):
-        self.note0 = n0 = asNote(note0)
-        self.note1 = n1 = asNote(note1)
-        self.freq0 = round(n0.freq)
-        self.freq1 = round(n1.freq)
-        self.diff = Note(f2m(abs(n0.freq - n1.freq)))
-        self.desired = asNote(desired) if desired is not None else self.diff 
-        self.beatings = round(abs(self.desired.freq - self.diff.freq))
-        self._notes = None
-
-    @property
-    def notes(self):
-        if self._notes is None:
-            self._notes = Chord(self.note0, self.note1)
-        return self._notes
-
-    def __iter__(self):
-        # these correspond to _fields
-        return iter((self.note0, self.note1, self.freq0, self.freq1, self.diff, round(self.diff.freq), self.desired, self.beatings))
-
-    def __repr__(self):
-        if self.desired == self.diff:
-            return f"Difftone(note0={self.note0}, note1={self.note1}, diff={self.diff})"
-        return f"Difftone(note0={self.note0}, note1={self.note1}, diff={self.diff}, desired={self.desired}, beatings={self.beatings})"
-        
-    def transpose(self, interval):
-        note0 = self.note0 + interval
-        note1 = self.note1 + interval 
-        return Difftone(note0, note1)
-
-    def asChord(self, diff=True):
-        """
-        diff: if True, the resulting difftone is included in the chord
-        """
-        if diff:
-            ch = Chord(self.note0, self.note1, self.diff)
-        else:
-            ch = Chord(self.note0, self.note1)
-        return ch
-
-    def show(self):
-        ch = self.asChord(diff=True)
-        ch.show()
-
-    def play(self, *args, **kws):
-        return self.asChord(diff=False).play(*args, **kws)
-
-    def shiftRatio(self, result):
-        """
-        Find a ratio r to multiply the freq. of the sources of this difftone so
-        that they produce a difftone `result`
-
-        NB: if note1 and note2 produce a difftone d, when note1 and note2
-            both are transposed by the same interval i, the resulting 
-            difftone is also transposed by the same interval i
-
-        Example
-
-        d = difftone_source("A3", interval=1)
-        """
-        return interval2ratio(self.diff.midi - _asmidi(result))
 
 
 def difftone_sources(result: _Pitch,
@@ -381,7 +393,8 @@ def difftone_sources(result: _Pitch,
     pairs = _difftone_find_source(result, maxdist, minnote=minnote,
                                   maxnote=maxnote, intervals=intervals,
                                   sumtonegap=sumtonegap, resolution=resolution)
-    difftones = [Difftone(note0=Note(midi0), note1=Note(midi1), desired=Note(midiresult)) for midi0, midi1 in pairs]
+    difftones = [Difftone(note0=Note(midi0), note1=Note(midi1), desired=Note(midiresult))
+                 for midi0, midi1 in pairs]
     reclist = RecordList(difftones)
     if display:
         # ipython?
@@ -414,7 +427,7 @@ def ringmod_exactsource(sideband1, sideband2):
     Returns: the original pitches, as midinotes
     """
     diffFreq = m2f(_asmidi(sideband1))
-    sumFreq  = m2f(_asmidi(sideband2))
+    sumFreq = m2f(_asmidi(sideband2))
     f1 = (diffFreq + sumFreq)/2.0
     f0 = sumFreq - f1
     return Note(f2m(f0)), Note(f2m(f1))
@@ -597,14 +610,14 @@ def wave_overtone_relative_amplitude(wavetype="saw", overtone=2):
     """
     if overtone <= 0:
         raise ValueError("Overtone should be >= 1 (f0 = overtone 1)")
-    if   wavetype == "saw":
+    if wavetype == "saw":
         return 1/overtone 
     elif wavetype == "square":
-        return 1/overtone * (overtone%2)
+        return 1 / overtone * (overtone % 2)
     elif wavetype == "sine":
         return 1 if overtone == 1 else 0
     elif wavetype == "tri":
-        return 1/(overtone**2) * (overtone%2)
+        return 1 / (overtone**2) * (overtone % 2)
     else:
         raise KeyError("wavetype not known, should be one of saw, square, sine or tri")
     
@@ -698,15 +711,19 @@ def _checkpitch(p):
     raise TypeError(f"Expected a str or a float, but got {type(p)}")
 
 
-def fm_chord(carrierfreq: float, modfreq: float, index: float, minamp=0.01, minpitch=None, maxpitch=None) -> Chord:
+def fm_chord(carrierfreq: float, modfreq: float, index: float, minamp=0.01,
+             minpitch=None, maxpitch=None) -> Chord:
     maxfreq = 24000 if maxpitch is None else asNote(maxpitch).freq
     minfreq = 0 if minpitch is None else asNote(minpitch).freq
-    bands = fm_sidebands(carrierfreq=carrierfreq, modfreq=modfreq, index=index, minamp=minamp, minfreq=minfreq, maxfreq=maxfreq)
+    bands = fm_sidebands(carrierfreq=carrierfreq, modfreq=modfreq, index=index,
+                         minamp=minamp, minfreq=minfreq, maxfreq=maxfreq)
     notes = [Note(f2m(freq), amp=amp) for freq, amp in bands]
     return Chord(notes)
     
 
-def fm_chord_ratio(carrier: _Pitch, ratio: float, index: float, minamp=0.01, minpitch=None, maxpitch=None) -> Chord:
+def fm_chord_ratio(carrier: _Pitch, ratio: float, index: float, minamp=0.01,
+                   minpitch=None, maxpitch=None) -> Chord:
     carrierfreq = asNote(carrier).freq
     modfreq = carrierfreq * ratio
-    return fm_chord(carrierfreq=carrierfreq, modfreq=modfreq, index=index, minamp=minamp, minpitch=minpitch, maxpitch=maxpitch)
+    return fm_chord(carrierfreq=carrierfreq, modfreq=modfreq, index=index,
+                    minamp=minamp, minpitch=minpitch, maxpitch=maxpitch)

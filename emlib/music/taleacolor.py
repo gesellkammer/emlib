@@ -6,10 +6,9 @@ import logging
 
 from bpf4 import bpf as _bpf
 
-from .. import iterlib as _iterlib
-from .. import lib as _lib
-from ..containers import RecordList as _RecordList
-from ..iterlib import cycle
+from emlib import iterlib
+from emlib import lib as _lib
+from emlib.containers import RecordList as _RecordList
 
 logger = logging.getLogger("emlib")
 
@@ -77,7 +76,7 @@ class Masked(object):
         self.mask = _normalize_mask(mask)
 
     def __iter__(self):
-        maskstream = _iterlib.cicle(self.mask)
+        maskstream = iterlib.cicle(self.mask)
         for x, m in zip(self.stream, maskstream):
             if m:
                 yield x
@@ -235,7 +234,7 @@ class _TaleaProtocol(object):
         if not all(item.dur >= 0 for item in items):
             print("WARNING! item.dur <= 0")
             print([item for item in items if item.dur <= 0])
-        assert all(abs(i0.end - i1.start) < 1e-13 for i0, i1 in _iterlib.pairwise(items))
+        assert all(abs(i0.end - i1.start) < 1e-13 for i0, i1 in iterlib.pairwise(items))
         assert all(_lib.intersection(item.start, item.end, t0, t1) for item in items)
 
         #################
@@ -417,8 +416,8 @@ class Talea(_TaleaBase):
         self._maskcolor = colormask
 
     def _get_iterator(self):
-        colorseq = zip(cycle(self._color), cycle(self._maskcolor))
-        taleaseq = zip(cycle(self._talea), cycle(self._taleamask))
+        colorseq = zip(iterlib.cycle(self._color), iterlib.cycle(self._maskcolor))
+        taleaseq = zip(iterlib.cycle(self._talea), iterlib.cycle(self._taleamask))
         maskedcolor = (x[0] for x in filter(lambda color_mask:color_mask[1], colorseq))
         maskedtalea = (x[0] for x in filter(lambda talea_mask:talea_mask[1], taleaseq))
         return zip(maskedtalea, maskedcolor)
@@ -514,7 +513,7 @@ class _OverlapTalea(_TaleaProtocol):
                                  isinstance(self._factor, _Number))
 
     def __iter__(self):
-        it, it0 = _iterlib.tee(self._source, 2)
+        it, it0 = iterlib.tee(self._source, 2)
         now = it0.next().start
         pastitems = []
         yielded_items = []
@@ -618,10 +617,10 @@ class TaleaX(_TaleaProtocol):
         self._field_names = field_names
 
     def _get_iterator(self):
-        seqs = [zip(cycle(color), cycle(mask))
+        seqs = [zip(iterlib.cycle(color), iterlib.cycle(mask))
                 for color, mask in zip(self._colors, self._masks)]
         maskedseqs = [(x[0] for x in filter(lambda mask:mask[1], seq)) for seq in seqs]
-        taleaseq = zip(_iterlib.cycle(self._talea), cycle(self._taleamask))
+        taleaseq = zip(iterlib.cycle(self._talea), iterlib.cycle(self._taleamask))
         maskedtalea = (x[0] for x in filter(lambda talea_mask:talea_mask[1], taleaseq))
         return zip(*([maskedtalea] + maskedseqs))
 
@@ -671,9 +670,9 @@ class TaleaX(_TaleaProtocol):
         
     def take(self, num, flat=True):
         if flat:
-            return Items(_iterlib.take(self.flatiter(), num))
+            return Items(iterlib.take(self.flatiter(), num))
         else:
-            return Items(_iterlib.take(self, num))
+            return Items(iterlib.take(self, num))
         
 
 # ------------------------------------------------------------
@@ -690,7 +689,7 @@ class TaleaSimple(_TaleaProtocol):
         self.color = color
         N = len(talea) * len(color) * 10
         N = min(N, 10000)
-        xs = [0] + list(_iterlib.take(N, _iterlib.parsum(_iterlib.cycle(talea))))
+        xs = [0] + list(iterlib.take(N, iterlib.parsum(iterlib.cycle(talea))))
         indices = range(len(xs))
         self.bpf = _bpf.nointerpol(xs, indices)
         self.t0, self.t1 = self._bpf.bounds()

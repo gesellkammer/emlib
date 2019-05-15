@@ -1,12 +1,8 @@
-# Uses python-midi, https://github.com/vishnubob/python-midi
-from __future__ import division
-from __future__ import absolute_import
-from __future__ import print_function
 from collections import namedtuple
 import math
 import midi
 from .util import cents2pitchbend
-from ..lib import snap_to_grid
+from emlib.lib import snap_to_grid
 import warnings
 from six.moves import map
 from six.moves import range

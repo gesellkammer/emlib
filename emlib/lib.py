@@ -4,15 +4,11 @@ import sys as _sys
 import random as _random
 from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
-from contextlib import contextmanager as _contextmanager
 
 import numpy as np
 from functools import reduce
 from fractions import Fraction
 import emlib.typehints as t
-
-Num = t.U[int, float, Fraction]
-Rat = t.U[float, Fraction]
 
 
 # phi, in float (double) form and as Rational number with a precission of 2000
@@ -396,7 +392,7 @@ def issorted(seq, key=None):
         return True
 
 
-def zipsort(a, b, key=None):
+def zipsort(a, b, key=None, reverse=False):
     # type: (t.Seq, t.Seq, t.Opt[t.Callable]) -> t.Seq
     """
     Sort a and keep b in sync
@@ -414,7 +410,7 @@ def zipsort(a, b, key=None):
     >>> names
     ('Mary', 'John', 'Nick')
     """
-    zipped = sorted(zip(a, b), key=key)
+    zipped = sorted(zip(a, b), key=key, reverse=reverse)
     return list(zip(*zipped))
 
 
@@ -757,6 +753,28 @@ def asnumber(obj, accept_fractions=True):
         return None
 
 
+def astype(type_, obj, construct=None):
+    """
+    Return obj as type. If obj is already type, obj itself is returned
+    Otherwise, obj is converted to type. If a special contructor is needed,
+    it can be given as `construct`
+
+    obj: the object to be checkec/converted
+    type_: the type the object should have
+    construct: if given, a function (obj) -> obj of type `type_`
+        Otherwise, type_ itself is used
+
+    Example
+
+
+    asType(list, (3, 4)) -> [3, 4]
+    l = [3, 4]
+    assert asType(list, l) is l --> True
+    asList = partial(asType, list)
+    """
+    return obj if isinstance(obj, type_) else (construct or type_)(obj)
+
+
 def could_be_number(x):
     # type: (t.Any) -> bool
     """
@@ -925,7 +943,7 @@ def can_be_pickled(obj):
     return obj == obj2
 
 
-def snap_to_grid(x:Rat, tick:Rat, offset:Rat=0, nearest=True) -> Rat:
+def snap_to_grid(x:t.Rat, tick:t.Rat, offset:t.Rat=0, nearest=True) -> t.Rat:
     """
     Given a grid defined by offset + tick * N, find the nearest element
     of that grid to a given x
@@ -943,7 +961,7 @@ def snap_to_grid(x:Rat, tick:Rat, offset:Rat=0, nearest=True) -> Rat:
 
 
 def snap_array(X, tick, offset=0, out=None, nearest=True):
-    # type: (np.ndarray, Num, Num, t.Opt[np.ndarray], bool) -> np.ndarray
+    # type: (np.ndarray, t.Rat, t.Rat, t.Opt[np.ndarray], bool) -> np.ndarray
     if nearest:
         return _snap_array_nearest(X, tick, offset=float(offset), out=out)
     else:
@@ -951,7 +969,7 @@ def snap_array(X, tick, offset=0, out=None, nearest=True):
 
 
 def _snap_array_nearest(X, tick, offset=0, out=None):
-    # type: (np.ndarray, Num, Num, np.ndarray) -> np.ndarray
+    # type: (np.ndarray, t.Rat, t.Rat, np.ndarray) -> np.ndarray
     if out is None:
         out = X.copy()
     if offset != 0:
@@ -985,7 +1003,7 @@ def _snap_array_floor(X, tick, offset=0, out=None):
 
 
 def snap_to_grids(x, ticks, offsets=None, mode='nearest'):
-    # type: (Num, t.Seq[Fraction], t.Opt[t.Seq[Fraction]], str) -> Fraction
+    # type: (t.Rat, t.Seq[Fraction], t.Opt[t.Seq[Fraction]], str) -> Fraction
     """
     A regular grid is defined as x = offset + tick*n, where n is an integer
     from -inf to inf.
@@ -1500,13 +1518,21 @@ def runonce(func):
 
 def deprecated(func, msg=None):
     """
+    To be used as
+
     oldname = deprecated(newname)
+
     """
+    import warnings
+
     if msg is None:
         msg = f"Deprecated! use {func.__name__}"
+
     def wrapper(*args, **kws):
-        warning.warn(msg)
+
+        warnings.warn(msg)
         return func(*args, **kws)
+
     return wrapper
 
 
@@ -1514,10 +1540,10 @@ def checktype(obj, *T):
     """
     Examples:
 
-    istype(1, int, float)   --> the same as isinstance(1, (int, float))
-    istype(a, (int, float)) --> a is a tuple of the form (int, float)
-    istype(a, [int])        --> a is a list of ints
-    istype(a, {str:int})    --> a dict of str keys and int values
+    checktype(1, int, float)   --> the same as isinstance(1, (int, float))
+    checktype(a, (int, float)) --> a is a tuple of the form (int, float)
+    checktype(a, [int])        --> a is a list of ints
+    checktype(a, {str:int})    --> a dict of str keys and int values
 
     """
     if len(T) > 1:
@@ -1553,7 +1579,7 @@ def open_with_standard_app(path):
     Open path with the app defined to handle it by the user
     at the os level (xdg-open in linux, start in win, open in osx)
 
-    In Linux and macOS this opens the default application in the background
+    This opens the default application in the background
     and returns immediately
     """
     import subprocess
@@ -1566,6 +1592,24 @@ def open_with_standard_app(path):
         subprocess.call(["open", path])
     else:
         raise RuntimeError(f"platform {platform} not supported")
+
+
+def binary_resolve_path(cmd):
+    cmd0 = cmd.split()[0]
+    if _os.path.exists(cmd0):
+        return cmd0
+    import shutil
+    path = shutil.which(cmd0)
+    if path:
+        return path
+    return None
+
+
+def binary_exists(cmd):
+    """
+    Check if cmd exists or is in the path
+    """
+    return binary_resolve_path(cmd) is not None
 
 
 def inside_jupyter():
@@ -1585,14 +1629,14 @@ def session_type():
         return "python"
 
 
-def print_table(table):
+def print_table(table, headers=()):
     try:
         import tabulate
         if inside_jupyter():
             from IPython.display import HTML, display
-            display(HTML(tabulate.tabulate(table, tablefmt='html')))
+            display(HTML(tabulate.tabulate(table, headers=headers, tablefmt='html')))
         else:
-            print(tabulate.tabulate(table))
+            print(tabulate.tabulate(table, headers=headers))
     except ImportError:
         _print_table(table)
 

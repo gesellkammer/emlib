@@ -17,28 +17,26 @@ import sys
 _EPS = sys.float_info.epsilon
 
 
-_A4 = 442.0
+A4 = 442.0
 
 
 def set_reference_freq(a4: float) -> None:
     """
     set the global value for A4
-
-    NB: you can get the current value calling m2f(69)
     """
-    global _A4
-    _A4 = a4
+    global A4
+    A4 = a4
     
     
 def f2m(freq: float) -> float:
     """
     Convert a frequency in Hz to a midi-note
 
-    See also: set_reference_freq, temporary_A4
+    See also: set_reference_freq, temporaryA4
     """
     if freq < 9:
         return 0
-    return 12.0 * math.log(freq/_A4, 2) + 69.0
+    return 12.0 * math.log(freq/A4, 2) + 69.0
 
 
 def freqround(freq: float) -> float:
@@ -52,12 +50,12 @@ def m2f(midinote: float) -> float:
     """
     Convert a midi-note to a frequency
 
-    See also: set_reference_freq, temporary_A4
+    See also: set_reference_freq, temporaryA4
 
     :type midinote: float|np.ndarray
     :rtype : float
     """
-    return 2**((midinote - 69) / 12.) * _A4
+    return 2**((midinote - 69) / 12.) * A4
 
 
 _notes3      = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
@@ -103,30 +101,32 @@ _notes2 = {
     "b":11
 }
 
+_r1 = _re.compile(r"(?P<pch>[A-Ha-h][b|#]?)(?P<oct>[-]?[\d]+)(?P<micro>[+|-][\d]*)?")
+_r2 = _re.compile(r"(?P<oct>[-]?\d+)(?P<pch>[A-Ha-h][b|#]?)(?P<micro>[+|-]\d*)?")
+
 
 def n2m(note: str) -> float:
     # first format: C#2, D+2, Db4+20
     # snd format  : 2C#, 4D+, 7Eb-14
-    regexes = [
-        "(?P<oct>[-]?[0-9]+)(?P<pch>[A-Ha-h][b|#]?)(?P<micro>[+|-][0-9]*)?",
-        "(?P<pch>[A-Ha-h][b|#]?)(?P<oct>[-]?[0-9]+)(?P<micro>[+|-][0-9]*)?"
-    ]
-    for regex in regexes:
-        m = _re.match(regex, note)
-        if m:
-            break
+    if note[0].isalpha():
+        m = _r1.search(note)
     else:
+        m = _r2.search(note)
+    # m = _r1.search(note) or _r2.search(note)
+    if not m:
         raise ValueError("Could not parse note " + note)
     groups = m.groupdict()
     pitchstr = groups['pch']
     octavestr = groups['oct']
     microstr = groups['micro']
+    
     pc = _notes2[pitchstr[0].lower()]
+    
     if len(pitchstr) == 2:
         alt = pitchstr[1]
         if alt == "#":
             pc += 1
-        elif alt == "b" or alt == "s":
+        elif alt == "b":
             pc -= 1
         else:
             raise ValueError("Could not parse alteration in " + note)
@@ -145,7 +145,7 @@ def n2m(note: str) -> float:
         pc = 0
         octave += 1
     elif pc < 0:
-        pc = 0
+        pc = 12 + pc
         octave -= 1
     return (octave + 1) * 12 + pc + micro
 
@@ -257,3 +257,74 @@ def pitchbend2cents(pitchbend: int, maxcents=200) -> int:
 
 def cents2pitchbend(cents:int, maxcents=200) -> int:
     return int((cents+maxcents)/(maxcents*2.0)* 16383.0 + 0.5)
+
+
+def split_notename(notename:str) -> 'tuple[int, str, int, int]':
+    """
+    Return octave, letter, alteration (1=#, -1=b), cents
+
+    4C#+10  -> (4, "C", 1, 10)
+    Eb4-15  -> (4, "E", -1, -15)
+    """
+    def parse_centstr(centstr:str) -> int:
+        if not centstr:
+            cents = 0
+        elif centstr == '+':
+            cents = 50
+        elif centstr == '-':
+            cents = -50
+        else:
+            cents = int(centstr)
+        return cents
+
+    if not notename[0].isdecimal():
+        # C#4-10
+        cursor = 1
+        letter = notename[0]
+        l1 = notename[1]
+        if l1 == '#':
+            alter = 1
+            octave = int(notename[2])
+            cursor = 3
+        elif l1 == 'b':
+            alter = -1
+            octave = int(notename[2])
+            cursor = 3
+        else:
+            alter = 0
+            octave = int(notename[1])
+            cursor = 2
+        centstr = notename[cursor:]
+        cents = parse_centstr(centstr)
+    else:
+        # 4C#-10
+        octave = int(notename[0])
+        letter = notename[1]
+        rest = notename[2:]
+        cents = 0
+        alter = 0
+        if rest:
+            r0 = rest[0]
+            if r0 == 'b':
+                alter = -1
+                centstr = rest[1:]
+            elif r0 == '#':
+                alter = 1
+                centstr = rest[1:]
+            else:
+                centstr = rest
+            cents = parse_centstr(centstr)
+    return octave, letter.upper(), alter, cents
+
+
+def split_cents(notename:str) -> 'tuple[str, int]':
+    """
+    given a note of the form 4E- or 5C#+10, it should return (4E, -50) and (5C#, 10)
+    """
+    octave, letter, alter, cents = split_notename(notename)
+    alterchar = "b" if alter == -1 else "#" if alter == 1 else ""
+    return str(octave)+letter+alterchar, cents
+
+
+def normalize_notename(notename:str) -> str:
+    return m2n(n2m(notename))

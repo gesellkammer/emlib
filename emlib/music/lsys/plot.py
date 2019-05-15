@@ -4,7 +4,7 @@ from matplotlib import cm
 import bpf4 as bpf
 
 from emlib.typehints import *
-from emlib.pitch import amp2db
+from emlib.pitchtools import amp2db
 from emlib import iterlib
 import numpy as np
 

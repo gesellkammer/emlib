@@ -6,8 +6,8 @@ from emlib.iterlib import window, flatten
 from emlib import lib
 from emlib.music.timescale import rateRelativeCurve, indexDistance
 from math import sqrt
-from emlib import mus
-from emlib.pitch import *
+from emlib.music.core import Chord
+from emlib.pitchtools import *
 from emlib.music import combtones
 
 
@@ -51,28 +51,30 @@ def solveSlotsPerGroup(numGroups, numSlots, fixed=None, callback=None):
         problem = constraint.Problem()
         variables = list(range(numGroups))
         problem.addVariables(variables, values)
-        if fixed:
+        if fixed is not None:
             for idx, value in fixed.items():
-                problem.addConstraint(lambda s: s==value, [idx])
+                if idx < 0:
+                    idx = len(variables) + idx
+                print(f"Adding fix constraint: idx {idx} must be {value}")
+                problem.addConstraint(lambda s, value=value: s == value, [idx])
         for s0, s1 in window(variables, 2):
-            problem.addConstraint(lambda s0, s1: abs(s0-s1)<=1, [s0, s1])
+            problem.addConstraint(lambda s0, s1: abs(s0-s1) <= 1, [s0, s1])
         for s0, s1, s2 in window(variables, 3):
-            problem.addConstraint(lambda s0, s1, s2: abs(s2-s0)<=1, [s0, s1, s2])
-            problem.addConstraint(lambda s0, s1, s2: not(s0==s1==s2), [s0, s1, s2])
-        problem.addConstraint(lambda butlast, last: butlast>=last, [variables[-2], variables[-1]])
+            problem.addConstraint(lambda s0, s1, s2: abs(s2-s0) <= 1, [s0, s1, s2])
+            problem.addConstraint(lambda s0, s1, s2: not(s0 == s1 == s2), [s0, s1, s2])
+        problem.addConstraint(lambda butlast, last: butlast >= last, [variables[-2], variables[-1]])
         if numGroups >= 4:
             for group in window(variables, 4):
-                problem.addConstraint(lambda *ss: not(ss[0]==ss[1] and ss[2]==ss[3]), group)
+                problem.addConstraint(lambda *ss: not(ss[0] == ss[1] and ss[2]==ss[3]), group)
         if numGroups == 5:
-            problem.addConstraint(lambda *ss: not(ss[0]==ss[4] and ss[1] == ss[3]))
+            problem.addConstraint(lambda *ss: not(ss[0] == ss[4] and ss[1] == ss[3]))
         if numGroups >= 5:
             for group in window(variables, 5):
-                problem.addConstraint(lambda *ss: not(ss[0]==ss[2]==ss[4] and ss[1]==ss[3]), group)
+                problem.addConstraint(lambda *ss: not(ss[0] == ss[2] == ss[4] and ss[1] == ss[3]), group)
         if callback is not None:
             callback(problem, variables)
 
         return _getSolutions(problem)
-
 
     allsolutions = []
     for numGroups in numGroups:
@@ -98,6 +100,9 @@ class Solution(t.NamedTuple):
     groups: t.List[t.List[float]]
     score: float = 0
     ratings: t.Optional[dict] = None
+
+    def duration(self):
+        return sum(sum(group) for group in self.groups)
 
 
 def _solveSection(sectionSecs:float, tempo:float, slotsPerGroup:t.List[t.List[int]], minGroupDur:float, 
@@ -143,7 +148,8 @@ def _solveSection(sectionSecs:float, tempo:float, slotsPerGroup:t.List[t.List[in
     problem.addVariables(slots, values)
 
     # ------------------ Constraints ------------------
-    problem.addConstraint(lambda s0: s0==min(values), variables=[slots[0]])
+    minvalue = min(values)
+    problem.addConstraint(lambda s0: s0 == minvalue, variables=[slots[0]])
     for s0, s1 in window(slots, 2):
         problem.addConstraint(lambda s0, s1: 1 <= s1/s0 <= 1.618, variables=[s0, s1])
     
@@ -189,6 +195,9 @@ def _ascurve(curve) -> t.Optional[bpf.BpfInterface]:
 class Rater:
     def __init__(self, slotsCurve=None, groupCurve=None,
                  groupCurveW=1.0, slotsCurveW=1.0, varianceW=1.0):
+        """
+        This class is just a helper to call rateSolution
+        """
         self.slotsCurve = _ascurve(slotsCurve)
         self.groupCurve = _ascurve(groupCurve)
         self.groupCurveW = groupCurveW
@@ -203,6 +212,14 @@ class Rater:
 
 def rateSolution(solution: Solution, curve=None, groupCurve=None,
                  groupCurveW=1.0, curveW=1.0, varianceW=1.0):
+    """
+    solution: the solution to rate
+    curve: if given , the distance to curve is minimized per slot
+    groupCurve: if given, the distance to curve is minimized, per group duration
+    groupCurveW: group curve weight
+    curveW: curve weight
+    varianceW: variance weight
+    """
     slots = solution.slots
     groups = solution.groups
     variance = len(set(slots))/len(slots)
@@ -253,9 +270,11 @@ def solveSection(possSlotsPerGroup, sectionSecs, tempo, minGroupDur,
     for slotsPerGroup in possSlotsPerGroup:
         if showProgress:
             print(f"Solving: {slotsPerGroup}")
-        solutions = _solveSection(sectionSecs, tempo=tempo, slotsPerGroup=slotsPerGroup, minGroupDur=minGroupDur,
+        solutions = _solveSection(sectionSecs, tempo=tempo, slotsPerGroup=slotsPerGroup,
+                                  minGroupDur=minGroupDur,
                                   relError=relError, minSlot=minSlot,
-                                  callback=callback, maxConsecutive=maxConsecutive, maxSlope=maxSlope, 
+                                  callback=callback, maxConsecutive=maxConsecutive,
+                                  maxSlope=maxSlope, 
                                   maxIndexJump=maxIndexJump,
                                   slotDurs=slotDurs)
         allsolutions.extend(solutions)
@@ -274,7 +293,7 @@ def _prettyRatings(ratings: t.Dict[str, t.Tuple[float, float]]) -> str:
 
 
 def turntableDiffReport(origRpm, *notes):
-    ch0 = mus.Chord(notes)
+    ch0 = Chord(notes)
     ch45 = ch0.transpose(r2i(45/origRpm))
     ch33 = ch0.transpose(r2i(33.333/origRpm))
     

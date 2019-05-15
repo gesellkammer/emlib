@@ -1,11 +1,10 @@
-from __future__ import division as _division
 import math
+from fractions import gcd
 from collections import namedtuple as _namedtuple
 from fractions import Fraction as _Fraction
-from ..pitch import *
-from ..lib import gcd as _gcd, returns_tuple as _returns_tuple
-from . import music
-
+from emlib.pitchtools import *
+from emlib.lib import returns_tuple as _returns_tuple
+from emlib.music.core import Note
 
 class Fret(_namedtuple("Fret", "fret midinote")):
     @property
@@ -82,7 +81,7 @@ class InstrumentString(object):
         """
         frets = []
         for i in range(1, harmonic):
-            if _gcd(i, harmonic) > 1:
+            if gcd(i, harmonic) > 1:
                 continue
             fret = self.ratio2fret(i / harmonic)
             if fret >= minfret and fret <= maxfret:
@@ -117,8 +116,7 @@ class InstrumentString(object):
         frets = self.find_node(harmonic).frets
         diff, fret_pos = min((abs(fret.freq - fq), fret) for fret in frets)
         resulting_freq = self.freq * harmonic
-        return harmonic, music.Note(f2m(resulting_freq)), fret_pos
-        # return harmonic, resulting_pitch, fret_pos
+        return harmonic, Note(f2m(resulting_freq)), fret_pos
 
     def __mul__(self, other):
         return self.find_node(other)
@@ -136,14 +134,14 @@ class InstrumentString(object):
         return "%f Hz | %s | %f midi" % (self.freq, f2n(self.freq), f2m(self.freq))
 
 _Violin = _namedtuple("Violin", "i ii iii iv")
-_Viola  = _namedtuple("Viola",  "i ii iii iv")
-_Cello  = _namedtuple("Cello",  "i ii iii iv")
-_Bass   = _namedtuple("Bass",   "i ii iii iv v")
+_Viola = _namedtuple("Viola","i ii iii iv")
+_Cello = _namedtuple("Cello","i ii iii iv")
+_Bass = _namedtuple("Bass", "i ii iii iv v")
 
 violin = _Violin(*map(InstrumentString, "5E 4A 4D 3G".split()))
-viola  = _Viola(*map(InstrumentString, "4A 4D 3G 3C".split()))
-cello  = _Cello(*map(InstrumentString, "3A 3D 2G 2C".split()))
-bass   = _Bass(*map(InstrumentString, "2G 2D 1A 1E 0B".split()))
+viola = _Viola(*map(InstrumentString, "4A 4D 3G 3C".split()))
+cello = _Cello(*map(InstrumentString, "3A 3D 2G 2C".split()))
+bass = _Bass(*map(InstrumentString, "2G 2D 1A 1E 0B".split()))
 
 
 def nearest_node(fundamental, note, max_harmonic=16):
@@ -167,7 +165,7 @@ def nearest_node(fundamental, note, max_harmonic=16):
 
 def find_node(fundamental, harmonic=2, minfret=0, maxfret=24):
     freq = _note2freq(fundamental)
-    s = InstrumentalString(freq)
+    s = InstrumentString(freq)
     return s.find_node(harmonic, minfret=minfret, maxfret=maxfret)
 
 

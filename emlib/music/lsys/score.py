@@ -3,7 +3,7 @@ from emlib.music import scoring
 from emlib import iterlib
 from .core import *
 from .config import config
-from emlib.pitch import amp2db, db2amp
+from emlib.pitchtools import amp2db, db2amp
 
 
 def node2note(node: Node, showbranch:bool, showmeta:bool) -> t.Opt[scoring.Note]:
@@ -20,12 +20,14 @@ def node2note(node: Node, showbranch:bool, showmeta:bool) -> t.Opt[scoring.Note]
         annotup = " ".join(metastrs)
         annot += f";^{annotup}"
     #gliss = node.data.get('gliss', False)
-    note = scoring.Note(step=node.step, offset=node.offset, dur=node.dur, annot=annot, db=db,
+    note = scoring.Note(pitch=node.step, offset=node.offset, dur=node.dur, annot=annot, db=db,
                         stepend=node.stepend)
     assert note.step == node.step
     return note
 
-def branch2notes(branch:Branch, showbranch:bool=None, showmeta:bool=None, callback=None) -> t.List[scoring.Note]:
+
+def branch2notes(branch:Branch, showbranch:bool=None, showmeta:bool=None,
+                 callback=None) -> t.List[scoring.Note]:
     """
     callback:
         a function of the form (node, note) -> note
@@ -116,7 +118,8 @@ def _makescore_abjad(branch: Branch, showbranch:bool, pagesize:str, orientation:
                              includebranch=showbranch, backend='abjad')
 
 
-def playbranch(branch:Branch, defaultinstr='piano', gliss=True, callback=None, gain=1, sr=44100, instrs=None):
+def playbranch(branch:Branch, defaultinstr='piano', gliss=True, callback=None,
+               gain=1, sr=44100, instrs=None):
     """
     Plays the Branch. Returns a process (subprocess.Popen)
 

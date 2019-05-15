@@ -3,26 +3,35 @@ import os
 import json
 import logging
 import sys
-import typing as t
 import tabulate
 import re
 import weakref
-
-
-
-__all__ = [
-    "getConfig",
-    "ConfigDict"
-]
+import textwrap
+import subprocess
+from types import FunctionType as _FunctionType
+import typing as t
 
 
 logger = logging.getLogger("emlib.conftools")
 
 
-def _checkValidator(validatordict):
+def _checkValidator(validatordict:dict, defaultdict:dict) -> dict:
+    """
+    Checks the validity of the validator itself, and makes any needed
+    postprocessing on the validator
+
+    :param validatordict: the validator dict
+    :param defaultdict: the dict containing defaults
+    :return: a postprocessed validator dict
+    """
+    stripped_keys = {key.split("::")[0] for key in validatordict.keys()}
+    not_present = stripped_keys - defaultdict.keys()
+    if any(not_present):
+        notpres = ", ".join(sorted(not_present))
+        raise KeyError(f"The validator dict has keys not present in the defaultdict ({notpres})")
     v = {}
     for key, value in validatordict.items():
-        if key.endswith('::choices'):
+        if key.endswith('::choices') and isinstance(value, (list, tuple)):
             value = set(value)
         v[key] = value
     return v
@@ -57,11 +66,11 @@ def _waitForClick():
 
 def _openInEditor(cfg):
     _openInStandardApp(cfg)
-    
+ 
 
 class CheckedDict(dict):
 
-    def __init__(self, default: dict, validator: dict=None, callback=None, checkHook=None, precallback=None) -> None:
+    def __init__(self, default: dict, validator: dict=None, help=None, callback=None, precallback=None) -> None:
         """
         A dictionary which checks that the keys and values are valid 
         according to a default dict and a validator
@@ -78,19 +87,55 @@ class CheckedDict(dict):
              'keyC::range': (0, 1)
             }
 
+            choices can be defined lazyly by giving a lambda which returns a list
+            of possible choices
+
+        help: a dict containing help lines for keys defined in default
+
         checkHook: a callback of the form (self, key, value) -> errormsg | None
-            Will be called before setting the key to value. It should return "falsey"
-            (None, "") if the change is allowed, or an error msg otherwise
-        precallback: a callback of the form (self, key, oldvalue, newvalue) -> None
-            works as a notification system, can't modify the dictionary configuration itself,
-            but can be useful to modify/clear caches, etc.
+            Will be called before setting the key to value. It should return None
+            if the change is allowed, or an error msg otherwise
+        precallback:
+            function (self, key, oldvalue, newvalue) -> None|newvalue
+            * A return value modifies the value set by the user
+            * None allows the transaction
+            * Any Exception stops the transaction
+            NB: old value is None if key did not exist previously
+        callback:
+            function (key, value) -> None
+            This function is called AFTER the modification has been done.
         """
         self.default = default
-        self._allowedkeys = default.keys()
-        self._validator = _checkValidator(validator) if validator else None
-        self._precallback = None
+        self._allowedkeys = set(default.keys())
+        self._validator = _checkValidator(validator, default) if validator else None
+        self._precallback = precallback
         self._callback = callback
-        self._checkHook = checkHook
+        self._help = help
+
+    def diff(self) -> dict:
+        """
+        Get a dict containing keys:values which differ from default
+        """
+        out = {}
+        default = self.default
+        for key, value in self.items():
+            valuedefault = default[key]
+            if value != valuedefault:
+                out[key] = value
+        return out
+
+    def addKey(self, key, value, type=None, choices=None, range=None, help=None):
+        self.default[key] = value
+        self._allowedkeys.add(key)
+        validator = self._validator
+        if type:
+            validator[f"{key}::type"] = type
+        if choices:
+            validator[f"{key}::choices"] = choices
+        if range:
+            validator[f"{key}::range"] = range
+        if help:
+            self._help[key] = help
         
     def __setitem__(self, key:str, value) -> None:
         if key not in self._allowedkeys:
@@ -102,7 +147,9 @@ class CheckedDict(dict):
         if errormsg:
             raise ValueError(errormsg)
         if self._precallback:
-            self._precallback(self,key, oldvalue, value)
+            newvalue = self._precallback(self,key, oldvalue, value)
+            if newvalue:
+                value = newvalue
 
         super().__setitem__(key, value)
 
@@ -119,7 +166,7 @@ class CheckedDict(dict):
                 return errormsg
         return ""
         
-    def getChoices(self, key:str) -> t.Optional[t.List]:
+    def getChoices(self, key:str) -> t.Optional[list]:
         """
         Return a seq. of possible values for key `k`
         or None
@@ -129,7 +176,17 @@ class CheckedDict(dict):
         if not self._validator:
             logger.debug("getChoices: validator not set")
             return None
-        return self._validator.get(key+"::choices", None)
+        key2 = key+"::choices"
+        choices = self._validator.get(key2, None)
+        if isinstance(choices, _FunctionType):
+            realchoices = choices()
+            self._validator[key2] = set(realchoices)
+            return realchoices
+        return choices
+
+    def getHelp(self, key:str) -> t.Optional[str]:
+        if self._help:
+            return self._help.get(key)
 
     def checkValue(self, key: str, value) -> t.Optional[str]:
         """
@@ -157,10 +214,6 @@ class CheckedDict(dict):
         r = self.getRange(key)
         if r and not (r[0] <= value <= r[1]):
             return f"Value should be within range {r}, got {value}"
-        if self._checkHook is not None:
-            errormsg = self._checkHook(self, key, value)
-            if errormsg:
-                return errormsg
         return None
 
     def getRange(self, key:str) -> t.Tuple:
@@ -171,7 +224,7 @@ class CheckedDict(dict):
             return None
         return self._validator.get(key+"::range", None)
 
-    def getType(self, key:str) -> type:
+    def getType(self, key:str) -> t.Union[type, tuple]:
         """
         Returns the expected type for key, as a type
 
@@ -185,17 +238,23 @@ class CheckedDict(dict):
             definedtype = self._validator.get(key + "::type")
             if definedtype:
                 return definedtype
+            choices = self.getChoices(key)
+            if choices:
+                return tuple(set(type(choice) for choice in choices))
         defaultvalue = self.default.get(key)
         if defaultvalue is None:
             raise KeyError("Key is not present in default config")
-        if isinstance(defaultvalue, bool):
-            return bool
-        if isinstance(defaultvalue, (int, float)):
-            return float
-        elif isinstance(defaultvalue, (bytes, str)):
+        if isinstance(defaultvalue, (bytes, str)):
             return str
         else:
             return type(defaultvalue)
+
+    def getTypestr(self, key:str) -> str:
+        t = self.getType(key)
+        if isinstance(t, tuple):
+            return "(" + ", ".join(x.__name__ for x in t) + ")"
+        else:
+            return t.__name__
         
     def reset(self) -> None:
         """ 
@@ -207,6 +266,7 @@ class CheckedDict(dict):
         cfg = getconfig("folder:config")
         cfg = cfg.reset()
         """
+        self.clear()
         self.update(self.default)
         
     def update(self, d:dict) -> None:
@@ -220,7 +280,8 @@ class ConfigDict(CheckedDict):
 
     registry:dict = {}
     
-    def __init__(self, name: str, default: dict, validator: dict=None, validHook=None) -> None:
+    def __init__(self, name:str, default:dict, validator:dict=None, help:dict=None,
+                 precallback=None) -> None:
         """
         NB: DONT'T CALL THIS CLASS DIRECTLY. Use makeConfig or getConfig
 
@@ -242,10 +303,14 @@ class ConfigDict(CheckedDict):
             {'keyA::choices': ['foo', 'bar'],
              'keyB::type': float
             }
+            Choices can be defined lazyly by giving a lambda
 
-        validHook: if given, if will be called prior to each midification. If have the form
-            (self, key, value) -> errormsg, where key and value are the changes which are about to take place
-            It should return None if the change is allowed, an errormsg otherwise.
+        precallback:
+            function (self, key, oldvalue, newvalue) -> None|newvalue,
+            If given, it is called BEFORE the modification is done
+            * return None to allow modification
+            * return any value to modify the value
+            * raise a ValueError exception to stop the transaction
         """
         if not _isValidName(name):
             raise ValueError(f"name {name} is invalid for a config")
@@ -253,21 +318,19 @@ class ConfigDict(CheckedDict):
             logger.warning("A ConfigDict with the given name already exists!")
         cfg = getConfig(name)
         if cfg and default != cfg.default:
-            if not force:
-                raise KeyError(f"A config with name {name} was already created "
-                               "but the defaults differ")
-            else:
-                logger.debug(f"makeConfig: config with name {name} already created"
-                             "with different defaults. It will be overwritten")
-        super().__init__(default=default, validator=validator, callback=self._mycallback, checkHook=validHook)
+            logger.debug(f"makeConfig: config with name {name} already created"
+                         "with different defaults. It will be overwritten")
+        super().__init__(default=default, validator=validator, help=help,
+                         callback=self._mycallback, precallback=precallback)
         self.name = name
-        self._allowedkeys = default.keys()
+        self._allowedkeys = set(default.keys())
         base, configname = _parseName(name)
         self._base = base
         self._configfile = configname + ".json"
         self._configpath = None
         self._callbackreg = []
         self._ensureWritable()
+        self._helpwidth = 58
         self.readConfig(update=True)
         ConfigDict.registry[name] = weakref.ref(self)
 
@@ -300,29 +363,46 @@ class ConfigDict(CheckedDict):
         if not os.path.exists(folder):
             os.makedirs(folder)
 
+    def reset(self):
+        super().reset()
+        self._save()
+
     def _save(self, *args):
         path = self.getPath()
         logger.debug(f"Saving config to {path}")
         logger.debug("Config: %s" % json.dumps(self, indent=True))
         f = open(path, "w")
-        json.dump(self, f, indent=True)
+        json.dump(self, f, indent=True, sort_keys=True)
 
     def __repr__(self) -> str:
         header = f"Config: {self.name}\n"
         rows = []
-        for k, v in self.items():
+        keys = sorted(self.keys())
+        for k in keys:
+            v = self[k]
             info = []
+            lines = []
             choices = self.getChoices(k)
             if choices:
-                info.append(str(choices))
+                choicestr = ", ".join(str(ch) for ch in choices)
+                if len(choicestr) > self._helpwidth:
+                    choiceslines = textwrap.wrap(choicestr, self._helpwidth)
+                    lines.extend(choiceslines)
+                else:
+                    info.append(choicestr)
             keyrange = self.getRange(k)
             if keyrange:
-                info.append(str(keyrange))
-            keytype = self.getType(k)
-            if keytype:
-                info.append(keytype.__name__)
-                # info.append(str(keytype))
-            rows.append((k, v, " ".join(info)))
+                info.append(f"between {keyrange}")
+            typestr = self.getTypestr(k)
+            info.append(typestr)
+            valuestr = str(v)
+            rows.append((k, valuestr, " ".join(info)))
+            doc = self.getHelp(k)
+            if doc:
+                doclines = textwrap.wrap(doc, self._helpwidth)
+                lines.extend(doclines)
+            for line in lines:
+                rows.append(("", "", line))
         return header + tabulate.tabulate(rows)
 
     def getPath(self) -> str:
@@ -339,12 +419,16 @@ class ConfigDict(CheckedDict):
             raise ValueError("dict is invalid")
         super().update(d)
 
-    def openInEditor(self, app=None):
+    def openInEditor(self):
+        raise DeprecationWarning("use .edit instead")
+        return self.edit()
+
+    def edit(self):
+        """
+        Edit (and reload) this config in an external application
+        """
         self._save()
-        if app is None:
-            _openInEditor(self.getPath())
-        else:
-            subprocess.call([app, self.getPath()])
+        _openInEditor(self.getPath())
         _waitForClick()
         self.readConfig()
 
@@ -556,12 +640,3 @@ def getPath(name:str) -> str:
         configdir = userconfigdir
     return os.path.join(configdir, configfile)
 
-
-_example_config = {
-    'key': 'value1',
-    'key2': 3.1415
-}
-
-_example_config_validator = {
-    'key::choices': ('value1', 'value2'),
-}

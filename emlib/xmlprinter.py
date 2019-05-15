@@ -52,9 +52,8 @@ License, or (at your option) any later version.
 The idea for this module was taken from Perl's XML::Writer.
 """
 
-from __future__ import absolute_import
-import six
-__version__ = "0.2.0"
+__version__ = "0.2.1"
+
 _TAB = '  '
 
 
@@ -71,12 +70,12 @@ class xmlprinter(object):
 
     def __init__(self, fp):
         """fp is a file-like object, needing only a write() method"""
+        self.fp = fp
         self._finished = False
         self._past_doctype = False
         self._past_decl = False
         self._elstack = []
         self._inroot = True
-        self.fp = fp
         self._tabify = True
         self._last = "start"
 
@@ -152,7 +151,7 @@ class xmlprinter(object):
             self.fp.write('\n')
         self.fp.write(_TAB * len(self._elstack))
         self.fp.write("<%s" % name)
-        for attr, val in six.iteritems(attrs):
+        for attr, val in attrs.items():
             val = str(val)
             self.fp.write(" %s=%s" % (attr, quoteattr(val)))
         self.fp.write(">")
@@ -163,8 +162,6 @@ class xmlprinter(object):
 
     def data(self, data):
         """Add text 'data'."""
-        # if not self._inroot:
-        #    raise WellFormedError, "attempt to add data outside of root"
         data = str(data)
         self.fp.write(escape(data).encode('UTF-8'))
         self._tabify = False
@@ -218,7 +215,7 @@ class xmlprinter(object):
         Else, all elements must already be closed.
         """
         if self._finished:
-            raise WellFormedError("attempt to re-end a _finished document")
+            raise WellFormedError("attempt to re-end a finished document")
         if autoclose:
             while len(self._elstack) > 0:
                 self.endElement()
@@ -230,7 +227,6 @@ class xmlprinter(object):
 def escape(data):
     """Escape &, <, and > in a string of data; used for character data."""
     return data.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
 
 
 def quoteattr(data):

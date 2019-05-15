@@ -3,9 +3,10 @@ Utilities to interact with Sonic Visualizer
 """
 from __future__ import division, print_function
 from __future__ import absolute_import
+import os
 from lxml import etree
 from bpf4 import bpf
-from ..pitcht import *
+from emlib.pitchtools import *
 import six
 from six.moves import map
 from six.moves import range
@@ -119,7 +120,7 @@ def read_adaptive_spectr(path):
             values = list(map(float, text.split()))
         else:
             values = []
-        rows.append(( int(row.get('n')), values))
+        rows.append((int(row.get('n')), values))
     rows.sort(key=lambda r:r[0])
     values = zip(*rows)[1]  # only the column with the values
     sr = int(model.get("sampleRate"))
@@ -149,8 +150,8 @@ class Spectrum(object):
         bpfs = []
         for amps in values:
             if amps:
-                bpfs.append( bpf.core.NoInterpol(freqs, amps) )
+                bpfs.append(bpf.core.NoInterpol(freqs, amps))
             else:
-                bpfs.append( bpf.const(0) )
+                bpfs.append(bpf.const(0))
         self.bpfs = bpfs
-        
+

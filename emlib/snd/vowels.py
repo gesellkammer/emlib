@@ -1,11 +1,11 @@
-from emlib.pitch import *
-import numpy as np
+from math import pi, sqrt
+from emlib.pitchtools import *
+import bpf4 as bpf
 from emlib.snd import csoundengine
-# from emlib.music import event
 from emlib.mus import Chord, Note
 from emlib.iterlib import flatten
-from math import pi, sqrt
-import bpf4 as bpf
+
+
 from emlib import conftools
 import emlib.typehints as t
 
@@ -208,7 +208,8 @@ def _vowelInstrFof2():
     init = """
         ;gi_fof2rise ftgen 0, 0, 4096, 7, 0, 4096, 1  ; a simple linear envelope
     """
-    _cache['vowelInstr'] = instr = csoundengine.makeInstr(name='vowels.fof2', body=body, initcode=init)
+    _cache['vowelInstr'] = instr = csoundengine.makeInstr(name='vowels.fof2', body=body,
+                                                          initcode=init)
     return instr
 
 
@@ -322,7 +323,8 @@ def findVowel(freqs: t.List[float]) -> str:
     """
     def vowelDistance(voweldef: Vowel, freqs:t.List[float]) -> float:
         vowelfreqs = voweldef.freqs[:len(freqs)]
-        dist = sqrt(sum((f2m(vowelfreq) - f2m(freq))**2 for vowelfreq, freq in zip(vowelfreqs, freqs)))
+        dist = sqrt(sum((f2m(vowelfreq) - f2m(freq))**2
+                        for vowelfreq, freq in zip(vowelfreqs, freqs)))
         return dist
 
     results = []

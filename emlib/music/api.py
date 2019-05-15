@@ -1,4 +1,4 @@
-from .event import *
+from emlib.music.core import *
 from .timing import *
 from .combtones import *
 from .dynamics import *

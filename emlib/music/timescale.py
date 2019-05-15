@@ -54,7 +54,8 @@ class Solver:
         maxvalue       max. value for a slot
                        These are convenience values, we could just filter values (from param. `values`)
                        which fall between these constraints (in fact this is what we do)
-        callback       a function of the form callback(problem, slots) -> None. 
+        callback       DEPRECATED
+                       a function of the form callback(problem, slots) -> None. 
                        It should add constraints via problem.addConstraint  
         """
         self.dur = dur

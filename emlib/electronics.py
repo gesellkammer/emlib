@@ -1,7 +1,5 @@
-from __future__ import division
 import math
-from .pitch import amp2db, db2amp
-from numbers import Number as _Number
+from emlib.pitchtools import amp2db, db2amp
 import re as _re
 
 
@@ -329,7 +327,7 @@ def _normalizevalue(value):
     """
     if value is None:
         return None
-    if isinstance(value, _Number):
+    if isinstance(value, (int, float)):
         return value
     elif isinstance(value, str):
         splitpoint = _re.search("[a-zA-Z]", value)

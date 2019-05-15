@@ -5,8 +5,8 @@ import warnings as _warnings
 from collections import namedtuple
 from bpf4 import bpf
 from .misc import normalize_frames
-from ..lib import returns_tuple as _returns_tuple, public, isiterable
-from ..pitch import n2m as _n2m
+from emlib.lib import returns_tuple as _returns_tuple, public, isiterable
+from emlib.pitchtools import n2m as _n2m
 
 
 class Measure(object):
@@ -97,6 +97,15 @@ _testscore = """
 """
 
 
+class Index:
+    def __init__(self, times, beats, measure_indexes):
+        self.time2measure = bpf.core.NoInterpol(times, measure_indexes)
+        self.beat2measure = bpf.core.NoInterpol(beats, measure_indexes)
+        self.measure2time = bpf.core.NoInterpol(measure_indexes, times)
+        self.measure2beat = bpf.core.NoInterpol(measure_indexes, beats)
+        self.beat2time = bpf.core.Linear(beats, times)
+        self.time2beat = bpf.core.Linear(times, beats)
+                
 @public
 class Score(object):
     def __init__(self, measures, tempocurve=None):
@@ -152,22 +161,12 @@ class Score(object):
             now_time += measure_duration
             now_beats += measure.numbeats
         measure_indexes = range(len(self.measures))
-        
-        class Index:
-            def __init__(self, times, beats, measure_indexes):
-                self.time2measure = bpf.core.NoInterpol(times, measure_indexes)
-                self.beat2measure = bpf.core.NoInterpol(beats, measure_indexes)
-                self.measure2time = bpf.core.NoInterpol(measure_indexes, times)
-                self.measure2beat = bpf.core.NoInterpol(measure_indexes, beats)
-                self.beat2time = bpf.core.Linear(beats, times)
-                self.time2beat = bpf.core.Linear(times, beats)
-
         return Index(times, beats, measure_indexes)
         
     @classmethod
     def fromfile(cls, pathtofile):
         f = open(pathtofile)
-        measures, tempocurve = _parselines(f)
+        measures, tempocurve = parse_lines(f)
         return cls(measures, tempocurve)
 
     @classmethod
@@ -177,7 +176,7 @@ class Score(object):
 
     @classmethod
     def fromlines(cls, lines):
-        measures, tempocurve = _parselines(lines)
+        measures, tempocurve = parse_lines(lines)
         return cls(measures, tempocurve)
 
     def write_midi(self, midifile, resolution=1920, fillpitch=60):
@@ -232,14 +231,13 @@ class Score(object):
                 lasttempo = tempo
                 s.append(m21.tempo.MetronomeMark(number=tempo))
             s.append(m21.meter.TimeSignature(measure.timesig))
-            # s.append(m21.note.Rest(duration=m21.duration.Duration(measure.numbeats)))
             s.append(m21.note.Note(pitch=60, duration=m21.duration.Duration(measure.numbeats)))
         s.write("xml", path)
         return s
 
     def measures_fixed_tempo(self):
         """
-        returns an iterator of (time, timesig, tempo), representing
+        Returns an iterator of (time, timesig, tempo), representing
         each measure in the timeline. It is assumed that each
         measure has a tempo which does not change during the measure
         (no accel or rits)
@@ -272,8 +270,28 @@ class Score(object):
 _Measure = namedtuple("Measure", "time timesig tempo")         
 
 
+def parse_tempo(s):
+    """
+    return always a quarter tempo
+    """
+    if "=" not in s:
+        return int(s)
+    den, tempo = s.split("=")
+    if den == "2":
+        return int(tempo) * 2
+    elif den == "4":
+        return int(tempo)
+    elif den == "8":
+        return int(tempo) / 2
+    elif den == "16":
+        return int(tempo) / 4
+    else:
+        raise ParseError("tempo definition not understood")
+    
+
+
 @_returns_tuple("measures tempocurve")
-def _parselines(lines):
+def parse_lines(lines):
     """
     take an iterator of lines (a file, for examples) and return a tuple (measures, tempocurve)
     
@@ -314,24 +332,6 @@ def _parselines(lines):
     now_beat = 0
     measures, tempos, beats, interpolations = [], [], [], []
     transformation_open = False
-    
-    def parse_tempo(s):
-        """
-        return always a quarter tempo
-        """
-        if "=" not in s:
-            return int(s)
-        den, tempo = s.split("=")
-        if den == "2":
-            return int(tempo) * 2
-        elif den == "4":
-            return int(tempo)
-        elif den == "8":
-            return int(tempo) / 2
-        elif den == "16":
-            return int(tempo) / 4
-        else:
-            raise ParseError("tempo definition not understood")
     
     for line in lines:
         if "#" in line:
@@ -422,6 +422,7 @@ def asmidi(n):
         return float(n)
     except TypeError:
         raise TypeError("could not convert %s to a midi note" % str(n))
+
     
 # #------------------------------------------------------------
 # #

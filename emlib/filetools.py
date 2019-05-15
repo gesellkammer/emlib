@@ -1,17 +1,17 @@
 import datetime
 import os
+import emlib.typehints as t
 
 
-def modified_date(f):
+def modified_date(f: str) -> datetime.date:
     """
     get the modified time of f as a datetime.date
     """
     t = os.path.getmtime(f)
-    date = datetime.date.fromtimestamp(t)
-    return date
+    return datetime.date.fromtimestamp(t)
 
 
-def filesbetween(files, start, end):
+def files_between(files: t.List[str], start, end) -> t.List[str]:
     """
     files: a list of files
     start: a tuple as would be passed to datetime.date
@@ -19,9 +19,4 @@ def filesbetween(files, start, end):
     """
     t0 = datetime.date(*start) if not isinstance(start, datetime.date) else start
     t1 = datetime.date(*end) if not isinstance(end, datetime.date) else end
-    out = []
-    for f in files:
-        t = modified_date(f)
-        if t0 <= t < t1:
-            out.append(f)
-    return out
+    return [f for f in files if t0 <= modified_date(f) < t1]

@@ -1,17 +1,19 @@
-import sndtrck
-from emlib.snd import csoundengine
-from emlib.snd.audiosample import Sample
 import os
-from emlib.snd import csound
-from typing import List      
-from emlib.mus import Chord         
-from emlib.snd import vowels
 import itertools
 import logging
 from functools import lru_cache
 from math import sqrt
-from emlib.pitch import db2amp
 
+import sndtrck
+from emlib.snd.audiosample import Sample
+from emlib.pitchtools import db2amp
+from emlib.snd import csoundengine
+from emlib.snd import csound
+from emlib.snd import vowels
+from emlib.mus import Chord         
+
+
+from typing import List
 
 logger = logging.getLogger("emlib.wavesim")
 
@@ -48,7 +50,8 @@ class Instr:
         """
         if self._csoundInstr is None:
             logger.debug(f"creating CsoundInstr {self.name}")
-            self._csoundInstr = csoundengine.makeInstr(name=self.name, body=self.instrBody, initcode=self.instrInit)
+            self._csoundInstr = csoundengine.makeInstr(name=self.name, body=self.instrBody,
+                                                       initcode=self.instrInit)
         return self._csoundInstr
 
     def _getEvents(self, dur, gain=1, delay=0):
@@ -61,7 +64,8 @@ class Instr:
         Record this Instr, return the soundfile generated
 
         dur     : the duration of the recording
-        outfile : if given, the path to the generated soundfile. Otherwise a temp. file is generated
+        outfile : if given, the path to the generated soundfile.
+                  Otherwise a temp. file is generated
         sr      : the samplerate of the sound
         ksmps   : the ksmps used
         """

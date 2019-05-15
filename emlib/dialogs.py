@@ -13,8 +13,8 @@ def _popupmsg_tk(msg, title="", buttontxt="Ok", font=NORM_FONT):
     popup.mainloop()
 
 
-def popupmsg(msg, title="", buttontxt="Ok", font=NORM_FONT):
-    return _popupmsg_tk(msg=msg, title=title, buttontxt=buttontxt, font=font)
+def popupmsg(msg, title="", buttontxt="Ok"):
+    return _popupmsg_tk(msg=msg, title=title, buttontxt=buttontxt, font=NORM_FONT)
 
 
 def _showinfo_tk(msg, title=None):

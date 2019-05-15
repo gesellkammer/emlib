@@ -262,11 +262,10 @@ class ClassDict(object):
         to delay evaluation when a value depends on a previous definition (lambdas can 
         depend on lambdas also, see example --watch out for mutually dependign definitions!)
 
-        initdict: a dictionary to be read first (optional). You can pass an ordered dict and the
-           order will be respected
+        initdict: a dictionary to be read first (optional)
 
         Examples
-        --------
+        ~~~~~~~~
 
         config = ClassDict(
             key1=10,
@@ -277,7 +276,6 @@ class ClassDict(object):
         # now you can access members like variables:
         print(config.key1 + config.key3)
         # --> 10 + (10+1) = 21
-            
         """
         isdelayed = lambda obj: callable(obj)
         ident = 0
@@ -289,6 +287,7 @@ class ClassDict(object):
         kws3 = {}
         delayed_defs = kws
         maxiterations = 10
+        new_delayed_defs = None
         for i in range(maxiterations):
             new_delayed_defs = {}
             for k, v in delayed_defs.items():
@@ -305,8 +304,8 @@ class ClassDict(object):
         if new_delayed_defs:
             raise ValueError("too many delayed definitions!")
         kws2.update(kws3)
-        self.__dict__.update(kws3)
         d = dict((k, v) for k, v in kws2.items() if not k.startswith('_'))
+        self.__dict__.update(kws3)
         self._dict = _OrderedDict()
         self._dict.update(d)
         self._ident = ident

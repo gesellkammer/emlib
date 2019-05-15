@@ -1,6 +1,6 @@
 """
 audiosample
-===========
+~~~~~~~~~~~
 
 Implements two classes, Sample and TSample
 
@@ -23,30 +23,38 @@ import bpf4 as _bpf
 import pysndfile
 import logging
 import sys
+import fnmatch as _fnmatch
 
 from emlib.snd import sndfiletools
 from emlib.snd.resample import resample as _resample
-from emlib.pitch import amp2db, db2amp
+from emlib.pitchtools import amp2db, db2amp
 from emlib.conftools import ConfigDict
 from emlib.snd.sndfile import sndread
-
+from emlib import lib
 from emlib import typehints as t
 
 
 logger = logging.getLogger("emlib:audiosample")
 
 
+def _configCheck(config, key, oldvalue, newvalue):
+    if key == 'editor':
+        if lib.binary_exists(newvalue):
+            return None
+        logger.error("Setting editor to {newvalue}, but it could not be found!")
+        return oldvalue
+
 config = ConfigDict(
     name='emlib:audiosample',
-    default = {
+    default={
         'editor': '/usr/bin/audacity',
         'fade.shape': 'linear'
-    }
+    },
+    precallback=_configCheck
 )
 
 
-def _increase_suffix(filename):
-    # type: (str) -> str
+def _increase_suffix(filename:str) -> str:
     name, ext = os.path.splitext(filename)
     tokens = name.split("-")
     newname = None
@@ -196,6 +204,23 @@ def list_audio_devices():
     return sd.query_devices()
 
 
+def find_audio_device(glob_pattern):
+    import sounddevice as sd
+    devs = sd.query_devices()
+    for i, dev in enumerate(devs):
+        if _fnmatch.fnmatch(dev['name'], glob_pattern):
+            return i
+    return None
+
+
+def stop():
+    """
+    Stop all playing sounds
+    """
+    import sounddevice as sd
+    sd.stop()
+
+
 class Sample(object):
 
     def __init__(self, sound, samplerate=None, start=0, end=0):
@@ -221,6 +246,7 @@ class Sample(object):
                 "sound should be a path to a sndfile or a seq. of samples")
         self.channels = numchannels(self.samples)  # type: int
         self._asbpf = None                    # type: t.Opt[_bpf.BpfInterface]
+        self._sdplayers = []
 
     @property
     def nframes(self):
@@ -243,12 +269,13 @@ class Sample(object):
         samples, sr = sndread(filename, start=start, end=end)
         return cls(samples, samplerate=sr)
     
-    def play(self, device=None):
+    def play(self, device=None, loop=False):
         # type: (bool) -> None
         """
         Play the samples on the default sound device
 
-        device: the device number as returned by list_devices.
+        device: either the device number as returned by list_devices,
+                or a string matching a device (via fnmatch)
                 None will use the default device
                 
         To select the sound device, see: 
@@ -257,9 +284,12 @@ class Sample(object):
         """
         import sounddevice as sd
         if device is None:
-            sd.play(self.samples, self.samplerate)
-        else:
-            sd.play(self.samples, self.samplerate, device)
+            return sd.play(self.samples, self.samplerate, loop=loop, device=device)
+        if isinstance(device, str):
+            device = find_audio_device(device)
+            if not device:
+                raise KeyError(f"Device {device} not found, see list_audio_devices()")
+        return sd.play(self.samples, self.samplerate, loop=loop, device=device)
 
     def asbpf(self):
         # type: () -> _bpf.BpfInterface
@@ -278,7 +308,7 @@ class Sample(object):
         from . import plotting
         plotting.plot_samples(self.samples, self.samplerate, profile=profile)
 
-    def plot_spectrum(self, framesize=2048, window='hamming', at=0, dur=0):
+    def plot_spectrograph(self, framesize=2048, window='hamming', at=0, dur=0):
         """
         window: As passed to scipy.signal.get_window
                 `blackman`, `hamming`, `hann`, `bartlett`, `flattop`, `parzen`, `bohman`, 
@@ -301,27 +331,22 @@ class Sample(object):
             samples = samples[s0:s1]
         plotting.plot_power_spectrum(samples, self.samplerate, framesize=framesize, window=window)
 
-    def plot_spectrogram(self, fftsize=2048, window='hamming', overlap=4):
+    def plot_spectrogram(self, fftsize=2048, window='hamming', overlap=4, mindb=-120):
+        """
+        fftsize: the size of the fft
+        window: window type. One of 'hamming', 'hanning', 'blackman', ... 
+                (see scipy.signal.get_window)
+        mindb: the min. amplitude to plot
+        """
         from . import plotting
         if self.channels > 1:
             samples = self.samples[:,0]
         else:
             samples = self.samples
-        return plotting.spectrogram(samples, self.samplerate, window=window, fftsize=fftsize, overlap=overlap)
+        return plotting.spectrogram(samples, self.samplerate, window=window, fftsize=fftsize,
+                                    overlap=overlap, mindb=mindb)
 
-    def spectrum(self, resolution=50, **options):
-        """
-        Creates a Spectrum by analyzing this samples through partial-tracking
-        See sndtrck.analyze_samples for options
-
-        NB: this needs the package sndtrck to be installed
-        """
-        samples = np.ascontiguousarray(self.get_channel(0).samples)
-        import sndtrck
-        return sndtrck.analyze_samples(samples, self.samplerate, resolution=resolution, **options)
-
-    def open_in_editor(self, wait=True, app=None, format='wav'):
-        # type: (bool) -> t.Opt['Sample']
+    def open_in_editor(self, wait=True, app=None, format='wav') -> t.Opt['Sample']:
         """
         Open the sample in an external editor. The original
         is not changed.
@@ -329,22 +354,20 @@ class Sample(object):
         wait:
             if wait, the editor is opened in blocking mode, the results of the edit are returned as a new Sample
         app:
-            if given, this application is used to open the sample. Otherwise, the application configured
-            via the key 'editor' is used
+            if given, this application is used to open the sample.
+            Otherwise, the application configured via the key 'editor' is used
 
         """
-        assert format in {'wav', 'aiff', 'flac'}
+        assert format in {'wav', 'aiff', 'aif', 'flac'}
         sndfile = tempfile.mktemp(suffix="." + format)
         self.write(sndfile)
         logger.debug(f"open_in_editor: opening {sndfile}")
+        open_in_editor(sndfile, wait=wait, app=app)
         if wait:
-            open_in_editor(sndfile, wait=True, app=app)
             return Sample.read(sndfile)
-        else:
-            open_in_editor(sndfile, wait=False, app=app)
-            return None
+        return None
 
-    def write(self, outfile, bits=None, **metadata):
+    def write(self, outfile:str, bits:int=None, **metadata) -> str:
         """
         write the samples to outfile
 
@@ -410,6 +433,9 @@ class Sample(object):
             other = _mapn_between(other, len(self.samples), 0, self.duration)
         return Sample(self.samples * other, self.samplerate)
 
+    def __pow__(self, other:float) -> 'Sample':
+        return Sample(self.samples ** other, self.samplerate)
+
     def __imul__(self, other):
         # type: (t.U[float, 'Sample']) -> 'Sample'
         if isinstance(other, Sample):
@@ -471,7 +497,8 @@ class Sample(object):
     def fade(self, fadetime, mode='inout', shape=None):
         if shape is None:
             shape = config['fade.shape']
-        sndfiletools.fade_array(self.samples, self.samplerate, fadetime=fadetime, mode=mode, shape=shape)
+        sndfiletools.fade_array(self.samples, self.samplerate, fadetime=fadetime,
+                                mode=mode, shape=shape)
         return self
 
     def prepend_silence(self, dur):
@@ -644,6 +671,21 @@ class Sample(object):
             'fft': freq_from_fft
         }.get(strategy, freq_from_autocorr)
         return func(s.samples, s.samplerate)
+
+    def spectrum(self, resolution=30, **kws):
+        import sndtrck
+        return sndtrck.analyze_samples(self.samples, self.samplerate, 
+                                       resolution=resolution, **kws)
+
+    def chord_at(self, t:float, resolution=30, **kws):
+        margin = 0.15
+        t0 = max(0, t-margin)
+        t1 = min(self.duration, t+margin)
+        import sndtrck
+        s = sndtrck.analyze_samples(self[t0:t1].samples, self.samplerate, 
+                                    resolution=resolution, hop=2)
+        chord = s.chord_at(t - t0)
+        return chord
 
 
 def first_sound(samples, threshold=-120.0, period=256, hopratio=0.5):

@@ -1,4 +1,6 @@
-from emlib.mus import *
+from emlib.music.core import *
+from emlib.music import core 
+from emlib.pitchtools import *
 
 
 def generateNotes(minoctave=0, maxoctave=9):
@@ -24,4 +26,7 @@ def injectNotes():
 
 N = Note
 Ch = Chord
+ss = stopSynths
+
 injectNotes()
+

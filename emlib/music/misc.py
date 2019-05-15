@@ -1,6 +1,6 @@
 from __future__ import division as _div
-from ..pitch import n2f, n2m
-from ..lib import returns_tuple as _returns_tuple
+from emlib.pitchtools import n2f, n2m
+from emlib.lib import returns_tuple as _returns_tuple
 from typing import Union as U
 
 # #------------------------------------------------------------
@@ -9,29 +9,6 @@ from typing import Union as U
 # #
 # #------------------------------------------------------------
 
-
-def asfreq(n: U[int, float, str]) -> float:
-    """
-    number --> assume a frecuency, returns as is
-    string --> assume a note, try to convert to freq.to
-
-    Returns: the frequency as a float
-
-    Example
-    =======
-
-    >>> asfreq(442)
-    442
-    >>> asfreq("A4")
-    442
-    """
-    if hasattr(n, "freq"):
-        return n.freq
-    if isinstance(n, str):
-        return n2f(n)
-    else:
-        return n
-  
 
 def asmidi(n):
     # type: (U[int, float, str]) -> float
@@ -68,9 +45,6 @@ def _is_pandas_dataframe(obj):
 def normalize_frames(frames):
     """
     Converts a seq of Frames or a pandas.DataFrame to a list of starts, durations and pitches
-
-    Args
-    ====
 
     frames: a seq. of Frames or a pandas.DataFrame with columns (start, dur, pitch)
             where Frame is a namedtuple(..., "start dur pitch)

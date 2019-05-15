@@ -1,6 +1,3 @@
-from __future__ import absolute_import as _, print_function
-from six.moves import map
-from six.moves import range
 """
 Implements some helper functions to interact with audacity, in
 particular to read markers and labels and convert 
@@ -14,9 +11,11 @@ dependencies:
 
 import os
 from collections import namedtuple
-from ..pitch import f2n, f2m
+from emlib.pitchtools import f2n, f2m
 
 _Label = namedtuple("Label", "start end label")
+_Bin = namedtuple("Bin", "freq level")
+
 
 # some helper functions to read info from audacity
 
@@ -92,8 +91,6 @@ def write_labels(outfile, markers):
                 f.write("\t".join(map(str, label)))
                 f.write("\n")
     
-_Bin = namedtuple("Bin", "freq level")
-
 
 def read_spectrum(path):
     f = open(path)
@@ -121,10 +118,6 @@ def read_spectrum_as_chords(path, split=8, max_notes_per_chord=float('inf')):
             exp=0.3333333
         ) * split
     ).apply(int)
-    # step2 = bpf.asbpf(db2amp) | bpf.linear(
-    #     0, 0,
-    #     1, 1
-    # ) * split
     notes = [] 
     for bin in data:
         note = Note(f2n(bin.freq), f2m(bin.freq), bin.freq, bin.level, int(step(bin.level)))

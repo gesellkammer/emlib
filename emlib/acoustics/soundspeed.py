@@ -177,3 +177,19 @@ def string_transverse_propagation_speed(tension, density):
     see: https://en.wikipedia.org/wiki/String_vibration
     """
     return sqrt(tension / density)
+
+
+def longitudinal_propagation_speed(material):
+    v = {
+        'aluminium': 5082,
+    }.get(material)
+    return v
+
+
+def metalrod_longitudinal_wave_freq(length, material='aluminium'):
+    v = longitudinal_propagation_speed(material)
+    if v is None:
+        raise ValueError(f"material not known: {material}")
+    wavelength = 2 * length
+    freq = v / wavelength
+    return freq

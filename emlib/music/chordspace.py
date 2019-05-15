@@ -1,7 +1,9 @@
 import bpf4 as bpf
 from scipy import optimize
-from typing import List, Tuple as Tup, Callable
+from emlib.typehints import List, Tup, Func
 from functools import lru_cache
+from emlib.pitchtools import n2m
+
 
 _weightratio2exp = bpf.linear((1/10, 1/3), (1, 1), (10, 4))
 
@@ -9,7 +11,7 @@ _weightratio2exp = bpf.linear((1/10, 1/3), (1, 1), (10, 4))
 def chordCurve(midinotes: List[float], 
                weights: List[float], 
                numiter: int, 
-               weight2exp: Callable[[float, float], float], 
+               weight2exp: Func[[float, float], float], 
                xs: List[float] = None,
                ) -> bpf.BpfInterface:
     
@@ -32,8 +34,8 @@ def chordCurve(midinotes: List[float],
     def pairCurve(x0, midi0, weight0, x1, midi1, weight1):
         exp = weight2exp(weight0, weight1)
         return bpf.halfcos(x0, midi0, x1, midi1, exp=exp, numiter=numiter).outbound(0, 0)
-        
-    dx=0.005
+
+    dx = 0.005
     curves = []
     if xs is None:
         xs = list(range(len(midinotes)))
@@ -54,10 +56,16 @@ def parseChord(chordstr: str) -> Tup[List[float], List[float]]:
 
     This routine is used in conjunction with ChordAttractor
     """
+    def _asmidi(n:str) -> float:
+        if n[0].isalnum():
+            return float(n)
+        else:
+            return n2m(n)
+        
     def parseNote(n):
         if ":" in n:
             note, weightstr = n.split(":")
-            return note, int(weightstr)
+            return _asmidi(note), int(weightstr)
         return n, 1
 
     notes = chordstr.split()
@@ -71,7 +79,7 @@ class ChordAttractor:
                  midinotes: List[float], 
                  weights: List[float], 
                  numiter: int = 1, 
-                 weightratio2exp: Callable[[float], float] = None, 
+                 weightratio2exp: Func[[float], float] = None, 
                  strength=0.5, 
                  attract_width=0.46,
                  xs: List[float] = None
@@ -96,7 +104,7 @@ class ChordAttractor:
         self.midinotes = midinotes
         self.weights = weights
         self._numiter = numiter
-        self._weightratio2exp = weightratio2exp if weightratio2exp is not None else _weightratio2exp
+        self._weightratio2exp = weightratio2exp or _weightratio2exp
         self._strength = strength
         self._attractWidth = attract_width
         self.curve = self._makeCurve()
@@ -122,14 +130,13 @@ class ChordAttractor:
             If given, overrides the value set at creation time
         """
         curve = self.curve
-        if strength < 0:
-            strength = self._strength
-        pitch0 = curve(step)
+        strength = strength if strength >= 0 else self._strength
         if strength == 0:
-            return pitch0
+            return curve(step)
         width = self._attractWidth
         sidewidth = width * 0.5
-        stepmin = optimize.fminbound(self._deriv, step-sidewidth, step+sidewidth, xtol=0.001, disp=0)
+        stepmin = optimize.fminbound(self._deriv, step-sidewidth, step+sidewidth,
+                                     xtol=0.001, disp=0)
         return curve(step * (1-strength) + stepmin*strength)
 
     def getStep(self, pitch: float) -> float:
@@ -156,15 +163,18 @@ class ChordAttractor:
         """
         Returns a bpf mapping pitch -> attracted pitch
         """
-        bounds = self.midinotes[0] - margin, self.midinotes[-1] + margin
-        func = lambda pitch: self.attract(pitch, strength=strength)
-        return bpf.asbpf(func, bounds=bounds)
+        bounds = (self.midinotes[0] - margin, self.midinotes[-1] + margin)
+        return bpf.asbpf(lambda pitch: self.attract(pitch, strength=strength), bounds=bounds)
+        
+
+del List, Tup, Func
 
 
+"""
 
+Example
 
-
-
-# example
-# notes   = "4C+ 4E 4G:3 4A 4A+:2 4B+80 7C:5 7C+:1 7E:2".split()
-# midinotes, weights = zip(*(_parsenote(n) for n in notes))
+notes   = "4C+ 4E 4G:3 4A 4A+:2 4B+80 7C:5 7C+:1 7E:2".split()
+midinotes, weights = parseChord(notes)
+chordattr = ChordAttractor(midinotes, weights)
+"""

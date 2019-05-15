@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import liblo
-from .event import Chord, splitchords
-from . import combtones
-from ..pitch import m2f, f2m, m2n, n2m
+from emlib.mus import Chord
+from emlib.music import combtones
+from emlib.pitch import m2f, f2m, m2n, n2m
 import subprocess
 import tempfile
 import os

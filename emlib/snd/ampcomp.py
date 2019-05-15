@@ -17,12 +17,14 @@ class AmpcompA:
 
 def ampcompa_level(freq):
     k = 3.5041384 * 10e15
-    c1 = 20.598997 * 20.598997
-    c2 = 107.65265 * 107.65265
-    c3 = 737.86223 * 737.86223
-    c4 = 12194.217 * 12194.217
+    c1 = 20.598997 ** 2
+    c2 = 107.65265 ** 2
+    c3 = 737.86223 ** 2
+    c4 = 12194.217 ** 2
     r = freq * freq
-    level = k * r * r * r * r
+    r2 = r*r
+    # level = k * r*r*r*r
+    level = k * r2*r2
     n1 = c1 + r
     n2 = c4 + r
     level = level / (n1*n1*(c2+r) * (c3+r) * n2*n2)

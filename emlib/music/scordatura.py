@@ -1,7 +1,7 @@
 # from peach import m2n, n2m, f2m, m2f
-from ..pitch  import m2n, n2m, f2m, m2f
-from ..iterlib import window as _window
-from .flageolets import InstrumentString
+from emlib.pitchtools import m2n, n2m, f2m, m2f
+from emlib.iterlib import window as _window
+from emlib.music.flageolet import InstrumentString
 
 
 class DetunedString(object):
@@ -109,7 +109,6 @@ class DetunedInstrument(object):
         else:
             raise ValueError("The index indicates the string, 1-4")
           
-
     def sound2note(self, note, strings=None):
         if strings is None:
             strings = (self.i, self.ii, self.iii, self.iv)
@@ -153,10 +152,10 @@ class Violin(DetunedInstrument):
             g, d, a, e = tunings
         g, d, a, e = map(normalize_note, (g, d, a, e))
         iv, iii, ii, i = (
-            DetunedString(name='IV',  written='3G', sounding=g),
+            DetunedString(name='IV', written='3G', sounding=g),
             DetunedString(name='III', written='4D', sounding=d),
-            DetunedString(name='II',  written='4A', sounding=a),
-            DetunedString(name='I',   written='5E', sounding=e)
+            DetunedString(name='II', written='4A', sounding=a),
+            DetunedString(name='I', written='5E', sounding=e)
         )
         super(Violin, self).__init__(i, ii, iii, iv)
         self.g, self.d, self.a, self.e = iv, iii, ii, i
