@@ -26,6 +26,7 @@ def injectNotes():
 
 N = Note
 Ch = Chord
+R = Rest
 ss = stopSynths
 
 injectNotes()

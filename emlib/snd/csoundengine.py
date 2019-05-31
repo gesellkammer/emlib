@@ -182,7 +182,8 @@ class CsoundEngine:
 
     tmpdir = "/tmp/emlib.csoundEngine"
 
-    def __init__(self, name:str="Unnamed", sr:int=None, ksmps:int=None, backend:str=None, outdev="dac", a4:int=None, nchnls:int=None,
+    def __init__(self, name:str="Unnamed", sr:int=None, ksmps:int=None, backend:str=None, 
+                 outdev="dac", a4:int=None, nchnls:int=None,
                  globalcode:str="", oscport:int=0, quiet=None, extraOptions=None):
         """
         name:         the name of the engine
@@ -344,6 +345,10 @@ class CsoundEngine:
         logger.info(f"Starting engine {self.name}")
         self._writeEngineInfo()
         self._startCsound()
+        priorengine = _engines.get(self.name)
+        if priorengine:
+            priorengine.stop()
+        _engines[self.name] = self
         self.started = True
 
     def restart(self) -> None:
@@ -439,6 +444,12 @@ class CsoundEngine:
         logger.debug(f"CsoundEngin::unsched: {instrfrac}")
         self._pt.scoreEvent(0, "i", [_csound_reserved_instr_turnoff, delay, 0.1, instrfrac])
 
+    def unschedFuture(self):
+        """
+        Remove future notes (this calles rewindScore)
+        """
+        self._cs.rewindScore()
+
     def getManager(self):
         return getManager(self.name)
 
@@ -529,14 +540,17 @@ class Synth(AbstrSynth):
     when a CsoundInstr is scheduled
     """
 
-    def __init__(self, group:str, synthid:float, instrname:str=None) -> None:
+    def __init__(self, group:str, synthid:float, starttime:float, dur:float, instrname:str=None, args=None) -> None:
         self.group = group
         self.synthid = synthid
         self._playing = True
         self.instrname = instrname
+        self.starttime = starttime
+        self.dur = dur 
+        self.args = args
 
     def isPlaying(self) -> bool:
-        return self._playing
+        return self._playing and self.starttime < time.time() < self.starttime + self.dur
     
     def getManager(self) -> '_InstrManager':
         return getManager(self.group)
@@ -926,7 +940,7 @@ class _InstrManager:
         synthid = self.getEngine().sched(synthdef.instrnum, delay=delay, dur=dur, args=args)
         if whenfinished is not None:
             self._whenfinished[synthid] = whenfinished
-        synth = Synth(self.name, synthid=synthid, instrname=instrname)
+        synth = Synth(self.name, synthid=synthid, instrname=instrname, starttime=time.time() + delay, dur=dur, args=args)
         self._synths[synthid] = synth
         return synth
 
@@ -951,13 +965,19 @@ class _InstrManager:
         for synth in synths:
             self.unsched(synth.synthid)
 
-    def unschedAll(self) -> None:
+    def unschedAll(self, cancel_future=True, allow_fadeout=0.05) -> None:
         """
         Unschedule all playing synths
         """
         synthids = [synth.synthid for synth in self._synths.values()]
+        pendingSynths = [synth for synth in self._synths.values() if not synth.isPlaying()]
         for synthid in synthids:
             self.unsched(synthid, delay=0)
+        if cancel_future and pendingSynths:
+            if allow_fadeout:
+                time.sleep(allow_fadeout)
+            self.getEngine().unschedFuture()
+            self._synths.clear()
 
     def findSynthsByName(self, instrname:str) -> List[Synth]:
         """
@@ -977,8 +997,6 @@ class _InstrManager:
         """
         engine = self.getEngine()
         engine.restart()
-        import time
-        time.sleep(1)
         for i, initcode in enumerate(self._initCodes):
             print(f"code #{i}: initCode")
             engine.evalCode(initcode)
@@ -1027,7 +1045,6 @@ def _instrWrapBody(body:str, instrnum:int, notify=True, dedent=True, notifymode=
         """
     s = _textwrap.dedent(s)
     s = s.format(instrnum=instrnum, body=body)
-    print(s)
     return s
 
 

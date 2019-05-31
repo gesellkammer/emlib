@@ -67,10 +67,14 @@ def allprocs(skipempty=True, pids=None):
     return out
 
 
-# ----------------------------
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def fzf(cmd=None):
-    if cmd:
+def fzf(cmd=None, pattern=None):
+    if pattern is not None and cmd is None:
+        cmdline = f'fd {pattern} | fzf'
+    elif cmd and pattern:
+        cmdline = f'{cmd} | fzf --query {pattern}'
+    elif cmd:
         cmdline = f'{cmd} | fzf'
     else:
         cmdline = 'fzf'

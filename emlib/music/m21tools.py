@@ -66,7 +66,8 @@ def logicalTies(stream:m21.stream.Stream) -> t.List[t.List[m21.note.NotRest]]:
             current = []
         elif ev0.tie is not None and ev0.tie.type in ('start', 'continue'):
             current.append(ev0)
-    current.append(events[-1])
+    if events:
+        current.append(events[-1])
     out.append(current)
     return out
     
@@ -108,8 +109,13 @@ def isTiedToPrevious(note:m21.note.Note) -> bool:
 
 
 def getAttacks(stream: m21.stream.Stream) -> t.List[m21.note.NotRest]:
-    return [tie[0] for tie in logicalTies(stream)]
-
+    ties = logicalTies(stream)
+    attacks = []
+    for tie in logicalTies(stream):
+        if tie:
+            attacks.append(tie[0])
+    return attacks
+    
 
 def splitVoice(voice: m21.stream.Stream, split: int=60) -> m21.stream.Score:
     """

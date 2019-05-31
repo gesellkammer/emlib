@@ -89,7 +89,7 @@ def fillColumns(rows: t.List[list], sentinel=None) -> t.List[list]:
 
 def asmidi(x) -> float:
     if isinstance(x, str):
-        return n2m(x)
+        return str2midi(x)
     elif isinstance(x, (int, float)):
         assert 0 <= x <= 200, f"Expected a midinote (0-127) but got {x}"
         return x

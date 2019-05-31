@@ -14,6 +14,8 @@ def voiceMeanPitch(voice: abj.Voice) -> float:
     # notes = abj.iterate(voice).by_class(abj.Note)
     notes = [obj for obj in abj.iterate(voice).leaves() if isinstance(obj, abj.Note)]
     pitches = [noteGetMidinote(n) for n in notes]
+    if not pitches:
+        return 60
     avg = sum(pitches) / len(pitches)
     return avg
 

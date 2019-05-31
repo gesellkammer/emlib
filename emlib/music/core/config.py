@@ -4,6 +4,8 @@ import sys
 
 
 _defaultconfig = {
+    'A4': 442,
+    'defaultDuration': 1.0,
     'repr.showfreq': True,
     'chord.arpeggio': 'auto',
     'chord.adjustGain': True,
@@ -34,6 +36,7 @@ _defaultconfig = {
     'play.instr': 'sine',
     'play.fade': 0.02,
     'play.numChannels': 2,
+    'play.unschedFadeout': 0.05,
     'rec.block': False,
     'rec.gain': 1.0
 }
@@ -51,6 +54,8 @@ _validator = {
 }
 
 _help = {
+    'defaultDuration': 
+        "Value used when a duration is needed and has not been set (Note, Chord). Not the same as play.dur",
     'repr.showfreq':
         "Show frequency when calling printing a Note in the console",
     'chord.arpeggio':

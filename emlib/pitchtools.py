@@ -14,6 +14,7 @@ import re as _re
 import warnings
 
 import sys
+
 _EPS = sys.float_info.epsilon
 
 
@@ -26,8 +27,8 @@ def set_reference_freq(a4: float) -> None:
     """
     global A4
     A4 = a4
-    
-    
+
+
 def f2m(freq: float) -> float:
     """
     Convert a frequency in Hz to a midi-note
@@ -36,7 +37,7 @@ def f2m(freq: float) -> float:
     """
     if freq < 9:
         return 0
-    return 12.0 * math.log(freq/A4, 2) + 69.0
+    return 12.0 * math.log(freq / A4, 2) + 69.0
 
 
 def freqround(freq: float) -> float:
@@ -44,7 +45,7 @@ def freqround(freq: float) -> float:
     round freq to next semitone
     """
     return m2f(round(f2m(freq)))
-    
+
 
 def m2f(midinote: float) -> float:
     """
@@ -55,10 +56,10 @@ def m2f(midinote: float) -> float:
     :type midinote: float|np.ndarray
     :rtype : float
     """
-    return 2**((midinote - 69) / 12.) * A4
+    return 2 ** ((midinote - 69) / 12.0) * A4
 
 
-_notes3      = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
+_notes3 = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
 _enharmonics = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", "C"]
 
 
@@ -66,15 +67,15 @@ def m2n(midinote):
     # type: (float) -> str
     i = int(midinote)
     micro = midinote - i
-    octave = int(midinote/12.0)-1
+    octave = int(midinote / 12.0) - 1
     ps = int(midinote % 12)
-    cents = int(micro*100+0.5)
+    cents = int(micro * 100 + 0.5)
     if cents == 0:
         return str(octave) + _notes3[ps]
     elif cents == 50:
         if ps in (1, 3, 6, 8, 10):
-            return str(octave) + _notes3[ps+1] + '-'
-        return str(octave) + _notes3[ps] + '+'
+            return str(octave) + _notes3[ps + 1] + "-"
+        return str(octave) + _notes3[ps] + "+"
     elif cents > 50:
         cents = 100 - cents
         ps += 1
@@ -88,18 +89,10 @@ def m2n(midinote):
         if cents > 9:
             return "%d%s+%d" % (octave, _notes3[ps], cents)
         else:
-            return "%d%s+0%d" % (octave, _notes3[ps], cents)   
-            
+            return "%d%s+0%d" % (octave, _notes3[ps], cents)
 
-_notes2 = {
-    "c":0,
-    "d":2,
-    "e":4,
-    "f":5,
-    "g":7,
-    "a":9,
-    "b":11
-}
+
+_notes2 = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
 
 _r1 = _re.compile(r"(?P<pch>[A-Ha-h][b|#]?)(?P<oct>[-]?[\d]+)(?P<micro>[+|-][\d]*)?")
 _r2 = _re.compile(r"(?P<oct>[-]?\d+)(?P<pch>[A-Ha-h][b|#]?)(?P<micro>[+|-]\d*)?")
@@ -116,12 +109,12 @@ def n2m(note: str) -> float:
     if not m:
         raise ValueError("Could not parse note " + note)
     groups = m.groupdict()
-    pitchstr = groups['pch']
-    octavestr = groups['oct']
-    microstr = groups['micro']
-    
+    pitchstr = groups["pch"]
+    octavestr = groups["oct"]
+    microstr = groups["micro"]
+
     pc = _notes2[pitchstr[0].lower()]
-    
+
     if len(pitchstr) == 2:
         alt = pitchstr[1]
         if alt == "#":
@@ -131,16 +124,16 @@ def n2m(note: str) -> float:
         else:
             raise ValueError("Could not parse alteration in " + note)
     octave = int(octavestr)
-    
+
     if not microstr:
         micro = 0.0
-    elif microstr == '+':
+    elif microstr == "+":
         micro = 0.5
-    elif microstr == '-':
+    elif microstr == "-":
         micro = -0.5
     else:
-        micro = int(microstr)/100.
-    
+        micro = int(microstr) / 100.0
+
     if pc > 11:
         pc = 0
         octave += 1
@@ -172,12 +165,13 @@ def db2amp(db: float) -> float:
 
     db: a value in dB
     """
-    return 10.0**(0.05*db)
+    return 10.0 ** (0.05 * db)
 
 
 def db2amp_np(*args, **kws):
     warnings.warn("deprecated, use emlib.pitchnp")
     from emlib import pitchnp
+
     return pitchnp.db2amp_np(*args, **kws)
 
 
@@ -192,7 +186,7 @@ def amp2db(amp: float) -> float:
 
     """
     amp = max(amp, _EPS)
-    return math.log10(amp)*20
+    return math.log10(amp) * 20
 
 
 def logfreqs(notemin=0, notemax=139, notedelta=1.0):
@@ -212,15 +206,17 @@ def logfreqs(notemin=0, notemax=139, notedelta=1.0):
     >>> logfreqs(n2m("A0"), n2m("C8"), 0.5) 
     """
     from emlib import pitchnp
-    return pitchnp.logfreqs(notemin=notemin, notemax=notemax, notedelta=notedelta)
-    
 
-def pianofreqs(start='A0', stop='C8'):
+    return pitchnp.logfreqs(notemin=notemin, notemax=notemax, notedelta=notedelta)
+
+
+def pianofreqs(start="A0", stop="C8"):
     # type: (str, str) -> np.ndarray
     """
     Generate an array of the frequencies representing all the piano keys
     """
     from emlib import pitchnp
+
     return pitchnp.pianofreqs(start=start, stop=stop)
 
 
@@ -244,34 +240,35 @@ def interval2ratio(interval: float) -> float:
     r = interval2ratio(7)  # a 5th higher
     f2 = f2n(f1*r)  # --> G4
     """
-    return 2 ** (interval / 12.)
+    return 2 ** (interval / 12.0)
 
 
 r2i = ratio2interval
-i2r = interval2ratio 
+i2r = interval2ratio
 
 
 def pitchbend2cents(pitchbend: int, maxcents=200) -> int:
-    return int(((pitchbend/16383.0)*(maxcents*2.0))-maxcents+0.5)
+    return int(((pitchbend / 16383.0) * (maxcents * 2.0)) - maxcents + 0.5)
 
 
-def cents2pitchbend(cents:int, maxcents=200) -> int:
-    return int((cents+maxcents)/(maxcents*2.0)* 16383.0 + 0.5)
+def cents2pitchbend(cents: int, maxcents=200) -> int:
+    return int((cents + maxcents) / (maxcents * 2.0) * 16383.0 + 0.5)
 
 
-def split_notename(notename:str) -> 'tuple[int, str, int, int]':
+def split_notename(notename: str) -> "tuple[int, str, int, int]":
     """
     Return octave, letter, alteration (1=#, -1=b), cents
 
     4C#+10  -> (4, "C", 1, 10)
     Eb4-15  -> (4, "E", -1, -15)
     """
-    def parse_centstr(centstr:str) -> int:
+
+    def parse_centstr(centstr: str) -> int:
         if not centstr:
             cents = 0
-        elif centstr == '+':
+        elif centstr == "+":
             cents = 50
-        elif centstr == '-':
+        elif centstr == "-":
             cents = -50
         else:
             cents = int(centstr)
@@ -282,11 +279,11 @@ def split_notename(notename:str) -> 'tuple[int, str, int, int]':
         cursor = 1
         letter = notename[0]
         l1 = notename[1]
-        if l1 == '#':
+        if l1 == "#":
             alter = 1
             octave = int(notename[2])
             cursor = 3
-        elif l1 == 'b':
+        elif l1 == "b":
             alter = -1
             octave = int(notename[2])
             cursor = 3
@@ -305,10 +302,10 @@ def split_notename(notename:str) -> 'tuple[int, str, int, int]':
         alter = 0
         if rest:
             r0 = rest[0]
-            if r0 == 'b':
+            if r0 == "b":
                 alter = -1
                 centstr = rest[1:]
-            elif r0 == '#':
+            elif r0 == "#":
                 alter = 1
                 centstr = rest[1:]
             else:
@@ -317,14 +314,50 @@ def split_notename(notename:str) -> 'tuple[int, str, int, int]':
     return octave, letter.upper(), alter, cents
 
 
-def split_cents(notename:str) -> 'tuple[str, int]':
+def split_cents(notename: str) -> "tuple[str, int]":
     """
     given a note of the form 4E- or 5C#+10, it should return (4E, -50) and (5C#, 10)
     """
     octave, letter, alter, cents = split_notename(notename)
     alterchar = "b" if alter == -1 else "#" if alter == 1 else ""
-    return str(octave)+letter+alterchar, cents
+    return str(octave) + letter + alterchar, cents
 
 
-def normalize_notename(notename:str) -> str:
+def normalize_notename(notename: str) -> str:
     return m2n(n2m(notename))
+
+
+def str2midi(s: str):
+    """
+    Accepts all that n2m accepts but with the addition of frequencies
+
+    Possible values:
+
+    "100hz", "200Hz", "4F+20hz", "8C-4hz"
+
+    The hz part must be at the end
+    """
+    ending = s[-2:]
+    if ending != "hz" and ending != "Hz":
+        return n2m(s)
+    freq = 0
+    srev = s[::-1]
+    minusidx = srev.find("-")
+    plusidx = srev.find("+")
+    if minusidx < 0 and plusidx < 0:
+        return f2m(float(s[:-2]))
+    if minusidx > 0 and plusidx > 0:
+        if minusidx < plusidx:
+            freq = -float(s[-minusidx:-2])
+            notename = s[:-minusidx-1]
+        else:
+            freq = float(s[-plusidx:-2])
+            notename = s[:-plusidx-1]
+    elif minusidx > 0:
+        freq = -float(s[-minusidx:-2])
+        notename = s[:-minusidx-1]
+    else:
+        freq = float(s[-plusidx:-2])
+        notename = s[:-plusidx-1]
+    return f2m(n2f(notename) + freq)
+

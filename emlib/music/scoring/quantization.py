@@ -354,6 +354,8 @@ def _mappedPartApplyPitches(part: m21.stream.Stream, divsPerSemitone=4,
 
 
 def _glissInternal(tie, context, hideTied=True):
+    if not tie:
+        return
     event = _origEvent(tie[0])
     if not event or not event.gliss:
         return

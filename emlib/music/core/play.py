@@ -180,7 +180,8 @@ def _makePresetSimple(audiogen, init: str = None, interpol='linear') -> '_InstrD
     {audiogen}
     ; a0 oscili a(kamp), mtof:k(kpitch)
 
-    aenv linseg 0, ifade0, igain, idur - (ifade0+ifade1), igain, ifade1, 0
+    aenv linsegr 0, ifade0, igain, ifade1, 0
+    ; aenv linseg 0, ifade0, igain, idur - (ifade0+ifade1), igain, ifade1, 0
     a0 *= aenv
     outch ichan, a0
     """
@@ -317,15 +318,16 @@ def startPlayEngine(nchnls=None) -> t.Opt[csoundengine.CsoundEngine]:
     logger.info(f"Starting engine {engineName} (nchnls={nchnls})")
     return csoundengine.CsoundEngine(name=engineName, nchnls=nchnls, globalcode=_csoundPrelude)
     
-def stopSynths(stopengine=False):
+def stopSynths(stop_engine=False, cancel_future=True, allow_fadeout=None):
     """
     Stops all synths (notes, chords, etc) being played
 
     If stopengine is True, the play engine itself is stopped
     """
     manager = getPlayManager()
-    manager.unschedAll()
-    if stopengine:
+    allow_fadeout = allow_fadeout if allow_fadeout is not None else config['play.unschedFadeout']
+    manager.unschedAll(cancel_future=cancel_future, allow_fadeout=allow_fadeout)
+    if stop_engine:
         stopPlayEngine()
         
 def getPlayManager():
