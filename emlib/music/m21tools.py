@@ -310,6 +310,7 @@ def m21Notename(pitch: t.U[str, float]) -> str:
 
 
 def makePitch(pitch: t.U[str, float], divsPerSemitone=4) -> t.Tup[m21.pitch.Pitch, int]:
+    assert(isinstance(pitch, (str, int, float)))
     midinote = n2m(pitch) if isinstance(pitch, str) else pitch
     rounding_factor = 1/divsPerSemitone
     rounded_midinote = round(midinote/rounding_factor)*rounding_factor
@@ -366,6 +367,7 @@ def makeNote(pitch: t.U[str, float], divsPerSemitone=4, showcents=False, **optio
     :param options: any option will be passed to m21.note.Note
     :return: a tuple (m21.Note, cents deviation from the returned note)
     """
+    assert isinstance(pitch, (str, int, float))
     pitch, centsdev = makePitch(pitch=pitch, divsPerSemitone=divsPerSemitone)
     note = m21.note.Note(60, **options)
     note.pitch = pitch

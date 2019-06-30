@@ -76,6 +76,16 @@ def m2n(midinote):
         if ps in (1, 3, 6, 8, 10):
             return str(octave) + _notes3[ps + 1] + "-"
         return str(octave) + _notes3[ps] + "+"
+    elif cents == 25:
+        return str(octave) + _notes3[ps] + "*"
+    elif cents == 75:
+        ps += 1
+        if ps > 11:
+            octave += 1
+        if ps in (1, 3, 6, 8, 10):
+            return str(octave)+ _enharmonics[ps] + "~"
+        else:
+            return str(octave) + _notes3[ps] + "~"
     elif cents > 50:
         cents = 100 - cents
         ps += 1
@@ -95,12 +105,19 @@ def m2n(midinote):
 _notes2 = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
 
 _r1 = _re.compile(r"(?P<pch>[A-Ha-h][b|#]?)(?P<oct>[-]?[\d]+)(?P<micro>[+|-][\d]*)?")
-_r2 = _re.compile(r"(?P<oct>[-]?\d+)(?P<pch>[A-Ha-h][b|#]?)(?P<micro>[+|-]\d*)?")
+_r2 = _re.compile(r"(?P<oct>[-]?\d+)(?P<pch>[A-Ha-h][b|#]?)(?P<micro>[-|+|\*|~]\d*)?")
 
 
 def n2m(note: str) -> float:
-    # first format: C#2, D+2, Db4+20
+    """
+    # first format: C#2, D4, Db4+20, C4*, Eb5~
     # snd format  : 2C#, 4D+, 7Eb-14
+
+    + = 1/4 note sharp
+    - = 1/4 note flat
+    * = 1/8 note sharp
+    ~ = 1/8 note flat
+    """
     if note[0].isalpha():
         m = _r1.search(note)
     else:
@@ -124,13 +141,16 @@ def n2m(note: str) -> float:
         else:
             raise ValueError("Could not parse alteration in " + note)
     octave = int(octavestr)
-
     if not microstr:
         micro = 0.0
     elif microstr == "+":
         micro = 0.5
     elif microstr == "-":
         micro = -0.5
+    elif microstr == "*":
+        micro = 0.25
+    elif microstr == "~":
+        micro = -0.25
     else:
         micro = int(microstr) / 100.0
 
@@ -255,9 +275,16 @@ def cents2pitchbend(cents: int, maxcents=200) -> int:
     return int((cents + maxcents) / (maxcents * 2.0) * 16383.0 + 0.5)
 
 
+_centsrepr = {
+    '+': 50,
+    '-': -50,
+    '*': 25,
+    '~': -25
+}
+
 def split_notename(notename: str) -> "tuple[int, str, int, int]":
     """
-    Return octave, letter, alteration (1=#, -1=b), cents
+    Return (octave, letter, alteration (1=#, -1=b), cents)
 
     4C#+10  -> (4, "C", 1, 10)
     Eb4-15  -> (4, "E", -1, -15)
@@ -265,12 +292,9 @@ def split_notename(notename: str) -> "tuple[int, str, int, int]":
 
     def parse_centstr(centstr: str) -> int:
         if not centstr:
-            cents = 0
-        elif centstr == "+":
-            cents = 50
-        elif centstr == "-":
-            cents = -50
-        else:
+            return 0
+        cents = _centsrepr.get(centstr)
+        if cents is None:
             cents = int(centstr)
         return cents
 

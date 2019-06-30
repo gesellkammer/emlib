@@ -13,6 +13,7 @@ def m21Note(pitch: t.U[str, float], showcents=None, **options) -> m21.note.Note:
     :param options: options passed to m21.note.Note
     :return: the generated note
     """
+    assert isinstance(pitch, (str, int, float))
     divsPerSemitone = config['show.semitoneDivisions']
     showcents = showcents if showcents is not None else config['show.cents']
     note, centsdev = m21tools.makeNote(pitch, divsPerSemitone=divsPerSemitone, showcents=showcents,
@@ -26,6 +27,7 @@ def m21Chord(midinotes:t.Seq[float], showcents=None, **options
     Create a m21 Chord out of a seq. of midinotes
     """
     # m21chord = m21.chord.Chord([m21.note.Note(n.midi) for n in notes])
+    assert all(isinstance(note, (str, int, float)) for note in midinotes)
     divsPerSemi = config['show.semitoneDivisions']
     chord, cents = m21tools.makeChord(midinotes, showcents=showcents, divsPerSemitone=divsPerSemi,
                                       **options)

@@ -24,7 +24,6 @@ def injectNotes():
     globals().update(generateNotes())
 
 
-N = Note
 Ch = Chord
 R = Rest
 ss = stopSynths

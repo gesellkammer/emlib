@@ -43,6 +43,7 @@ logger = logging.getLogger(f"emlib.mus")
 class _InstrDef:
     body: str
     init: str
+    audiogen: str = None
 
 
 _csoundPrelude = \
@@ -80,6 +81,7 @@ class _PresetManager:
         gen('saw', "a0 vco2 kamp, kfreq, 0")
         gen('saw.cos', "a0 vco2 kamp, kfreq, 0", interpol='cos')
         gen('trilpf', "a0 K35_lpf vco2:a(kamp, kfreq, 12), kfreq * 5, 5")
+        gen('trilpf2', "a0 K35_lpf vco2:a(kamp, kfreq, 12), kfreq * 3, 1")
 
         sf('piano', preset=148)
         sf('piano.cos', preset=148, interpol='cos')
@@ -195,7 +197,7 @@ def _makePresetSimple(audiogen, init: str = None, interpol='linear') -> '_InstrD
     else:
         raise ValueError(f"interpol should be one of 'linear', 'cos', got: {interpol}")
     body = template.format(audiogen=audiogen, pitchampcalc=pitchampcalc)
-    return _InstrDef(body=body, init=init)
+    return _InstrDef(body=body, init=init, audiogen=audiogen)
 
 
 def defPreset(name: str, audiogen, init: str = None, interpol='linear'):
@@ -300,16 +302,25 @@ def _soundfontToTabname(sfpath: str) -> str:
     return f"gi_sf2func_{hash(path)}"
 
 
-def availableInstrPresets() -> t.Set[str]:
+def availableInstrPresets(report=False) -> t.Set[str]:
     """
     Returns a set of instr presets already defined
     """
-    return _presetManager.definedPresets()
-
+    presets = _presetManager.definedPresets()
+    if report:
+        for preset in presets:
+            audiogen = _presetManager.getInstrDef(preset).audiogen
+            print(f"    {preset.ljust(12)} :  {audiogen}")
+    return presets
+    
 
 def startPlayEngine(nchnls=None) -> t.Opt[csoundengine.CsoundEngine]:
     """
     Start the play engine with a given configuration, if necessary.
+
+    If an engine is already active, we do nothing, even if the
+    configuration is different. For that case, you need to 
+    stop the engine first.
     """
     engineName = config['play.group']
     if engineName in csoundengine.activeEngines():
@@ -317,6 +328,7 @@ def startPlayEngine(nchnls=None) -> t.Opt[csoundengine.CsoundEngine]:
     nchnls = nchnls or config['play.numChannels']
     logger.info(f"Starting engine {engineName} (nchnls={nchnls})")
     return csoundengine.CsoundEngine(name=engineName, nchnls=nchnls, globalcode=_csoundPrelude)
+
     
 def stopSynths(stop_engine=False, cancel_future=True, allow_fadeout=None):
     """
@@ -329,8 +341,16 @@ def stopSynths(stop_engine=False, cancel_future=True, allow_fadeout=None):
     manager.unschedAll(cancel_future=cancel_future, allow_fadeout=allow_fadeout)
     if stop_engine:
         stopPlayEngine()
+
+
+def stopLastSynth(n=1):
+    """
+    Stop last active synth
+    """
+    getPlayManager().unschedLast(n=n)
+
         
-def getPlayManager():
+def getPlayManager() -> csoundengine._InstrManager:
     group = config['play.group']
     return csoundengine.getManager(group)
 
@@ -342,7 +362,7 @@ def restart():
     manager.restart()
 
 
-def isEngineActive():
+def isEngineActive() -> bool:
     group = config['play.group']
     return csoundengine.getEngine(group) is not None
 

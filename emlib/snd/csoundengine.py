@@ -16,6 +16,7 @@ from contextlib import contextmanager as _contextmanager
 import time
 import json
 import signal
+import weakref
 
 __all__ = [
     'makeInstr',
@@ -72,6 +73,8 @@ _csound_reserved_instrnum = 20
 _highest_instrnum = 20000
 _csound_reserved_instr_turnoff = _csound_reserved_instrnum + 0
 
+
+class NoEngine(Exception): pass
 
 _csd:str = _Template("""
 sr     = {sr}
@@ -512,6 +515,7 @@ def stopEngine(name="default") -> None:
     
 
 class AbstrSynth:
+    
     def stop(self):
         pass
 
@@ -540,24 +544,40 @@ class Synth(AbstrSynth):
     when a CsoundInstr is scheduled
     """
 
-    def __init__(self, group:str, synthid:float, starttime:float, dur:float, instrname:str=None, args=None) -> None:
-        self.group = group
+    def __init__(self, instance:str, synthid:float, starttime:float, dur:float, instrname:str=None, args=None, synthgroup=None, autostop=False) -> None:
+        self.autostop = autostop
+        self.instance = instance
         self.synthid = synthid
         self._playing = True
         self.instrname = instrname
         self.starttime = starttime
         self.dur = dur 
         self.args = args
-
+        self.synthgroup = None
+        
     def isPlaying(self) -> bool:
         return self._playing and self.starttime < time.time() < self.starttime + self.dur
     
     def getManager(self) -> '_InstrManager':
-        return getManager(self.group)
+        return getManager(self.instance)
 
-    def stop(self, delay=0) -> None:
-        self.getManager().unsched(self.synthid, delay=delay)
-        self._playing = False
+    def stop(self, delay=0, stopGroup=False) -> None:
+        if self.synthgroup is not None and stopGroup:
+            group = self.synthgroup()
+            if group is not None:
+                group.stop(delay=delay)
+        else:
+            if not self._playing:
+                return
+            self._playing = False
+            try:
+                self.getManager().unsched(self.synthid, delay=delay)
+            except NoEngine:
+                pass
+            
+    def __del__(self):
+        if self.autostop:
+            self.stop(stopGroup=False)
 
 
 class SynthGroup(AbstrSynth):
@@ -566,15 +586,24 @@ class SynthGroup(AbstrSynth):
     to work together (in additive synthesis, for example)
     """
 
-    def __init__(self, synths: List[AbstrSynth]) -> None:
+    def __init__(self, synths: List[AbstrSynth], autostop=False) -> None:
+        groupref = weakref.ref(self)
+        for synth in synths:
+            synth.synthgroup = groupref
         self.synths = synths
-
-    def stop(self) -> None:
+        self.instance = synths[0].instance
+        self.autostop = autostop
+    
+    def stop(self, delay=0) -> None:
         for s in self.synths:
-            s.stop()
-
+            s.stop(stopGroup=False)
+            
     def isPlaying(self) -> bool:
         return any(s.isPlaying() for s in self.synths)
+
+    def __del__(self):
+        if self.autostop:
+            self.stop()
 
 
 class CsoundInstr:
@@ -944,6 +973,25 @@ class _InstrManager:
         self._synths[synthid] = synth
         return synth
 
+    def activeSynths(self, sortby="start") -> List[Synth]:
+        """
+        Returns a list of playing synths
+
+        sortby:
+            None: unsorted
+            "start": sort by start time (last synth will be the most recent)
+        """
+        synths = [synth for synth in self._synths.values() if synth.isPlaying()]
+        if sortby == "start":
+            synths.sort(key=lambda synth: synth.starttime)
+        return synths
+
+    def scheduledSynths(self) -> List[Synth]:
+        """
+        Returns all scheduled synths (both active and future)
+        """
+        return self._synths.values()
+
     def unsched(self, *synthids:float, delay=0) -> None:
         """
         Stop an already scheduled instrument
@@ -955,8 +1003,16 @@ class _InstrManager:
         engine = self.getEngine()
         for synthid in synthids:
             engine.unsched(synthid, delay)
-            self._synths.pop(synthid)
+            synth = self._synths.pop(synthid)
+            synth._playing = False
     
+    def unschedLast(self, n=1, unschedGroup=True) -> None:
+        activeSynths = self.activeSynths(sortby="start")
+        if activeSynths:
+            last = activeSynths[-1]
+            assert last.synthid in self._synths
+            last.stop(stopGroup=unschedGroup)
+            
     def unschedByName(self, instrname:str) -> None:
         """
         Unschedule all playing synths created from given instr (as identified by the name)
@@ -973,6 +1029,7 @@ class _InstrManager:
         pendingSynths = [synth for synth in self._synths.values() if not synth.isPlaying()]
         for synthid in synthids:
             self.unsched(synthid, delay=0)
+        
         if cancel_future and pendingSynths:
             if allow_fadeout:
                 time.sleep(allow_fadeout)
@@ -1056,7 +1113,7 @@ def getManager(name="default") -> _InstrManager:
     engine = getEngine(name)
     if not engine:
         logger.error(f"engine {name} not created. First create an engine via CsoundEngine(...)")
-        raise KeyError("engine not found")
+        raise NoEngine(f"engine {name} not active")
     manager = _managers.get(name)
     if not manager:
         manager = _InstrManager(name)
@@ -1064,8 +1121,8 @@ def getManager(name="default") -> _InstrManager:
     return manager 
 
 
-def unschedAll(group='default') -> None:
-    man = getManager(group)
+def unschedAll(instance='default') -> None:
+    man = getManager(instance)
     man.unschedAll()
 
 

@@ -98,6 +98,14 @@ def popState():
     return laststate
 
 
+def setTempo(rpm:float):
+    getState().setTempo(rpm)
+
+
+def setA4(a4:float):
+    getState().setA4(a4)
+
+
 def asTime(x: _Num):
     if not isinstance(x, Fraction):
         x = F(x)
@@ -107,6 +115,8 @@ def asTime(x: _Num):
 def Hz(freq:float) -> 'Note':
     """
     Create a note from a given frequency
+
+    a4 = Hz(442)
     """
     return Note(f2m(freq))
 
@@ -182,11 +192,12 @@ class _CsoundLine:
         self.bps = bps
         self.delay = delay
         self.chan = chan
-        self.fadein = fadein
-        self.fadeout = fadeout
         self.gain = gain
         self._consolidateDelay()
-
+        self.fadein = max(fadein, 0.0001)
+        dur = self.getDur()
+        self.fadeout = fadeout if dur < 0 else min(fadeout, dur)
+        
     def _consolidateDelay(self):
         delay0 = self.bps[0][0]
         if delay0 > 0:
@@ -210,20 +221,20 @@ class _CsoundLine:
         return args
 
     def __repr__(self):
-        lines = [f"CsoundLine(delay={self.delay}, gain={self.gain}, chan={self.chan}"
+        lines = [f"CsoundLine(delay={float(self.delay):.3f}, gain={self.gain}, chan={self.chan}"
                  f", fadein={self.fadein}, fadeout={self.fadeout}"]
         for bp in self.bps:
-            lines.append(f"    {bp}")
+            lines.append(f"    {float(bp[0]):.3f} {bp[1:]}")
         lines.append("")
         return "\n".join(lines)
 
 
-def asmusic21(events: t.List[scoring.Event]) -> m21.stream.Stream:
+def m21FromScoringEvents(events: t.List[scoring.Event], split=None, showcents=None, divsPerSemitone=None) -> m21.stream.Stream:
     import emlib.music.scoring.quantization as quant
-    divsPerSemitone = config['show.semitoneDivisions']
-    showcents = config['show.cents']
+    divsPerSemitone = divsPerSemitone if divsPerSemitone is not None else config['show.semitoneDivisions']
+    showcents = showcents if showcents is not None else config['show.cents']
     showgliss = config['show.gliss']
-    split = config['show.split']
+    split = split if split is not None else config['show.split']
     if split and _midinotesNeedSplit([event.avgPitch() for event in events]):
         parts = quant.quantizeVoiceSplit(events, divsPerSemitone=divsPerSemitone,
                                          showcents=showcents, showgliss=showgliss)
@@ -231,15 +242,38 @@ def asmusic21(events: t.List[scoring.Event]) -> m21.stream.Stream:
     return quant.quantizeVoice(events, divsPerSemitone=divsPerSemitone,
                                showcents=showcents, showgliss=showgliss)
 
+def _getValue(*values):
+    """
+    Get the first value in values which is not None
+
+    For delayed execution (similar to a if b else c) a value can be a 
+    callable which should return the value in question
+
+    Example:
+
+    default = _getValue(a, config['a'], lambda: lengthycomputation())
+    """
+    for value in values:
+        if callable(value):
+            value2 = value()
+            if value2 is not None:
+                return value2
+        elif value is not None:
+            return value
 
 class _Base:
     _showableInitialized = False
 
-    def __init__(self, label=None, dur:_Num=None, start:_Num=None):
+    def __init__(self, label=None, dur:_Num=None, start:_Num=None, playargs:dict=None):
         self._pngimage = None
         self.label = label
         self.dur = F(dur) if dur is not None else None
         self.start = F(start) if start is not None else None
+        self.playargs: dict = playargs or {}
+
+    def setplay(self, **kws):
+        self.playargs.update(kws)
+        return self
 
     def clone(self:_T, **kws) -> _T:
         out = _copy.deepcopy(self)
@@ -338,7 +372,7 @@ class _Base:
         return [event.asmusic21() for event in events]
 
     def asmusic21(self, **options) -> m21.stream.Stream:
-        return asmusic21(self.scoringEvents())
+        return m21FromScoringEvents(self.scoringEvents())
 
     def musicxml(self) -> str:
         """
@@ -374,16 +408,14 @@ class _Base:
     def getEvents(self, delay:float=None, dur:float=None, chan:int=1,
                   gain=None, fade=None):
         gain = gain or config['play.gain']
-        dur = dur or self.dur or config['play.dur']
+        dur = self.dur or dur or self.dur or config['play.dur']
         if dur < 0:
             dur = _MAXDUR
-        state = getState()
-        dur = dur * state.timefactor
         delay = (self.start or 0.0) + (delay or 0.0)
-        delay = delay * state.timefactor
-        return self.csoundEvents(delay=delay,
-                                 dur=dur or self.dur or config['play.dur'],
-                                 chan=chan, gain=gain, fade=fade)
+        events = self.csoundEvents(delay=delay,
+                                   dur=dur,
+                                   chan=chan, gain=gain, fade=fade)
+        return events
 
     def play(self, dur=None, gain=None, delay=None, instr=None, chan=None, fade=None):
         # type: (float, float, float, str, int, float) -> csoundengine.AbstrSynth
@@ -399,9 +431,13 @@ class _Base:
                output is stereo to channels 1, 2
         """
         # p4=ichan, p5=ifade0, p6=ifade1, p7=ibplen, p8... = bps
+        playargs = self.playargs
+        chan = _getValue(chan, playargs.get('chan'))
         chan, stereo = (1, True) if chan is None else (chan, False)
+        instr = _getValue(instr, playargs.get('instr'))
         csdinstr = play.getInstrPreset(instr, stereo)
-        fade = fade or csdinstr.meta.get('params.fade', config['play.fade'])
+        fade = _getValue(fade, playargs.get('fade'), lambda:csdinstr.meta.get('params.fade', config['play.fade']))
+        gain = _getValue(gain, playargs.get('gain'))
         events = self.getEvents(delay=delay, dur=dur, chan=chan, fade=fade, gain=gain)
         assert events, f"No events for obj {self}"
         if len(events) == 1:
@@ -409,6 +445,9 @@ class _Base:
             return csdinstr.play(dur=event.getDur(), delay=event.delay, args=event.getArgs())
         synths = [csdinstr.play(dur=ev.getDur(), delay=ev.delay, args=ev.getArgs()) for ev in events]
         return csoundengine.SynthGroup(synths)
+
+    def chan(self, chan, **kws):
+        return self.play(chan=chan, **kws)
 
     def rec(self, dur=None, outfile=None, gain=None, instr=None, chan=1, sr=44100,
             fade=None, block=None) -> str:
@@ -423,12 +462,17 @@ class _Base:
         return outfile
 
 
+class _Unset: pass
+
+_UNSET = _Unset()
+
 
 @_functools.total_ordering
 class Note(_Base):
 
     def __init__(self, pitch: t.U[float, str], amp:float=None,
-                 dur:Fraction=None, start:Fraction=None, label:str=None):
+                 dur:Fraction=None, start:Fraction=None, endpitch:t.U[float, str]=None,
+                 label:str=None):
         """
         pitch: a midinote or a note as a string
         amp  : amplitude 0-1.
@@ -437,26 +481,48 @@ class Note(_Base):
         _Base.__init__(self, label=label, dur=dur, start=start)
         self.midi: float = tools.asmidi(pitch)
         self.amp:float = amp if amp is not None else 1
-        self.endmidi: float = None
+        self.endmidi = tools.asmidi(pitch) if pitch is not None else None
     
     def __hash__(self) -> int:
-        return hash((self.midi, self.label))
+        return hash((self.midi, self.dur, self.start, self.endmidi, self.label))
 
-    def clone(self, pitch: t.U[float, str]=None, amp:float=None, dur:Fraction=None, 
-              start:Fraction=None, label:str=None) -> 'Note':
+    def clone(self, pitch: t.U[float, str]=None, amp:float=None, dur:Fraction=_UNSET, 
+              start:Fraction=_UNSET, label:str=None) -> 'Note':
+        # we can't use the base .clone method because pitch can be anything
         return Note(pitch=pitch if pitch is not None else self.midi, 
                     amp=amp if amp is not None else self.amp, 
-                    dur=dur if dur is not None else self.dur,
-                    start=start if start is not None else self.start, 
+                    dur=dur if dur is not _UNSET else self.dur,
+                    start=start if start is not _UNSET else self.start, 
                     label=label or self.label)
 
+    def fill(self, amp:float=None, dur:Fraction=None, start:Fraction=None):
+        """
+        Similar to clone, but uses the information given only if
+        this information is not already present in this note
+        """
+        amp = self.amp if self.amp is not None else amp
+        dur = self.dur if self.dur is not None else dur
+        start = self.start if self.start is not None else start
+        if any(info is not None for info in (amp, dur, start)):
+            return self.clone(amp=amp, dur=dur, start=start)
+        return self
+
+    # s: half semitone shart, f: half semitone flat, qs: quarter semitone shart, qf: qf quarter semitone flat
     @property
-    def h(self):
+    def s(self):
         return self + 0.5
 
     @property
     def f(self):
         return self - 0.5
+
+    @property
+    def qs(self):
+        return self + 0.25
+
+    @property
+    def qf(self):
+        return self - 0.25
 
     def asChord(self):
         return Chord(self)
@@ -504,12 +570,11 @@ class Note(_Base):
     def name(self) -> str:
         return m2n(self.midi)
 
-    def roundedpitch(self, semitoneDivisions:int=0) -> float:
-        semitoneDivisions = semitoneDivisions or config['show.semitoneDivisions']
+    def roundPitch(self, semitoneDivisions:int=0) -> float:
+        divs = semitoneDivisions or config['show.semitoneDivisions']
         res = 1 / semitoneDivisions
-        midi = round(self.midi / res) * res
-        return midi
-
+        return self.quantize(res)
+    
     def overtone(self, n:int) -> 'Note':
         return Note(f2m(self.freq * n))
     
@@ -529,11 +594,11 @@ class Note(_Base):
             note.addAnnotation(self.label)
         return [note]
 
-    def asmusic21(self, showcents=None) -> m21.stream.Stream:
+    def _asmusic21(self, showcents=None) -> m21.stream.Stream:
         if self.midi == 0:
             return m21.note.Rest()
         divs = config['show.semitoneDivisions']
-        basepitch = self.roundedpitch(divs)
+        basepitch = float(self.roundPitch(divs))
         dur = self.dur if self.dur is not None else config['defaultDuration']
         note = m21funcs.m21Note(basepitch, quarterLength=dur)
         cents = int((self.midi - basepitch) * 100)
@@ -587,6 +652,9 @@ class Note(_Base):
             return self + asNote(other)
         raise TypeError(f"can't add {other} ({other.__class__}) to a Note")
 
+    def __xor__(self, freq):
+        return self.shift(freq)
+
     def __sub__(self, other):
         # type: (t.U[Note, float, int]) -> Note
         if isinstance(other, Note):
@@ -609,7 +677,10 @@ class Note(_Base):
         midi = self.midi
         assert delay is not None
         assert dur is not None
-        event = _makeEvent(delay, dur, chan, amp=self.amp*gain, midi=midi, endamp=amp, endmidi=midi, fade=fade)
+        timefactor = getState().timefactor
+        dur *= timefactor
+        delay *= timefactor
+        event = _makeEvent(delay, dur, chan, amp=amp, midi=midi, endamp=amp, endmidi=midi, fade=fade)
         return [event]
         
     def gliss(self, dur, endpitch, endamp=None, start=None) -> 'Event':
@@ -623,11 +694,11 @@ class Note(_Base):
         return Event(pitch=self.midi, amp=self.amp, dur=dur, endpitch=endpitch, endamp=endamp, start=start)
 
 
-def Rest(dur, start:Fraction=None) -> Note:
+def Rest(dur:Fraction=1, start:Fraction=None) -> Note:
     return Note(pitch=0, dur=dur, start=start)
 
 
-def asNote(n, amp:float=None) -> 'Note':
+def asNote(n, amp:float=None, dur:Fraction=None) -> 'Note':
     """
     n: str    -> notename
        number -> midinote
@@ -636,7 +707,7 @@ def asNote(n, amp:float=None) -> 'Note':
     you can also create a note by doing asNote((pitch, amp))
     """
     if isinstance(n, Note):
-        out = n
+        out = n.fill(amp=amp, dur=dur)
     elif isinstance(n, (int, float)):
         out = Note(n, amp=amp)
     elif isinstance(n, str):
@@ -737,11 +808,14 @@ class Line(_Base):
         fade = fade if fade is not None else self.fade if self.fade is not None else config['play.fade']
         fadein, fadeout = tools.normalizeFade(fade)
         delay = delay + self.start
+        timefactor = getState().timefactor
+        delay *= timefactor
+
         # bp = (delay, pitch, amp, ...)
-        if gain == 1:
+        if gain == 1 and timefactor == 1:
             bps = self.bps
         else:
-            bps = [(bp[0], bp[1], bp[2]*gain) + bp[3:] for bp in self.bps]
+            bps = [(bp[0] * timefactor, bp[1], bp[2]*gain) + bp[3:] for bp in self.bps]
 
         line = _CsoundLine(bps=bps, delay=delay, chan=chan, fadein=fadein, fadeout=fadeout)
         return [line]
@@ -769,7 +843,7 @@ class Line(_Base):
                                       dur=asTime(config['show.lastBreakpointDur'])))
         return notes
 
-    def asmusic21(self, **kws) -> m21.Music21Object:
+    def _asmusic21(self, **kws) -> m21.Music21Object:
         import emlib.music.scoring.quantization as quant
         events = self.scoringEvents()
         divsPerSemitone = config['show.semitoneDivisions']
@@ -844,15 +918,12 @@ class Event(Note):
         return _Base.asmusic21(self)
 
     def csoundEvents(self, delay, dur, chan, gain, fade=0) -> t.List[_CsoundLine]:
-        """
-        delay: extra delay (delay=delay+self.start)
-        dur: extra dur
-        gain: final gain = self.amp * gain
-        """
+        # delay has no effect
         start = self.start if self.start is not None else 0
-        if delay is not None:
-            start += delay
-        event = _makeEvent(delay=start, dur=self.dur, chan=chan,
+        timefactor = getState().timefactor
+        dur *= timefactor
+        start *= timefactor
+        event = _makeEvent(delay=start, dur=dur, chan=chan,
                            amp=self.amp*gain, midi=self.midi,
                            endamp=self.endamp*gain, endmidi=self.endmidi,
                            fade=fade)
@@ -1082,10 +1153,22 @@ class EventSeq(_Base, list):
         return csdEvents
 
 
+def N(pitch, dur:Fraction=None, start=None, endpitch=None):
+    if isinstance(pitch, (tuple, list)):
+        return Chord(pitch, dur=dur, start=start, endpitches=endpitch)
+    elif isinstance(pitch, str):
+        if " " in pitch:
+            return Chord(pitch, dur=dur, start=start, endpitches=endpitch)
+        else:
+            return Note(pitch, dur=dur, start=start, endpitch=endpitch)
+    else:
+        return Note(pitch, dur=dur, start=start, endpitch=endpitch)
+
+
 class Chord(_Base, list):
 
-    def __init__(self, *notes:t.Any, label:str=None, amp:float=None, dur:Fraction=None,
-                 start=None, endpitches=None) -> None:
+    def __init__(self, *notes:t.Any, amp:float=None, dur:Fraction=None,
+                 start=None, endpitches=None, label:str=None) -> None:
         """
         a Chord can be instantiated as:
 
@@ -1100,7 +1183,10 @@ class Chord(_Base, list):
         """
         _Base.__init__(self, label=label)
         self.amp = amp
+        if dur is not None:
+            dur = F(dur)
         if notes:
+            # notes might be: Chord([n1, n2, ...]) or Chord(n1, n2, ...)
             if _lib.isgenerator(notes):
                 notes = list(notes)
             if isinstance(notes[0], (list, tuple)):
@@ -1108,9 +1194,21 @@ class Chord(_Base, list):
                 notes = notes[0]
             elif isinstance(notes[0], str) and len(notes) == 1:
                 notes = notes[0].split()
-            notes = [asNote(n, amp=amp) for n in notes]
-            self.extend(notes)
+            # determine dur
+            if dur is None and any(isinstance(note, Note) and note.dur is not None 
+                                   for note in notes):
+                dur = max(note.dur if note.dur is not None else 0 for note in notes)
+            notes2 = []
+            for note in notes:
+                if isinstance(note, Note):
+                    if note.dur is not None and dur is not None:
+                        note = note.clone(dur=dur, amp=amp)
+                else:
+                    note = asNote(note, amp=amp, dur=dur)
+                notes2.append(note)
+            self.extend(notes2)
             self.sortbypitch(inplace=True)
+            
         self.endchord = asChord(endpitches) if endpitches else None
         self.dur = dur
         self.start = start
@@ -1188,7 +1286,15 @@ class Chord(_Base, list):
 
     def shift(self, freq:float) -> 'Chord':
         return Chord([note.shift(freq) for note in self])
-        
+
+    def roundPitch(self, semitoneDivisions:int=0) -> float:
+        divs = semitoneDivisions or config['show.semitoneDivisions']
+        notes=[note.roundPitch(divs) for note in self]
+        return self._withNewNotes(notes)
+    
+    def _withNewNotes(self, notes):
+        return Chord(notes, start=self.start, dur=self.dur, amp=self.amp)
+
     def quantize(self, step=1.0) -> 'Chord':
         """
         Quantize the pitch of the notes in this chord
@@ -1204,7 +1310,7 @@ class Chord(_Base, list):
             if note2.midi not in seenmidi:
                 seenmidi.add(note2.midi)
                 notes.append(note2)
-        return Chord(notes)
+        return self._withNewNotes(notes)
 
     def __setitem__(self, i, obj):
         # type: (int, t.U[Note, float, str]) -> None
@@ -1259,8 +1365,12 @@ class Chord(_Base, list):
             gain *= 1/sqrt(len(self))
             _logger.debug(f"playCsound: adjusting gain by {gain}")
         events = []
-        dur = dur or self.dur or config['play.dur']
-        delay = delay if delay is not None else self.start if self.start is not None else 0
+        # dur = dur or self.dur or config['play.dur']
+        # delay = delay if delay is not None else self.start if self.start is not None else 0
+        timefactor = getState().timefactor
+        dur *= timefactor
+        delay *= timefactor
+        
         if self.endchord is None:
             for note in self:
                 amp = note.amp*gain
@@ -1425,9 +1535,9 @@ class Chord(_Base, list):
 _CanBeChord = t.U[Chord, t.Seq[_Pitch], str]
 
 
-def asChord(obj:_CanBeChord, amp=None) -> 'Chord':
+def asChord(obj:_CanBeChord, amp=None, dur=None) -> 'Chord':
     if isinstance(obj, Chord):
-        return obj
+        out = obj
     elif isinstance(obj, (list, tuple, str)):
         out = Chord(obj)
     elif hasattr(obj, "asChord"):
@@ -1437,8 +1547,10 @@ def asChord(obj:_CanBeChord, amp=None) -> 'Chord':
         out = Chord(asNote(obj))
     else:
         raise ValueError(f"cannot express this as a Chord: {obj}")
-    return out if amp is None else out.setamp(amp)
-
+    if amp is not None or dur is not None:
+        out = out.clone(amp=amp, dur=dur)
+    return out
+    
 
 def _normalizeChordArpeggio(arpeggio: t.U[str, bool], chord: Chord) -> bool:
     if arpeggio is None:
@@ -1454,7 +1566,6 @@ def _normalizeChordArpeggio(arpeggio: t.U[str, bool], chord: Chord) -> bool:
         raise ValueError(f"arpeggio should be True, False, 'auto' (got {arpeggio})")
 
 
-
 class ChordSeq(_Base, list):
     """
     A seq. of Chords
@@ -1467,9 +1578,12 @@ class ChordSeq(_Base, list):
             chords = chords[0]
         if chords:
             chords = [asChord(chord) for chord in chords]
-            if dur is not None:
-                chords = [ch.clone(dur=dur) if ch.dur is None else ch for ch in chords]
-            self.extend(chords)
+            default_dur = dur or config['defaultDuration']
+            outchords = []
+            for chord in chords:
+                if chord.dur is None:
+                    chord = chord.clone(dur=default_dur)
+                self.append(chord)
         self.dur = dur
 
     def __getitem__(self, *args):
@@ -1515,17 +1629,21 @@ class ChordSeq(_Base, list):
         return self._hash
 
     def csoundEvents(self, delay, dur, chan, gain, fade=0) -> t.List[_CsoundLine]:
-        # dur has no meaning here
         allevents = []
         now = delay or 0.0
+        timefactor = getState().timefactor
+        delay *= timefactor
+        default_dur = dur
         for i, chord in enumerate(self):
-            dur = chord.dur or self.dur or config['play.dur']
-            allevents.extend(chord.csoundEvents(delay=now, dur=chord.dur, chan=chan,
-                                                gain=gain, fade=fade))
+            chord_dur = chord.dur
+            dur = chord_dur if chord_dur is not None and chord_dur > 0 else default_dur
+            assert dur > 0
+            allevents.extend(chord.csoundEvents(delay=now, dur=dur, 
+                                                chan=chan, gain=gain, fade=fade))
             now += dur
         return allevents
 
-    def cycle_until(self, dur):
+    def cycle(self, dur):
         """
         Cycle the chords in this seq. until the given duration is reached 
         """
@@ -1540,9 +1658,6 @@ class ChordSeq(_Base, list):
             totaldur += chord.dur
             out.append(chord)
         return out
-
-
-
 
 
 class Track(_Base):
@@ -1596,9 +1711,15 @@ class Track(_Base):
         it will be inserted at that offset, otherwise it will be appended
         to the end of this Track. 
 
-        To insert an untimed object (a Note, a Chord) to the Track at a 
-        given offset, set its .start attribute, do track.add(chord.clone(start=...))
-        or use the at param
+        1) To insert an untimed object (a Note, a Chord) to the Track at a 
+           given offset, set its .start attribute, do track.add(chord.clone(start=...))
+           or use the at param
+
+        2) To append a timed object at the end of this track (overriding the start
+           time of the object), do track.add(obj, at=track.endTime())
+
+        **NB**: if the object already has timing information, the `at` parameter,
+                if given, overrides this information.
 
         :param obj: the object to add (a Note, Chord, Event, etc.)
         :param at: if given, overrides the start value of obj
@@ -1642,11 +1763,15 @@ class Track(_Base):
             allevents.extend(events)
         return allevents
 
-    def play(self, gain=None, chan=None) -> csoundengine.SynthGroup:
+    def play(self, **kws) -> csoundengine.SynthGroup:
+        """
+        kws: any kws is passed directly to each individual event
+        """
         synths = []
+        defaultInstr = kws.pop('instr') if 'instr' in kws else None
         for obj in self.timeline:
-            instr = self.instrs.get(obj)
-            synth = obj.play(instr=instr, gain=gain, chan=chan)
+            instr = _getValue(obj.playargs.get('instr'), self.instrs.get(obj), defaultInstr)
+            synth = obj.play(instr=instr, **kws)
             synths.append(synth)
         return csoundengine.SynthGroup(synths)
 
@@ -1844,7 +1969,7 @@ def resetImageCache() -> None:
     _makeImageCached.cache_clear()
 
 
-def asMusic(obj):
+def asMusic(obj) -> _Base:
     """
     Convert obj to a Note or Chord, depending on the input itself
 
@@ -1871,7 +1996,16 @@ def gliss(obj1, obj2, dur=1, start=None):
     return m1.gliss(dur, m2, start=start)
 
 
-def trill(note1, note2, totaldur, notedur=None):
+def playmany(objs, **kws) -> csoundengine.SynthGroup:
+    """
+    Play multiple objects with the same parameters
+
+    """
+    synths = [obj.play(**kws) for obj in objs]
+    return csoundengine.SynthGroup(synths)
+
+
+def trill(note1, note2, totaldur, notedur=None) -> ChordSeq:
     """
     note1, note2: the notes of the trill. NB: these can be also chords
     totaldur: the total duration of the trill
@@ -1884,7 +2018,7 @@ def trill(note1, note2, totaldur, notedur=None):
     note1 = note1.clone(dur=note1.dur or notedur or F(1, 8))
     note2 = note2.clone(dur=note2.dur or notedur or F(1, 8))
     seq = ChordSeq(note1, note2)
-    return seq.cycle_until(totaldur)
+    return seq.cycle(totaldur)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

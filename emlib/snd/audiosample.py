@@ -269,7 +269,7 @@ class Sample(object):
         samples, sr = sndread(filename, start=start, end=end)
         return cls(samples, samplerate=sr)
     
-    def play(self, device=None, loop=False):
+    def play(self, device=None, loop=False, chan=1):
         # type: (bool) -> None
         """
         Play the samples on the default sound device
@@ -277,20 +277,23 @@ class Sample(object):
         device: either the device number as returned by list_devices,
                 or a string matching a device (via fnmatch)
                 None will use the default device
+
+        loop: if True, loop endlessly (use audiosample.stop() to stop it)
+        chan: the channel to play to. For a stereo file, playback is always
+              on successive channels
                 
         To select the sound device, see: 
             * list_audio_devices
             * select_audio_device
         """
         import sounddevice as sd
-        if device is None:
-            return sd.play(self.samples, self.samplerate, loop=loop, device=device)
+        mapping = list(range(chan, chan + self.channels))
         if isinstance(device, str):
             device = find_audio_device(device)
             if not device:
                 raise KeyError(f"Device {device} not found, see list_audio_devices()")
-        return sd.play(self.samples, self.samplerate, loop=loop, device=device)
-
+        return sd.play(self.samples, self.samplerate, loop=loop, device=device, mapping=mapping)
+        
     def asbpf(self):
         # type: () -> _bpf.BpfInterface
         if self._asbpf not in (None, False):

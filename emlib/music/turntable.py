@@ -244,3 +244,9 @@ class TurntableChord(Chord):
             
         return seqs
 
+    def simulate(self, minFactor=1.0, maxFactor=1.0, lag=0.001):
+        """
+        Simulate a wobbling turntable 
+        """
+        pass
+
