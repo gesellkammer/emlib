@@ -18,12 +18,13 @@ readme = open('README.rst').read()
 
 setup(
     name='emlib',
-    version='0.2.0',
-    description='misc utilities',
+    python_requires=">=3.6",
+    version='0.3.0',
+    description='Utilities for sound, music notation, acoustics, etc.',
     long_description=readme,
     author='Eduardo Moguillansky',
     author_email='eduardo.moguillansky@gmail.com',
-    url='https://bitbucket.org/emoguillansky/em',
+    url='https://github.com/gesellkammer/emlib',
     packages=[
         'emlib',
         'emlib.midi',
@@ -34,6 +35,17 @@ setup(
     ],
     include_package_data=True,
     install_requires=[
+        "numpy",
+        "scipy",
+        "music21",
+        "bpf4",
+        "notifydict",
+        "appdirs",
+        "tabulate",
+        "sounddevice",
+        "sndfileio",
+        "pillow",
+        "decorator"
     ],
     license="BSD",
     zip_safe=False,
@@ -41,7 +53,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         # 'Programming Language :: Python :: 3.5',
     ],
