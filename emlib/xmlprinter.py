@@ -163,7 +163,8 @@ class xmlprinter(object):
     def data(self, data):
         """Add text 'data'."""
         data = str(data)
-        self.fp.write(escape(data).encode('UTF-8'))
+        # self.fp.write(escape(data).encode('UTF-8'))
+        self.fp.write(escape(data))
         self._tabify = False
         self._last = "data"
 

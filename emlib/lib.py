@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
 import os as _os
 import sys as _sys
 import random as _random
+import math
 from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
+
 
 import numpy as np
 from functools import reduce
 from fractions import Fraction
 import emlib.typehints as t
+
+T = t.typing.T
 
 
 # phi, in float (double) form and as Rational number with a precission of 2000
@@ -27,7 +32,7 @@ EPS = _sys.float_info.epsilon            # used for calculation of derivatives
 
 
 def intersection(u1, u2, v1, v2):
-    # type: (float, float, float, float) -> t.Opt[t.Tup[float, float]]
+    # (T, T, T, T) -> t.Opt[t.Tup[T, T]]
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
 
@@ -40,7 +45,7 @@ def intersection(u1, u2, v1, v2):
     """
     x0 = u1 if u1 > v1 else v1
     x1 = u2 if u2 < v2 else v2
-    return x0, x1 if x0 < x1 else None
+    return (x0, x1) if x0 < x1 else None
     
 
 def frange(start, stop=None, step=None):
@@ -94,7 +99,7 @@ def lcm(*numbers):
 
     lcm(3, 4, 6) --> 12
     """
-    from math import gcd
+    gcd = math.gcd
 
     def lcm2(a, b):
         return (a*b) // gcd(a, b)
@@ -170,6 +175,13 @@ def convertbase(num, n):
 
     return "".join(reversed(digits))
 
+
+def euclidian_distance(values, weights=None):
+    if weights:
+        s = sum(value**2 * weight for value, weight in zip(values, weights))
+        return math.sqrt(s)
+
+
 # ------------------------------------------------------------
 #     CHUNKS 
 # ------------------------------------------------------------
@@ -197,6 +209,7 @@ def chunks(start, stop=None, step=None):
     if dif > 0:
         yield stop-dif, dif
 
+
 # ------------------------------------------------------------
 #
 #    SEARCH
@@ -205,21 +218,24 @@ def chunks(start, stop=None, step=None):
 
 
 def nearest_element(item, seq):
-    # type: (float, t.U[t.List[float], np.ndarray]) -> float
+    # type: (float, t.Seq[float]) -> float
     """
-    seq must be sorted
+    Find the nearest element (the element, not the index) in seq
+    
+    NB: seq **MUST BE SORTED**, and this is not checked
 
-    return the nearest element (the element, not the index) in seq
+    NB: seq can also be a numpy array, in which case searchsorted
+        is used instead of bisect
 
     Example
-    =======
+    ~~~~~~~
 
     >>> seq = list(range(10))
     >>> nearest_element(4.1, seq)
     4
     >>> nearest_element(3.6, [1,2,3,4,5])
     4
-    >>> nearest_element(200, [3,5,20])
+    >>> nearest_element(200, np.array([3,5,20]))
     20
     >>> nearest_element(0.5, [0, 1])
     0
@@ -233,10 +249,12 @@ def nearest_element(item, seq):
     seq1 = seq[-1]
     if item >= seq1:
         return seq1
-    ir = _bisect(seq, item)
-    il = ir - 1
+    if isinstance(seq, np.ndarray):
+        ir = seq.searchsorted(item, 'right')
+    else:
+        ir = _bisect(seq, item)
     element_r = seq[ir]
-    element_l = seq[il]
+    element_l = seq[ir - 1]
     if abs(element_r - item) < abs(element_l - item):
         return element_r
     return element_l
@@ -261,7 +279,7 @@ def nearest_index(item, seq):
     Return the index of the nearest element in seq to item
 
     Example
-    =======
+    ~~~~~~~
 
     >>> seq = [0, 3, 4, 8]
     >>> nearest_index(3.1, seq)
@@ -321,7 +339,7 @@ def sort_natural(l, key=None):
     key: a function to use as sorting key
 
     Examples
-    ========
+    ~~~~~~~~
 
     >>> seq = ["e10", "e2", "f", "e1"]
     >>> sorted(seq)
@@ -509,6 +527,12 @@ def fib(n):
 
 
 def rndround(x):
+    import warnings
+    warnings.warn("Use roundrnd")
+    return roundrnd(x)
+
+
+def roundrnd(x):
     # type: (float) -> float
     """
     round x to its nearest integer, taking the fractional part
@@ -519,6 +543,19 @@ def rndround(x):
         prob. of rounding to 4
     """
     return int(x) + int(_random.random() > (1 - (x % 1)))
+
+
+def roundres(x, resolution=1.0):
+    """
+    Round x with given resolution
+
+    Example
+    ~~~~~~~
+
+    roundres(0.4, 0.25) -> 0.5
+    roundres(1.3, 0.25) -> 1.25
+    """
+    return round(x / resolution) * resolution
 
 
 # ------------------------------------------------------------
@@ -600,6 +637,18 @@ def sec2str(seconds):
     else:
         fmt = "{m:02}:{s:06.3f}"
     return fmt.format(**locals())
+
+
+def ljust(s: str, width: int, fillchar=" ") -> str:
+    """
+    Like str.ljust, but makes sure that the output is always the given width,
+    even if s is longer than `width`
+    """
+    s = s if isinstance(s, str) else str(s)
+    s = s.ljust(width, fillchar)
+    if len(s) > width:
+        s = s[:width]
+    return s
 
 
 # ------------------------------------------------------------
@@ -767,10 +816,10 @@ def astype(type_, obj, construct=None):
     Example
 
 
-    asType(list, (3, 4)) -> [3, 4]
+    astype(list, (3, 4)) -> [3, 4]
     l = [3, 4]
-    assert asType(list, l) is l --> True
-    asList = partial(asType, list)
+    assert astype(list, l) is l --> True
+    aslist = partial(astype, list)
     """
     return obj if isinstance(obj, type_) else (construct or type_)(obj)
 
@@ -860,7 +909,7 @@ def makereplacer(conditions):
     conditions: a dictionary of string:replacement
 
     Example
-    =======
+    ~~~~~~~
 
     replacer = makereplacer({"&":"&amp;", " ":"_", "(":"\\(", ")":"\\)"})
     replacer("foo & (bar)")
@@ -961,11 +1010,22 @@ def snap_to_grid(x:t.Rat, tick:t.Rat, offset:t.Rat=0, nearest=True) -> t.Rat:
 
 
 def snap_array(X, tick, offset=0, out=None, nearest=True):
+    """
+    Assuming a grid t defined by
+
+    t(n) = offset + tick*n
+
+    snap the values of X to the nearest value of t
+
+    NB: tick > 0
+    """
     # type: (np.ndarray, t.Rat, t.Rat, t.Opt[np.ndarray], bool) -> np.ndarray
+    if tick <= 0:
+        raise ValueError("tick should be > 0")
+
     if nearest:
         return _snap_array_nearest(X, tick, offset=float(offset), out=out)
-    else:
-        return _snap_array_floor(X, tick, offset=float(offset), out=out)
+    return _snap_array_floor(X, tick, offset=float(offset), out=out)
 
 
 def _snap_array_nearest(X, tick, offset=0, out=None):
@@ -1027,21 +1087,23 @@ def snap_to_grids(x, ticks, offsets=None, mode='nearest'):
     0.3333333333333333
 
     """
-    from math import ceil, floor
     assert isinstance(ticks, (list, tuple))
     assert offsets is None or isinstance(offsets, (list, tuple))
 
     if offsets is None:
         offsets = [Fraction(0)] * len(ticks)
 
+    if any(tick <= 0 for tick in ticks):
+        raise ValueError(f"all ticks must be > 0, got {ticks}")
+
     def snap_round(x, tick, offset):
         return round((x - offset) * (1 / tick)) * tick + offset
 
     def snap_floor(x, tick, offset):
-        return floor((x - offset) * (1 / tick)) * tick + offset
+        return math.floor((x - offset) * (1 / tick)) * tick + offset
 
     def snap_ceil(x, tick, offset):
-        return ceil((x - offset) * (1 / tick)) * tick + offset
+        return math.ceil((x - offset) * (1 / tick)) * tick + offset
 
     func = {
         'floor': snap_floor,
@@ -1067,7 +1129,7 @@ def distribute_in_zones(x, split_points, side="left"):
     split_points: a sequence defining the split points
 
     Example
-    =======
+    ~~~~~~~
 
     # 1 and 5 define three zones: (-inf, 1], (1, 5], (5, inf)
     >>> distribute_in_zones(2, [1, 5])
@@ -1115,11 +1177,10 @@ def rotate2d(point, degrees, origin=(0,0)):
     degrees: the angle to rotate (counterclockwise)
     origin:  the point acting as pivot to the rotation
     """
-    from math import cos, radians, sin
     x = point[0] - origin[0]
     yorz = point[1] - origin[1]
-    newx = (x*cos(radians(degrees))) - (yorz*sin(radians(degrees)))
-    newyorz = (x*sin(radians(degrees))) + (yorz*cos(radians(degrees)))
+    newx = (x*math.cos(math.radians(degrees))) - (yorz*math.sin(math.radians(degrees)))
+    newyorz = (x*sin(math.radians(degrees))) + (yorz*math.cos(math.radians(degrees)))
     newx += origin[0]
     newyorz += origin[1]
     return newx, newyorz
@@ -1174,7 +1235,7 @@ def replace_subseq(seq, subseq, transform, slize=None):
     You can test if the seq has been found by testing for identity:
 
     Example
-    =======
+    ~~~~~~~
 
     >>> a = (1, 2, 1, 0, 0, 1, 1)
     >>> replace_subseq(a, (1, 0, 0), (1, 8, 8))  # it always returns a list!
@@ -1246,7 +1307,7 @@ def seq_transform(seq, transforms, slize=None, maxiterations=20):
     a default for the slize setting in each transform)
 
     Example
-    =======
+    ~~~~~~~
 
     >>> a = [0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
     >>> a2, stable = seq_transform(a, [                   \
@@ -1390,6 +1451,28 @@ def inches_to_pixels(inches, dpi=300):
 
 def pixels_to_inches(pixels, dpi=300):
     return pixels / dpi
+
+
+def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> t.Tup[float, float]:
+    """
+    Convert a pagesize given as DIN size (A3, A4, ...) and page orientation
+    into a tuple (height, width) in mm
+
+    :param pagesize: size as DIN string (a3, a4, etc)
+    :param pagelayout: portrait or landscape
+    :return: a tuple (height, width) in mm
+    """
+    pagesize = pagesize.lower()
+    if pagesize == 'a3':
+        height, width = 420, 297
+    elif pagesize == 'a4':
+        height, width = 297, 210
+    else:
+        raise KeyError(f"pagesize {pagesize} not known")
+    if pagelayout == 'landscape':
+        height, width = width, height
+    return height, width
+
 
 # ------------------------------------------------------------
 #
@@ -1613,10 +1696,24 @@ def binary_exists(cmd):
 
 
 def inside_jupyter():
+    """
+    Are we running inside a jupyter notebook?
+    """
     return session_type() == 'jupyter'
     
 
+@runonce
 def session_type():
+    """
+    Returns
+        "jupyter" if running a jupyter notebook
+        "ipython-terminal" if running ipython in a terminal
+        "ipython" if running ipython outside a terminal
+        "python" if a normal python
+
+    NB: to check if we are inside an interactive session, check
+    sys.flags.interactive == 1
+    """
     try:
         shell = get_ipython().__class__.__name__
         if shell == 'ZMQInteractiveShell':
@@ -1627,6 +1724,20 @@ def session_type():
             return "ipython"
     except NameError:
         return "python"
+
+
+def ipython_qt_eventloop_started():
+    """
+    Are we running ipython / jupyter and the qt event loop has been started?
+    ( %gui qt )
+    """
+    session = session_type()
+    if session == 'ipython-terminal' or session == 'jupyter':
+        # we are inside ipython so we can just call 'get_ipython'
+        ip = get_ipython()
+        return ip.active_eventloop == "qt"
+    else:
+        return False
 
 
 def print_table(table, headers=()):
@@ -1685,19 +1796,27 @@ def replace_sigint_handler(handler):
     return original_handler
 
 
-def temporary_sigint_handler(handler=None):
-    def dummy_handler():
-        raise KeyboardInterrupt()
+class temporary_sigint_handler:
+    """
+    Context manager to install a temporary sigint handler
 
-    handler = handler or dummy_handler
-    original_handler = replace_sigint_handler(handler)
-    try:
-        yield
-    except:
-        raise
-    finally:
-        replace_sigint_handler(original_handler)
+    def handler():
+        print("sigint detected!")
 
+    with teporary_sigint_handler(handler):
+        # Do something here
+    """
+
+    def __init__(self, handler):
+        self.handler = handler
+        self.original_handler = None
+
+    def __enter__(self):
+        self.original_handler = replace_sigint_handler(self.handler)
+
+    def __exit__(self, type, value, traceback):
+        replace_sigint_handler(self.original_handler)
+        return True
 
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #                             END

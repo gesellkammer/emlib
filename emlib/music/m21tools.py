@@ -272,7 +272,7 @@ def accidentalName(cents:int) -> str:
 
 def makeAccidental(cents:int) -> m21.pitch.Accidental:
     """
-    Make an accidental with possibly 1/8 tone alteration
+    Make an accidental with possibly 1/8 tone alterration
 
     Example: create a C# 1/8 tone higher (C#+25)
 

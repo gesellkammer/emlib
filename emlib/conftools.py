@@ -73,7 +73,7 @@ class CheckedDict(dict):
     def __init__(self, default: dict, validator: dict=None, help=None, callback=None, precallback=None) -> None:
         """
         A dictionary which checks that the keys and values are valid 
-        according to a default dict and a validator
+        according to a default dict and a validator.
 
         default: a dict will all default values. A config can accept only
             keys which are already present in the default
@@ -283,8 +283,6 @@ class ConfigDict(CheckedDict):
     def __init__(self, name:str, default:dict, validator:dict=None, help:dict=None,
                  precallback=None) -> None:
         """
-        NB: DONT'T CALL THIS CLASS DIRECTLY. Use makeConfig or getConfig
-
         This is a persistent dictionary used for configuration
 
         name: a str of the form `folder:config` or simply `config` if this is 
@@ -318,7 +316,7 @@ class ConfigDict(CheckedDict):
             logger.warning("A ConfigDict with the given name already exists!")
         cfg = getConfig(name)
         if cfg and default != cfg.default:
-            logger.debug(f"makeConfig: config with name {name} already created"
+            logger.debug(f"ConfigDict: config with name {name} already created"
                          "with different defaults. It will be overwritten")
         super().__init__(default=default, validator=validator, help=help,
                          callback=self._mycallback, precallback=precallback)
@@ -563,7 +561,7 @@ def makeConfig(name: str, default: dict, validator: dict=None, force=False, vali
         config, otherwise an exception will be raised
     """
     import warnings
-    warnings.warn("DEPRECATED. Use ConfigDict instead")
+    warnings.warn("DEPRECATED. Use ConfigDict directly")
     cfg = getConfig(name)
     if cfg and default != cfg.default:
         if not force:

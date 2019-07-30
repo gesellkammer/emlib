@@ -19,7 +19,7 @@ readme = open('README.rst').read()
 setup(
     name='emlib',
     python_requires=">=3.6",
-    version='0.3.0',
+    version='0.3.2',
     description='Utilities for sound, music notation, acoustics, etc.',
     long_description=readme,
     author='Eduardo Moguillansky',
@@ -53,8 +53,8 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
-        'Programming Language :: Python :: 3',
-        # 'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
     test_suite='tests',
 )

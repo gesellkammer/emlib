@@ -8,10 +8,11 @@ if peach is present, it is used for purely numeric conversions
 (see github.com/gesellkammer/peach) 
 """
 
-from __future__ import division
+from __future__ import annotations
 import math
 import re as _re
 import warnings
+from typing import Tuple, List
 
 import sys
 
@@ -57,6 +58,63 @@ def m2f(midinote: float) -> float:
     :rtype : float
     """
     return 2 ** ((midinote - 69) / 12.0) * A4
+
+
+_flats = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", "C"]
+_sharps = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
+
+
+def _pitchname(pitchidx: int, micro: float) -> str:
+    """
+    Given a pitchindex (0-11) and a microtonal alteracion (between -0.5 and +0.5),
+    return the pitchname which better represents pitchindex
+
+    0, 0.4      -> C
+    1, -0.2     -> Db
+    3, 0.4      -> D#
+    3, -0.2     -> Eb
+    """
+    blacknotes = {1, 3, 6, 8, 10}
+    if micro < 0:
+        if pitchidx in blacknotes:
+            return _flats[pitchidx]
+        else:
+            return _sharps[pitchidx]
+    elif micro == 0:
+        return _sharps[pitchidx]
+    else:
+        if pitchidx in blacknotes:
+            return _sharps[pitchidx]
+        return _flats[pitchidx]
+
+
+def parse_midinote(midinote: float) -> Tuple[int, float, int, str]:
+    """
+    Convert a midinote into its pitch components:
+        pitchindex, alteration, octave, pitchname
+
+    63.2   -> (3, 0.2, 4, "D#")
+    62.8   -> (3, -0.2, 4, "Eb")
+    """
+    i = int(midinote)
+    micro = midinote - i
+    octave = int(midinote / 12.0) - 1
+    ps = int(midinote % 12)
+    cents = int(micro * 100 + 0.5)
+    if cents == 50:
+        if ps in (1, 3, 6, 8, 10):
+            ps += 1
+            micro = -0.5
+        else:
+            micro = 0.5
+    elif cents > 50:
+        micro = micro - 1.0
+        ps += 1
+        if ps == 12:
+            octave += 1
+            ps = 0
+    pitchname = _pitchname(ps, micro)
+    return ps, round(micro, 2), octave, pitchname
 
 
 _notes3 = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
@@ -230,15 +288,23 @@ def logfreqs(notemin=0, notemax=139, notedelta=1.0):
     return pitchnp.logfreqs(notemin=notemin, notemax=notemax, notedelta=notedelta)
 
 
-def pianofreqs(start="A0", stop="C8"):
-    # type: (str, str) -> np.ndarray
+def pianofreqs(start="A0", stop="C8") -> List[float]:
     """
     Generate an array of the frequencies representing all the piano keys
+
+    Args:
+        start: the starting note
+        stop: the ending note
+
+    Returns:
+        a list of frequencies 
     """
-    from emlib import pitchnp
-
-    return pitchnp.pianofreqs(start=start, stop=stop)
-
+    m0 = n2m(start)
+    m1 = n2m(stop)
+    midinotes = range(m0, m1+1)
+    freqs = [m2f(m) for m in midinotes]
+    return freqs
+    
 
 def ratio2interval(ratio: float) -> float:
     """
@@ -282,7 +348,7 @@ _centsrepr = {
     '~': -25
 }
 
-def split_notename(notename: str) -> "tuple[int, str, int, int]":
+def split_notename(notename: str) -> Tuple[int, str, int, int]:
     """
     Return (octave, letter, alteration (1=#, -1=b), cents)
 
@@ -385,3 +451,10 @@ def str2midi(s: str):
         notename = s[:-plusidx-1]
     return f2m(n2f(notename) + freq)
 
+
+def freq2mel(freq: float) -> float:
+    return 1127.01048 * math.log(1. + freq/700)
+
+
+def mel2freq(mel:float) -> float:
+    return 700. * (math.exp(mel / 1127.01048) - 1.0)

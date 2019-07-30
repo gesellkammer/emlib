@@ -3,7 +3,8 @@ Similar to pitchtools, but on numpy arrays
 """
 
 import numpy as np
-from emlib import pitchtools as _pitchtools
+from emlib.pitchtools import A4, set_reference_freq, n2m
+
 
 import sys
 _EPS = sys.float_info.epsilon
@@ -15,18 +16,21 @@ def f2m_np(freqs: np.ndarray, out:np.ndarray=None) -> np.ndarray:
 
     freqs: an array of frequencies
     out: if given, put the result in out
+
+    formula:
+
+    if freq < 9:
+        return 0
+    return 12.0 * log(freq/A4, 2) + 69.0
     """
-    A4 = _pitchtools.A4
+    freqs = np.asarray(freqs, dtype=float)
     if out is None:
-        out = freqs/A4
-    else:
-        np.multiply(freqs, 1.0/A4, out=out)
-    # don't allow negative midi, and avoid divide by zero
-    out.clip(min=9, out=out)   
-    np.log2(out, out)
-    out *= 12.0
-    out += 69.0
-    return out
+        return 12.0 * np.log2(freqs/A4) + 69.0
+    x = freqs/A4
+    np.log2(x, out=x)
+    x *= 12.0
+    x += 69.0
+    return x
 
 
 def m2f_np(midinotes: np.ndarray, out:np.ndarray=None) -> np.ndarray:
@@ -36,11 +40,8 @@ def m2f_np(midinotes: np.ndarray, out:np.ndarray=None) -> np.ndarray:
     midinotes: an array of midinotes
     out: if given, put the result here
     """
-    A4 = _pitchtools.A4
-    if out is None:
-        out = midinotes - 69
-    else:
-        out = np.subtract(midinotes, 69, out=out)
+    midinotes = np.asarray(midinotes, dtype=float)
+    out = np.subtract(midinotes, 69, out=out)
     out /= 12.
     out = np.power(2.0, out, out)
     out *= A4
@@ -55,10 +56,7 @@ def db2amp_np(db:np.ndarray, out:np.ndarray=None) -> np.ndarray:
     out: if given, put the result here
     """
     # amp = 10.0**(0.05*db)
-    if out is None:
-        out = 0.05 * db
-    else:
-        out = np.multiply(db, 0.05, out=out)
+    out = np.multiply(db, 0.05, out=out)
     out = np.power(10, out, out=out)
     return out
 
@@ -71,10 +69,7 @@ def amp2db_np(amp:np.ndarray, out:np.ndarray=None) -> np.ndarray:
     out: if given, put the result here
     """
     # db = log10(amp)*20
-    if out is None:
-        X = np.maximum(amp, _EPS)
-    else:
-        X = np.maximum(amp, _EPS, out=out)
+    X = np.maximum(amp, _EPS, out=out)
     X = np.log10(X, out=X)
     X *= 20
     return X
@@ -101,8 +96,8 @@ def pianofreqs(start='A0', stop='C8') -> np.ndarray:
     """
     Generate an array of the frequencies representing all the piano keys
     """
-    n0 = int(_pitchtools.n2m(start))
-    n1 = int(_pitchtools.n2m(stop)) + 1
+    n0 = int(n2m(start))
+    n1 = int(n2m(stop)) + 1
     return m2f_np(np.arange(n0, n1, 1))
 
 

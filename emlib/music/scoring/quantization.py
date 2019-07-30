@@ -157,7 +157,7 @@ def quantizeAsAbjadRhythm(events: t.Seq[Event], grid="simple", annot=False, glis
         abjadtools.voiceAddAnnotation(voice, annotations, fontSize=5, attacks=attacks)
     if gliss:
         abjadtools.voiceAddGliss(voice, [note.gliss for note in events],
-                               usemacros=False, skipsame=True, attacks=attacks)
+                                 usemacros=False, skipsame=True, attacks=attacks)
     return voice, mapping
 
 
