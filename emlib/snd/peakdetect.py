@@ -1,7 +1,4 @@
-from __future__ import absolute_import
 import numpy as np
-from six.moves import range
-from six.moves import zip
 
 
 def peakdetect(y_axis, x_axis=None, lookahead=500, delta = 0):

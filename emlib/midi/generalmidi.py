@@ -1,6 +1,3 @@
-from __future__ import absolute_import
-import six
-
 MIDI_INSTRUMENT_DICT = {
      'Accordion': 22,
      'Acoustic Bass': 33,
@@ -131,7 +128,7 @@ MIDI_INSTRUMENT_DICT = {
      'Xylophone': 14
 }
 
-MIDI_INSTRUMENTS = dict((val, key) for key, val in six.iteritems(MIDI_INSTRUMENT_DICT))
+MIDI_INSTRUMENTS = {val:key for key, val in MIDI_INSTRUMENT_DICT.items()}
 
 
 def get_midi_program(midi_instrument):

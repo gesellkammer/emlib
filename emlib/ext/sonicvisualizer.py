@@ -1,16 +1,10 @@
 """
 Utilities to interact with Sonic Visualizer
 """
-from __future__ import division, print_function
-from __future__ import absolute_import
 import os
 from lxml import etree
 from bpf4 import bpf
 from emlib.pitchtools import *
-import six
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 
 
 def readnotes(path):

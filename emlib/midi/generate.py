@@ -4,9 +4,6 @@ import midi
 from .util import cents2pitchbend
 from emlib.lib import snap_to_grid
 import warnings
-from six.moves import map
-from six.moves import range
-from six.moves import zip
 
 
 def generate_chrom_scale(midinote0, midinote1, time0, time1, curve='linear', 

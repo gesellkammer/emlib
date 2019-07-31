@@ -1,13 +1,9 @@
-from __future__ import absolute_import
-from __future__ import print_function
 from collections import namedtuple as _namedtuple
 import atexit as _atexit
 import fnmatch as _fnmatch
 from numbers import Number as _Number
 import numpy as _np
 import rtmidi2 as rtmidi
-import six
-from six.moves import range
 
 _INPORT_GLOBAL = rtmidi.MidiIn('tmp', 1000)
 _OUTPORT_GLOBAL = rtmidi.MidiOut()
@@ -34,7 +30,7 @@ def match_port(portname):
     >>> match_port('IAC*')
     0
     """
-    if not isinstance(portname, six.string_types):
+    if not isinstance(portname, str):
         raise TypeError("portname should be a string defining the name or the beginning of the name of a midi port")
     inports = get_ports()
     return _matchfirst(portname, inports)
@@ -143,7 +139,7 @@ class MidiInvert:
         self.midiout = rtmidi.MidiOut()
         self.midiout.open_port()
         self.midiin = rtmidi.MidiIn('keyb', 1000)
-        if isinstance(port, six.string_types):
+        if isinstance(port, str):
             port = match_port(port)
 
         self.midiin.open_port(port)
@@ -203,7 +199,7 @@ class TwoManuals(object):
         self.split = split
         self.transpose_lower = transpose_lower
         self.transpose_upper = transpose_upper
-        if isinstance(inport, six.string_types):
+        if isinstance(inport, str):
             try:
                 inport = next(i for i, p in enumerate(self.midiin.ports) if p.startswith(inport))
             except StopIteration:

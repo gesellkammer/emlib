@@ -111,3 +111,61 @@ def overlapping_frames(y, frame_length, hop_length):
     y_frames = as_strided(y, shape=(frame_length, n_frames),
                           strides=(y.itemsize, hop_length * y.itemsize))
     return y_frames
+
+
+def chunks(data, chunksize, hop=None, padwith=0):
+    """
+    Iterate over data in chunks of chunksize. Returns a generator
+
+    Args:
+        data: the array to be iterated in chunks
+        chunksize: the size of each chunk
+        hop: the amount of elements to skip between chunks
+        padwidth: value to pad when a chunk is not big enough
+            Give None to avoid padding
+
+    """
+    numframes = len(data)
+    if hop is None:
+        hop = chunksize
+    n = 0
+    if padwith is None:
+        while n < numframes:
+            chunk = data[n:n+chunksize]
+            yield chunk
+            n += hop
+    else:
+        while n < numframes:
+            chunk = data[n:n+chunksize]
+            lenchunk = len(chunk)
+            if lenchunk < chunksize:
+                chunk = padarray(chunk, chunksize - lenchunk, padwith)
+                yield chunk
+                break
+            yield chunk
+            n += hop
+
+
+def padarray(arr, numelements, padwith=0):
+    """
+    Pad a 1D array to the right with 0s, or a 2D array down with zeros
+
+    Pad 1D with 2 elements
+
+    1 2 3 4   -> 1 2 3 4 0 0
+
+    Pad 2D with 2 elements
+
+    0   1  2      0  1  2
+    10 11 12  -> 10 11 12
+    20 21 22     20 21 22
+                  0  0  0
+                  0  0  0
+    """
+    numdims = len(arr.shape)
+    if numdims == 1:
+        return np.pad(arr, (0, numelements), mode='constant', constant_values=padwith)
+    elif numdims == 2:
+        return np.pad(arr, [(0, numelements), (0, 0)], mode='constant', constant_values=padwith)
+    else:
+        raise ValueError("Only 1D or 2D arrays supported")

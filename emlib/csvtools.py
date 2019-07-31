@@ -7,7 +7,6 @@ from collections import namedtuple as _namedtuple
 import re as _re
 from numbers import Number as _Number
 from .containers import RecordList
-import six
 from typing import Sequence as Seq, List, Optional as Opt, Union
 
 
@@ -176,10 +175,7 @@ def writecsv(namedtuples, outfile, column_names=None, write_row_name=False):
         column_names = firstrow._fields
     outfile = _os.path.splitext(outfile)[0] + '.csv'
 
-    if six.PY3:
-        f = open(outfile, 'w', newline='', encoding='utf-8')
-    else:
-        f = open(outfile, 'wb')
+    f = open(outfile, 'w', newline='', encoding='utf-8')
     f_write = f.write
     w = _csv.writer(f)
     if isnamedtuple and write_row_name:

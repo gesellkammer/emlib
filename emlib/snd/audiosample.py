@@ -30,6 +30,7 @@ from emlib.snd.resample import resample as _resample
 from emlib.pitchtools import amp2db, db2amp
 from emlib.conftools import ConfigDict
 from emlib.snd.sndfile import sndread
+from emlib import numpytools
 from emlib import lib
 from emlib import typehints as t
 
@@ -173,7 +174,7 @@ def select_audio_device(device):
 
   
     Example
-    =======
+    ~~~~~~~
 
     >>> list_audio_devices()
 
@@ -689,6 +690,13 @@ class Sample(object):
                                     resolution=resolution, hop=2)
         chord = s.chord_at(t - t0)
         return chord
+
+    def chunks(self, chunksize, hop=None, pad=False):
+        """
+        Iterate over the samples in chunks of chunksize. If pad is True,
+        the last chunk will be zeropadded, if necessary 
+        """
+        return numpytools.chunks(self.samples, chunksize=chunksize, hop=hop, padwith=(0 if pad else None))
 
 
 def first_sound(samples, threshold=-120.0, period=256, hopratio=0.5):

@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-import six
 
 
 def cents2pitchbend(cents, maxdeviation=200):
@@ -58,5 +56,5 @@ def fileinfo(path):
 def fileinfo_show(path):
     info = fileinfo(path)
     maxwidth = max(len(key) for key in info)
-    for key, value in six.iteritems(info):
+    for key, value in info.items():
         print(key.ljust(maxwidth), value)
