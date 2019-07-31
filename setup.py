@@ -4,22 +4,15 @@
 import os
 import sys
 
-
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
-
-if sys.argv[-1] == 'publish':
-    os.system('python setup.py sdist upload')
-    sys.exit()
+from setuptools import setup
 
 readme = open('README.rst').read()
+version = (0, 3, 2)
 
 setup(
     name='emlib',
     python_requires=">=3.6",
-    version='0.3.2',
+    version=".".join(map(str, version)),
     description='Utilities for sound, music notation, acoustics, etc.',
     long_description=readme,
     author='Eduardo Moguillansky',
