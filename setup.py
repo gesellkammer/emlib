@@ -7,11 +7,11 @@ import sys
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (0, 3, 2)
+version = (0, 4, 0)
 
 setup(
     name='emlib',
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     version=".".join(map(str, version)),
     description='Utilities for sound, music notation, acoustics, etc.',
     long_description=readme,
@@ -24,7 +24,10 @@ setup(
         'emlib.snd',
         'emlib.acoustics',
         'emlib.ext',
-        'emlib.music'
+        'emlib.music',
+        'emlib.music.core',
+        'emlib.music.scoring',
+        'emlib.music.lsys'
     ],
     include_package_data=True,
     install_requires=[
@@ -39,7 +42,8 @@ setup(
         "sndfileio",
         "pillow",
         "decorator",
-        "cachetools"
+        "cachetools",
+        "ctcsound"
     ],
     license="BSD",
     zip_safe=False,
@@ -47,8 +51,8 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: BSD License',
         'Natural Language :: English',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8'
     ],
     test_suite='tests',
 )
