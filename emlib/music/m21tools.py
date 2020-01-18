@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import tempfile
 
 import music21 as m21
 
@@ -335,9 +336,12 @@ def _centsshown(centsdev, divsPerSemitone=4) -> str:
     anything. Otherwise, the deviation is always the deviation
     from the chromatic pitch
 
-    :param centsdev: the deviation from the chromatic pitch
-    :param divsPerSemitone: if given, overrides the value in the config
-    :return: the string to be shown alongside the notated pitch
+    Args:
+        centsdev: the deviation from the chromatic pitch
+        divsPerSemitone: if given, overrides the value in the config
+
+    Returns:
+        the string to be shown alongside the notated pitch
     """
     # cents can be also negative (see self.cents)
     pivot = int(round(100 / divsPerSemitone))
@@ -361,11 +365,14 @@ def makeNote(pitch: t.U[str, float], divsPerSemitone=4, showcents=False, **optio
     Any keyword option will be passed to m21.note.Note (for example,
     `duration` or `quarterLength`)
 
-    :param pitch: the pitch of the resulting note (for example, 60.20, or "4C+20")
-    :param divsPerSemitone: divisions per semitone (4=1/8 tones, possible values: 1, 2, 4)
-    :param showcents: display the cents deviation as text
-    :param options: any option will be passed to m21.note.Note
-    :return: a tuple (m21.Note, cents deviation from the returned note)
+    Args:
+        pitch: the pitch of the resulting note (for example, 60.20, or "4C+20")
+        divsPerSemitone: divisions per semitone (4=1/8 tones, possible values: 1, 2, 4)
+        showcents: display the cents deviation as text
+        options: any option will be passed to m21.note.Note
+
+    Returns:
+        tuple (m21.Note, cents deviation from the returned note)
     """
     assert isinstance(pitch, (str, int, float))
     pitch, centsdev = makePitch(pitch=pitch, divsPerSemitone=divsPerSemitone)
@@ -386,11 +393,14 @@ def makeChord(pitches: t.Seq[float], divsPerSemitone=4, showcents=False, **optio
     are placed as a lyric attached to the chord.
     The cents deviations are returned as a second argument
 
-    :param pitches: the midi notes
-    :param divsPerSemitone: divisions per semitone (1, 2, 4)
-    :param showcents: if True, cents deviation is added as lyric
-    :param options: options passed to the Chord constructor (duration, quarterLength, etc)
-    :return: a tuple (Chord, list of cents deviations)
+    Args:
+        pitches: the midi notes
+        divsPerSemitone: divisions per semitone (1, 2, 4)
+        showcents: if True, cents deviation is added as lyric
+        options: options passed to the Chord constructor (duration, quarterLength, etc)
+
+    Returns:
+        a tuple (Chord, list of cents deviations)
     """
     notes, centsdevs = [], []
     pitches = sorted(pitches)
@@ -427,13 +437,15 @@ def addGraceNote(pitch:t.U[float, str, t.Seq[float]], anchorNote:m21.note.Genera
     Add a grace note (or a nachschlag) to anchor note.A
     Anchor note should be part of a stream, to which the grace note will be added
 
-    :param pitch: the pitch of the grace note (as midinote, or notename)
-    :param anchorNote: the note the grace note will be added to
-    :param dur: the written duration of the grace note
-    :param nachschlag: if True, the grace note is added as nachschlag, after the anchor
-    :param context: the context where anchor note is defined, as a str, or the
-                    stream itself
-    :return: the added grace note
+    Args:
+        pitch: the pitch of the grace note (as midinote, or notename)
+        anchorNote: the note the grace note will be added to
+        dur: the written duration of the grace note
+        nachschlag: if True, the grace note is added as nachschlag, after the anchor
+        context: the context where anchor note is defined, as a str, or the
+                 stream itself
+    Returns:
+        the added grace note
     """
     stream = context if isinstance(context, m21.stream.Stream) else anchorNote.getContextByClass(context)
     if isinstance(pitch, (list, tuple)):
@@ -452,11 +464,14 @@ def addGliss(start:m21.note.GeneralNote, end:m21.note.GeneralNote, linetype='sol
     """
     Add a glissando between note0 and end. Both notes should already be part of a stream
 
-    :param start: start note
-    :param end: end note
-    :param linetype: line type of the glissando
-    :param stream: a concrete stream or a context class
-    :return: the created Glissando
+    Args:
+        start: start note
+        end: end note
+        linetype: line type of the glissando
+        stream: a concrete stream or a context class
+
+    Returns:
+        the created Glissando
     """
     if stream is None:
         stream = 'Measure'
@@ -476,8 +491,9 @@ def _noteScalePitch(note: m21.note.Note, factor: t.Rat) -> None:
     """
     Scale the pitch of note INPLACE
 
-    :param note: a m21 note
-    :param factor: the factor to multiply pitch by
+    Args:
+        note: a m21 note
+        factor: the factor to multiply pitch by
     """
     midinote = float(note.pitch.ps * factor)
     pitch, centsdev = makePitch(midinote)
@@ -491,7 +507,6 @@ def stackParts(parts:t.Seq[m21.stream.Stream], outstream:m21.stream.Stream=None
 
     This solves the problem that a Score will stack Parts vertically,
     but append sny other stream horizontally
-
     """
     outstream = outstream or m21.stream.Score()
     for part in parts:
@@ -511,23 +526,42 @@ def addTextExpression(note:m21.note.GeneralNote, text:str, placement="above",
                       letterSpacing:float=None, fontWeight:str=None) -> None:
     """
     Add a text expression to note. The note needs to be already inside a stream,
-    since the text expression is added to the stream
+    since the text expression is added to the stream, next to the note
 
-    :param note: the note (or chord) to add text expr. to
-    :param text: the text
-    :param placement: above or below
-    :param contextclass: the context in which note is defined (passed to getContextByClass)
-    :return:
+    Args:
+        note: the note (or chord) to add text expr. to
+        text: the text
+        placement: above or below
+        contextclass: the context in which note is defined (passed to getContextByClass)
+        fontSize: the size of the font
+        letterSpacing: the spacing between letters
+        fontWeight: the weight of the text
     """
     textexpr = makeTextExpression(text=text, placement=placement, fontSize=fontSize,
                                   letterSpacing=letterSpacing, fontWeight=fontWeight)
     attachToObject(note, textexpr, contextclass)
 
 
-def makeTextExpression(text:str, placement="above",
-                       contextclass='Measure', fontSize:float=None,
-                       letterSpacing:float=None, fontWeight:str=None
+def makeTextExpression(text:str,
+                       placement="above",
+                       fontSize:float=None,
+                       letterSpacing:float=None,
+                       fontWeight:str=None
                        ) -> m21.expressions.TextExpression:
+    """
+    Create a TextExpression. You still need to attack it to something
+    (see AddTextExpression)
+
+    Args:
+        text: the text of the expression
+        placement: one of "above", "below"
+        fontSize: the size of the font
+        letterSpacing: spacing between letters
+        fontWeight: weight of the font
+
+    Returns:
+        the TexTExpression
+    """
     textexpr = m21.expressions.TextExpression(text)
     textexpr.positionPlacement = placement
     if fontSize:
@@ -678,15 +712,12 @@ def renderViaLily(m21obj:m21.Music21Object, fmt:str=None, outfile:str=None, show
 
     To use the builtin method, use stream.write('lily.pdf') or stream.write('lily.png')
 
-    m21obj:
-        the stream to convert to lilypond
-    fmt:
-        one of 'png' or 'pdf'
-    outfile:
-        if given, the name of the lilypond file generated. Otherwise
-        a temporary file is created
-    show:
-        if True, show the resulting file
+    Args:
+        m21obj: the stream to convert to lilypond
+        fmt: one of 'png' or 'pdf'
+        outfile: if given, the name of the lilypond file generated. Otherwise
+            a temporary file is created
+        show: if True, show the resulting file
     """
     if outfile is None and fmt is None:
         fmt = 'png'
@@ -694,7 +725,6 @@ def renderViaLily(m21obj:m21.Music21Object, fmt:str=None, outfile:str=None, show
         assert outfile is not None
         fmt = os.path.splitext(outfile)[1][1:]
     elif outfile is None:
-        import tempfile
         assert fmt in ('png', 'pdf')
         outfile = tempfile.mktemp(suffix="."+fmt)
     else:
@@ -727,24 +757,27 @@ def makeImage(m21obj, outfile:str=None, fmt='xml.png',
     """
     Generate an image from m21obj
 
-    outfile    : the file to write to, or None to create a temporary
-    fmt        : the format, one of "xml.png" or "lily.png"
-    fixstream  : see m21fix
-    musicxml2ly: if fmt is lily.png and musicxml2ly is True, then conversion
-                 is performed via the external tool `musicxml2ly`, otherwise 
-                 the conversion routine provided by music21 is used
-    
-    returns: the path to the generated image file
+    Args:
+        m21obj: the object to make an image from
+        outfile: the file to write to, or None to create a temporary
+        fmt: the format, one of "xml.png" or "lily.png"
+        fixstream: see m21fix
+        musicxml2ly: if fmt is lily.png and musicxml2ly is True, then conversion
+                     is performed via the external tool `musicxml2ly`, otherwise
+                     the conversion routine provided by music21 is used
+
+    Returns:
+        the path to the generated image file
     """
     if fixstream and isinstance(m21obj, m21.stream.Stream):
         m21obj = m21fix.fixStream(m21obj, inPlace=True)
     method, fmt3 = fmt.split(".")
-    if method == 'lily' and config['use_musicxml2ly']:
+    if method == 'lily' and musicxml2ly:
         if fmt3 not in ('png', 'pdf'):
             raise ValueError(f"fmt should be one of 'lily.png', 'lily.pdf' (got {fmt})")
         if outfile is None:
-            outfile = _tempfile.mktemp(suffix="."+fmt3)
-        path = m21tools.renderViaLily(m21obj, fmt=fmt3, outfile=outfile)
+            outfile = tempfile.mktemp(suffix="."+fmt3)
+        path = renderViaLily(m21obj, fmt=fmt3, outfile=outfile)
     else:
         tmpfile = m21obj.write(fmt)
         if outfile is not None:

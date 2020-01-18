@@ -1,6 +1,4 @@
-from __future__ import (division as _division,
-                        absolute_import as _absolute_import,
-                        print_function)
+from __future__ import annotations
 from itertools import *
 import operator as _operator
 import collections as _collections
@@ -14,7 +12,7 @@ from typing import (
     Tuple as Tup
 )
 T = TypeVar("T")
-T2 = TypeVar("T")
+T2 = TypeVar("T2")
 
 # ----------------------------------------------------------------------------
 # 
@@ -25,23 +23,12 @@ T2 = TypeVar("T")
 # ----------------------------------------------------------------------------
 
 
-def take(seq, n):
-    # type: (Iter[T], int) -> List[T]
+def take(seq: Iter[T], n:int) -> List[T]:
     """returns the first n elements of seq as a list"""
     return list(islice(seq, n))
 
 
-def first(seq):
-    # type: (Iter[T]) -> Opt[T]
-    """Returns the first element of seq or None if the seq is empty"""
-    try:
-        return next(seq)
-    except StopIteration:
-        return None
-
-    
-def last(seq):
-    # type: (Iter[T]) -> Opt[T]
+def last(seq: Iter[T]) -> Opt[T]:
     """returns the last element of seq or None if seq is empty"""
     if isinstance(seq, _collections.Sequence):
         try:
@@ -55,8 +42,7 @@ def last(seq):
         return x
 
     
-def consume(iterator, n):
-    # type: (Iter, int) -> None
+def consume(iterator: Iter, n:int) -> None:
     """Advance the iterator n-steps ahead. If n is none, consume entirely."""
     if n is None:
         # feed the entire iterator into a zero-length deque
@@ -66,8 +52,7 @@ def consume(iterator, n):
         next(islice(iterator, n, n), None)
 
         
-def quantify(iterable, pred=bool):
-    # type: (Iter, Callable) -> int
+def quantify(iterable: Iter, pred: Callable=bool) -> int:
     """
     Count how many times the predicate is true
     
@@ -80,8 +65,7 @@ def quantify(iterable, pred=bool):
     return sum(map(pred, iterable))
 
 
-def drop(seq, n):
-    # type: (Iter[T], int) -> Iter[T]
+def drop(seq: Iter[T], n: int) -> Iter[T]:
     """
     return an iterator over seq with n elements consumed
     
@@ -91,14 +75,12 @@ def drop(seq, n):
     return islice(seq, n, None)
 
 
-def nth(seq, n):
-    # type: (Iter[T], int) -> T
+def nth(seq: Iter[T], n: int) -> T:
     """Returns the nth item"""
     return list(islice(seq, n, n+1))[0]
 
 
-def pad(seq, element=None):
-    # type: (Iter[T], Opt[T]) -> Iter[Opt[T]]
+def pad(seq: Iter[T], element:T2=None) -> Iter[U[T, T2]]:
     """
     Returns the elements in seq and then return element indefinitely.
 
@@ -110,14 +92,12 @@ def pad(seq, element=None):
     return chain(seq, repeat(element))
 
 
-def ncycles(seq, n):
-    # type: (Iter[T], int) -> Iter[T]
+def ncycles(seq: Iter[T], n: int) -> Iter[T]:
     """Returns the sequence elements n times"""
     return chain(*repeat(seq, n))
 
 
-def dotproduct(vec1, vec2):
-    # type: (Iter[T], Iter[T]) -> T
+def dotproduct(vec1: Iter[T], vec2: Iter[T]) -> T:
     return sum(map(_operator.mul, vec1, vec2))
 
 
@@ -133,8 +113,7 @@ def repeatfunc(func, times=None, *args):
         return starmap(func, repeat(args, times))
 
 
-def pairwise(iterable):
-    # type: (Iter[T]) -> Iter[Tup[T, T]]
+def pairwise(iterable: Iter[T]) -> Iter[Tup[T, T]]:
     """
     s -> (s0,s1), (s1,s2), (s2, s3), ..."
     
@@ -154,8 +133,7 @@ def pairwise(iterable):
     return zip(a, b)
 
 
-def window(iterable, size=3, step=1):
-    # type: (Iter[T], int, int) -> Iter[Tup[T,...]]
+def window(iterable: Iter[T], size=3, step=1) -> Iter[Tup[T, ...]]:
     """
     iterate over subseqs of iterable
     
@@ -183,8 +161,7 @@ def window(iterable, size=3, step=1):
     return window_itr
 
 
-def iterchunks(seq, chunksize):
-    # type: (Iter, int) -> Iter[Tup]
+def iterchunks(seq: Iter, chunksize: int) -> Iter[Tup]:
     """
     Returns an iterator over chunks of seq of at most `chunksize` size.
     If seq is finite and not divisible by chunksize, the last chunk will
@@ -207,15 +184,13 @@ def iterchunks(seq, chunksize):
             yield chunk
 
 
-def isiterable(obj, exclude=(str,)):
-    # type: (Any, Tup) -> bool
+def isiterable(obj, exclude=(str,)) -> bool:
     if exclude:
         return hasattr(obj, '__iter__') and (not isinstance(obj, exclude))
     return hasattr(obj, '__iter__')
     
 
-def grouper(seq, n, fillvalue=None):
-    # type: (Iter, int, Any) -> Iter
+def grouper(seq: Iter, n: int, fillvalue=None) -> Iter:
     """
     Collect data into fixed-length chunks or blocks
     
@@ -229,7 +204,7 @@ def grouper(seq, n, fillvalue=None):
     return zip_longest(fillvalue=fillvalue, *args)
 
 
-def random_combination(iterable, r):
+def random_combination(iterable: Iter, r):
     """Random selection from itertools.combinations(iterable, r)"""
     pool = tuple(iterable)
     n = len(pool)
@@ -244,8 +219,7 @@ def random_permutation(iterable, r=None):
     return tuple(_random.sample(pool, r))
 
 
-def partialsum(seq, start=0):
-    # type: (Iter[float], float) -> Iter[float]
+def partialsum(seq: Iter[T], start=0) -> Iter[T]:
     """
     for each elem in seq return the partial sum
 
@@ -261,8 +235,7 @@ def partialsum(seq, start=0):
         yield accum
 
         
-def partialmul(seq, start=1):
-    # type: (Iter[float], float) -> Iter[float]
+def partialmul(seq: Iter[T], start=1) -> Iter[T]:
     """
     return the accumulated multiplication
 
@@ -277,8 +250,7 @@ def partialmul(seq, start=1):
         yield accum
 
         
-def avgnow(seq):
-    # type: (Iter[float]) -> float
+def avgnow(seq: Iter[T]) -> T:
     """
     return the average of the elements of seq until now
     """
@@ -289,12 +261,40 @@ def avgnow(seq):
         i += 1
         yield accum / i
 
+
+def ilen(seq: Iter) -> int:
+    """
+    Consume an iterable not reading it into memory; return the number of items.
+    """
+    counter = count()
+    _collections.deque(zip(seq, counter), maxlen=0)  # (consume at C speed)
+    return next(counter)
+
+
+def avg(seq: Iter[T], empty=0) -> T:
+    """ Return the average of seq, or `empty` if the seq. is empty
+
+    NB: if you know the size of seq, it is faster to do
+        `sum(seq) / len_of_seq`
+
+    >>> avg(range(1_000_000))
+    499999.5
+    """
+    accum, i = 0, 0
+    for x in seq:
+        accum += x
+        i += 1
+    return accum / i if i else empty
+
         
-def flatten(s, exclude=(str,), levels=inf):
-    # type: (Iter[U[T, Iter[T]]], Tup) -> Iter[T]
+def flatten(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf) -> Iter[T]:
     """
     return an iterator to the flattened items of sequence s
     strings are not flattened
+
+    seq = [1, [2, 3], [4, [5, 6]]]
+    list(flatten(seq))
+    -> [1, 2, 3, 4, 5, 6]
     """
     if not hasattr(s, '__iter__') or isinstance(s, exclude):
         yield s
@@ -309,12 +309,14 @@ def flatten(s, exclude=(str,), levels=inf):
 # as a reference, a non-recursive version. It is slower than flatten
 def _flatten_nonrec(iterable):
     iterator, sentinel, stack = iter(iterable), object(), []
+    pop = stack.pop
+    append = stack.append
     while True:
         value = next(iterator, sentinel)
         if value is sentinel:
             if not stack:
                 break
-            iterator = stack.pop()
+            iterator = pop()
         elif isinstance(value, str):
             yield value
         else:
@@ -323,10 +325,22 @@ def _flatten_nonrec(iterable):
             except TypeError:
                 yield value
             else:
-                stack.append(iterator)
+                append(iterator)
                 iterator = new_iterator
 
+
 def flatlist(s: Iter, exclude=(str,), levels=inf) -> list:
+    """
+    Like flatten, but returns a list
+
+    Args:
+        s: the sequence to flatten
+        exclude: exclude objects of this types
+        levels: how many levels?
+
+    Returns:
+        a list containing a flattened version of s
+    """
     return list(flatten(s, exclude=exclude, levels=levels))
 
             
@@ -351,7 +365,7 @@ def flattenonly(l, types):
             
 def zipflat(*seqs):
     """
-    like izip but flat
+    like izip but flat. It has the same effect as flatten(zip(seqA, seqB), levels=1)
     
     Example
     ~~~~~~~

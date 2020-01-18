@@ -495,7 +495,7 @@ class _InstrManager:
             instrdef = self.instrDefs.get(instrname)
             if instrdef is None:
                 instrs = ", ".join(self.instrDefs.keys())
-                raise ValueError(f"sched: instrument {instrname} has not been declared in group {self.name}"
+                raise ValueError(f"sched: instrument {instrName} has not been declared in group {self.name}"
                                  f". Delcared instruments are: {instrs}")
             instrnum = self.getInstrnum(instrname, priority)
             instrtxt = _instrWrapBody(instrdef.body, instrnum)

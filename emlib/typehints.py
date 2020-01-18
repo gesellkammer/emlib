@@ -20,4 +20,4 @@ from fractions import Fraction
 
 Rat = U[int, float, Fraction]
 Func = Callable
-
+T = TypeVar("T")

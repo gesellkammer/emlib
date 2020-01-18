@@ -119,11 +119,7 @@ def primeq(n):
         return True
     else:
         print("only numbers below 10**12 are supported")
-    #if not GRH:
-    #    return apr(n)
-    #else:
-    #    return miller(n)
-
+    
 
 def trial_division(n, bound=0):
     """

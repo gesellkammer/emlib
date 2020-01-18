@@ -198,16 +198,23 @@ def _parse_range(start, stop=None, step=None):
 
 
 def chunks(start, stop=None, step=None):
-    # type: (int, int, int) -> t.Iter[t.Tup[float, int]]
     """
-    like xrange but yields (pos, chunksize) tuplets
+    Returns a generator of tuples (offset, chunksize)
+
+    Example
+    =======
+
+    chunks(0, 10, 3)
+    (0, 3)
+    (3, 3)
+    (6, 3)
+    (9, 1)
     """
     start, stop, step = _parse_range(start, stop, step)
-    for n in frange(start, stop-step, step):
-        yield n, step
-    dif = stop % step
-    if dif > 0:
-        yield stop-dif, dif
+    while start < stop:
+        size = min(stop - start, step)
+        yield start, size
+        start += step
 
 
 # ------------------------------------------------------------
@@ -409,6 +416,26 @@ def issorted(seq, key=None):
             lastx = x
         return True
 
+def firstval(*values, default=None, sentinel=None):
+    """
+    Get the first value in values which is not sentinel
+
+    For delayed execution (similar to a if b else c) a value can be a
+    callable which should return the value in question
+
+    Example:
+
+    default = firstval(a, config['a'], lambda: lengthycomputation())
+    """
+    for value in values:
+        if callable(value):
+            value2 = value()
+            if value2 is not sentinel:
+                return value2
+        elif value is not sentinel:
+            return value
+    return default
+
 
 def zipsort(a, b, key=None, reverse=False):
     # type: (t.Seq, t.Seq, t.Opt[t.Callable]) -> t.Seq
@@ -583,7 +610,6 @@ def find_file(path, file):
         if file in directory[2]:
             return '/'.join((directory[0], file))
     return None
-
 
 def add_suffix(filename, suffix):
     # type: (str, str) -> str
@@ -1597,6 +1623,21 @@ def runonce(func):
     return wrapper
 
 
+def cascade(*values):
+    """
+    Get the first value in values which is not None
+
+    For delayed execution (similar to a if b else c) a value can be a 
+    callable which should return the value in question
+
+    Example:
+
+    default = firstNotNone(a, config['a'], lambda: lengthycomputation())
+    """
+    raise DeprecationWarning("Use firstval")
+    return firstval(*values)
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def deprecated(func, msg=None):
@@ -1657,13 +1698,20 @@ def checktype(obj, *T):
 
 # crossplatform
 
-def open_with_standard_app(path):
+def open_with_standard_app(path, force_wait=False):
     """
     Open path with the app defined to handle it by the user
     at the os level (xdg-open in linux, start in win, open in osx)
 
     This opens the default application in the background
     and returns immediately
+
+    Returns a subprocess.Popen object. You can wait on this process 
+    by calling .wait on it. It can happen that the standard app is a server
+    like application, where it is not possible to wait on it (like
+    emacsclient or sublimetext). For those cases use force_wait=True,
+    which opens a dialog that needs to be clicked in order to signal that
+    editing is finished
     """
     import subprocess
     platform = _sys.platform
@@ -1675,6 +1723,9 @@ def open_with_standard_app(path):
         subprocess.call(["open", path])
     else:
         raise RuntimeError(f"platform {platform} not supported")
+    if force_wait:
+        from emlib import dialogs
+        dialogs.popupmsg("Close this dialog when finished")
 
 
 def binary_resolve_path(cmd):
@@ -1817,6 +1868,27 @@ class temporary_sigint_handler:
     def __exit__(self, type, value, traceback):
         replace_sigint_handler(self.original_handler)
         return True
+
+
+def strip_lines(text: str) -> str:
+    """
+    Like .strip but for lines. Removes empty lines
+    at the beginning or end of text, without touching
+    lines in between
+    """
+    lines = text.splitlines()
+    startidx, endidx = 0, 0
+
+    for startidx, line in enumerate(lines):
+        if line.strip():
+            break
+
+    for endidx, line in enumerate(reversed(lines)):
+        if line.strip():
+            break
+
+    return "\n".join(lines[startidx:len(lines)-endidx])
+
 
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #                             END

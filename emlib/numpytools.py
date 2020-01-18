@@ -113,7 +113,7 @@ def overlapping_frames(y, frame_length, hop_length):
     return y_frames
 
 
-def chunks(data, chunksize, hop=None, padwith=0):
+def chunks(data: np.ndarray, chunksize: int, hop:int=None, padwith=0):
     """
     Iterate over data in chunks of chunksize. Returns a generator
 

@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 import math as _math
 import os 
 import sys
-import subprocess as _subprocess
+import subprocess
 import re
 from collections import namedtuple
 import shutil as _shutil
 import logging as _logging
 import textwrap as _textwrap
+import io
 import tempfile
-import typing as t
+import cachetools
+from typing import Union, Optional, Generator, Sequence
 
 import numpy as np
 
@@ -41,7 +45,7 @@ def table_size_sndfile(filename:str) -> int:
     return nextpow2(info.nframes)
     
 
-def find_csound() -> t.Optional[str]:
+def find_csound() -> Optional[str]:
     csound = _shutil.which("csound")
     if csound:
         return csound
@@ -57,7 +61,7 @@ def find_csound() -> t.Optional[str]:
         raise PlatformNotSupported
     
 
-def get_version():
+def get_version() -> tuple[int, int, int]:
     """
     Returns the csound version as tuple (major, minor, patch) so that '6.03.0' is (6, 3, 0)
 
@@ -68,7 +72,7 @@ def get_version():
     if not csound:
         raise IOError("Csound not found")
     cmd = '{csound} --help'.format(csound=csound).split()
-    proc = _subprocess.Popen(cmd, stderr=_subprocess.PIPE)
+    proc = subprocess.Popen(cmd, stderr=subprocess.PIPE)
     proc.wait()
     lines = proc.stderr.readlines()
     if not lines:
@@ -102,14 +106,14 @@ def csound_subproc(args, piped=True):
     csound = find_csound()
     if not csound:
         return
-    p = _subprocess.PIPE if piped else None
+    p = subprocess.PIPE if piped else None
     callargs = [csound]
     callargs.extend(args)
     logger.debug(f"csound_subproc> args={callargs}")
-    return _subprocess.Popen(callargs, stderr=p, stdout=p)
+    return subprocess.Popen(callargs, stderr=p, stdout=p)
     
 
-def get_default_backend():
+def get_default_backend() -> str:
     """
     Get the default backend for platform. Check if the backend
     is available and running (in the case of Jack)
@@ -126,42 +130,70 @@ def get_default_backend():
     return backends[0]
 
 
-def run_csdfile(csdfile:str, backend="", output="dac", input="", 
-                piped=False, extra=None) -> _subprocess.Popen:
+def run_csd(csdfile:str, 
+            output="", 
+            input="", 
+            backend="",
+            supressdisplay=False,
+            comment:str=None,
+            piped=False,
+            extra:list[str]=None) -> subprocess.Popen:
     """
-    csdfile: the path to a .csd file
-    output : "dac" to output to the default device, the label of the
-             device (dac0, dac1, ...), or a filename to render offline
-    input  : The input to use (for realtime)
-    backend: The name of the backend to use. If no backend is given, the default
-             for the platform is used (this is only meaningful if running in realtime)
-    piped  : if True, the output of the csound process is piped and can be accessed
-             through the Popen object (.stdout, .stderr)
-    extra  : a list of extra arguments to be passed to csound
+    Args:
+        csdfile: the path to a .csd file
+        output: "dac" to output to the default device, the label of the
+            device (dac0, dac1, ...), or a filename to render offline
+            (-o option)
+        input: The input to use (for realtime) (-i option)
+        backend: The name of the backend to use. If no backend is given,
+            the default for the platform is used (this is only meaningful
+            if running in realtime)
+        supressdisplay: if True, eliminates debugging info from output
+        piped: if True, the output of the csound process is piped and can be accessed
+            through the Popen object (.stdout, .stderr)
+        extra: a list of extra arguments to be passed to csound
+        comment: if given, will be added to the generated soundfile
+            as comment metadata
 
-    Returns the subprocess
+    Returns:
+        the subprocess.Popen object. In order to wait until
+        rendering is finished in offline mode, call .wait on the
+        returned process
     """
-    rendertofile = "." in output
     args = []
-    args.extend(["-o", output])
-    
-    if not rendertofile and backend:
+    realtime = False
+    if output:
+        args.extend(["-o", output])
+        if output.startswith("dac"):
+            realtime = True
+    if realtime and not backend:
+        backend = get_default_backend()
+    if backend:
         args.append(f"-+rtaudio={backend}")
     if input:
         args.append(f"-i {input}")
+    if supressdisplay:
+        args.extend(['-d', '-m', '0'])
+    if comment and not realtime:
+        args.append(f'-+id_comment="{comment}"')
     if extra:
         args.extend(extra)
     args.append(csdfile)
     return csound_subproc(args, piped=piped)
     
 
-def _join_csd(orc, sco="", options="", outfile=None):
+def join_csd(orc: str, sco="", options:list[str]=None) -> str: 
     """
+    Join an orc and a score (both as a string) and return a consolidated
+    csd structure (as string)
+
+    open("out.csd", "w").write(join_csd(orc, sco, options))
     """
+    optionstr = "" if options is None else "\n".join(options)
     csd = r"""
 <CsoundSynthesizer>
 <CsOptions>
-{options}
+{optionstr}
 </CsOptions>
 <CsInstruments>
 
@@ -174,17 +206,12 @@ def _join_csd(orc, sco="", options="", outfile=None):
 
 </CsScore>
 </CsoundSynthesizer>
-    """.format(options=options, orc=orc, sco=sco)
+    """.format(optionstr=optionstr, orc=orc, sco=sco)
     csd = _textwrap.dedent(csd)
-    if outfile is None:
-        outfile = tempfile.mktemp(suffix=".csd")
-    with open(outfile, "w") as f:
-        f.write(csd)
-    logger.debug(f"_join_csd: saving csd to {outfile}")
-    return outfile
+    return csd
 
 
-def testcsound(dur=8, nchnls=2, backend=None, device="dac", sr=None, verbose=True):
+def test_csound(dur=8, nchnls=2, backend=None, device="dac", sr=None, verbose=True):
     backend = backend or get_default_backend()
     sr = sr or get_sr(backend)
     printchan = "printk2 kchn" if verbose else ""
@@ -206,12 +233,16 @@ endin
     sco = f"i1 0 {dur}"
     orc = _textwrap.dedent(orc)
     logger.debug(orc)
-    return run_csd(orc, sco=sco, backend=backend, output=device, extra=["-d", "-m 0"])
+    csd = join_csd(orc, sco=sco)
+    tmp = tempfile.mktemp(suffix=".csd")
+    open(tmp, "w").write(csd)
+    return run_csd(tmp, output=device, backend=backend)
+    
+
+ScoreEvent = namedtuple("ScoreEvent", "kind name start dur args")
 
 
-ScoreEvent = namedtuple("ScoreEvent", "type name start dur args")
-
-def parse_sco(sco):
+def parse_sco(sco: str) -> Generator[ScoreEvent]:
     for line in sco.splitlines():
         words = line.split()
         w0 = words[0]
@@ -230,45 +261,12 @@ def parse_sco(sco):
         yield ScoreEvent("i", name, t0, dur, rest)
 
 
-def run_csd(orc:str, sco="", backend="", output="dac", input="", 
-            piped=False, extra=[], extradur=0, supressdisplay=False) -> _subprocess.Popen:
-    """
-    orc     : the text which normally goes inside <CsInstruments>
-    sco     : the text which normally goes inside <CsScore>
-    backend : the realtime backend to use (if applicable)
-    output  : the soundfile to generate or the output device to use for realtime
-    input   : the input device to use for realtime (if applicable)
-    piped   : Should the subprocess be piped?
-    supressdisplay : if True, all output of csound is supressed (implies piped)
-    extradur: Should the duration of the process be extended by some amount?
-    """
-    def sco_get_end(sco):
-        events = parse_sco(sco)
-        return max(event.start+event.dur for event in events)
-
-    if extradur:
-        t1 = sco_get_end(sco)
-        sco += f'\nf0 {t1 + extradur}'
-
-    tmpcsd = _join_csd(orc, sco)
-    extraArgs = []
-    if supressdisplay:
-        extraArgs.extend(['-d', '-m', '0'])
-        piped = True
-    else:
-        piped = False
-    if extra:
-        extraArgs.extend(extra)
-    return run_csdfile(tmpcsd, backend=backend, output=output, input=input,
-                       piped=piped, extra=extraArgs)
-
-
-def get_opcodes(force=False):
+def get_opcodes(cached=True):
     """
     Return a list of the opcodes present
     """
     global _OPCODES
-    if _OPCODES is not None and not force:
+    if _OPCODES is not None and cached:
         return _OPCODES
     s = csound_subproc(['-z'])
     lines = s.stderr.readlines()
@@ -381,7 +379,7 @@ def matrix_as_gen23(outfile, m, dt, t0=0, header=True):
 _Dev = namedtuple("Dev", "index label name")
 
 
-def get_audiodevices(backend:str=""):
+def get_audiodevices(backend:str=None):
     """
     Returns (indevices, outdevices), where each of these lists 
     is a tuple (index, label, name)
@@ -438,11 +436,13 @@ def get_sr(backend:str="") -> float:
     if not backend:
         backend = get_default_backend()
     if backend == 'jack':
-        sr = int(_subprocess.getoutput("jack_samplerate"))
+        sr = int(subprocess.getoutput("jack_samplerate"))
         return sr 
-    else:
-        proc = csound_subproc(f"-odac -+rtaudio={backend} --get-system-sr".split())
-        proc.wait()
+    elif backend not in _backends_which_support_systemsr:
+        return 44100
+    
+    proc = csound_subproc(f"-odac -+rtaudio={backend} --get-system-sr".split())
+    proc.wait()
     srlines = [line for line in proc.stdout.readlines() 
                if line.startswith(b"system sr:")]
     if not srlines:
@@ -450,15 +450,13 @@ def get_sr(backend:str="") -> float:
         return failed_sr
     sr = float(srlines[0].split(b":")[1].strip())
     logger.debug(f"get_sr: sample rate query output: {srlines}")
-    if sr < 0:
-        return failed_sr
-    return sr
-
+    return sr if sr > 0 else failed_sr
+    
 
 def is_backend_available(backend):
     if backend == 'jack':
         if sys.platform == 'linux':
-            status = int(_subprocess.getstatusoutput("jack_control status")[0])
+            status = int(subprocess.getstatusoutput("jack_control status")[0])
             return status == 0
         else:
             proc = csound_subproc(['+rtaudio=jack', '--get-system-sr'])
@@ -476,93 +474,339 @@ _platform_backends = {
 }
 
 _backends_always_on = {'pa_cb', 'pa_bl', 'auhal', 'alsa'}
+_backends_which_support_systemsr = {'jack', 'alsa', 'coreaudio'}
+_backends_which_need_realtime = {'alsa', 'pa_cb'}
 
 
-def get_audiobackends(checkall=False):
+@cachetools.cached(cache=cachetools.TTLCache(1, 10))
+def get_audiobackends():
     """ 
-    Return a list of supported audio backends as they would be passed to -+rtaudio
-
-    This is supported by csound >= 6.3.0
+    Return a list of supported audio backends as they would be passed
+    to -+rtaudio
 
     if checkall is False, only those backends which can be available
     in csound but might not be present (jack) are checked
     """
     backends = _platform_backends[sys.platform]
-    if checkall:
-        backends = [b for b in backends if is_backend_available(b)]
-    else:
-        backends = [b for b in backends if b in _backends_always_on or is_backend_available(b)]
+    backends = [b for b in backends
+                if b in _backends_always_on or is_backend_available(b)]
     return backends
 
 
-_backends_which_support_systemsr = {'jack', 'alsa', 'coreaudio'}
-_backends_which_need_realtime = {'alsa', 'pa_cb'}
+def _wrap_string(arg):
+    return arg if not isinstance(arg, str) else '"' + arg + '"'
 
 
-Event = namedtuple("Event", "instr start dur args")
+def _event_start(event:tuple) -> float:
+    kind = event[0]
+    if kind == "e":
+        return event[1]
+    else:
+        return event[2]
 
 
-class Score(object):
-    def __init__(self):
-        self.events = []
-        self.instrs = {}
+_normalizer = _lib.makereplacer({".":"_", ":":"_", " ":"_"})
 
-    def addevent(self, instr, start, dur, *args):
-        event = Event(instr=instr, start=start, dur=dur, args=args)
-        self.events.append(event)
+def normalize_instrument_name(name):
+    """
+    Transform name so that it can be accepted as an instrument name
+    """
+    return _normalizer(name)
 
-    def writescore(self, stream=None):
-        stream = stream or sys.stdout
 
-        def write_event(stream, event):
-            args = [str(arg) if not isinstance(arg, str) else ('"%s"' % arg) for arg in event.args]
-            argstr = " ".join(args) 
-            s = "i {instr} {start} {dur} {args}\n".format(
-                instr=event.instr, start=event.start, dur=event.dur,
-                args=argstr)
-            stream.write(s)
+_fmtoptions = {
+    16         : '',
+    24         : '--format=24bit',
+    '24bit'    : '--format=24bit',
+    32         : '--format=float',  # also -f
+    'float'    : '--format=float',  # also -f
+    'double'   : '--format=double'
+}
+
+
+_csound_format_options = {'-3', '-f', '--format=24bit', '--format=float',
+                          '--format=double', '--format=long', '--format=vorbis',
+                          '--format=short'}
+
+
+def sample_format_option(fmt) -> str:
+    return _fmtoptions.get(fmt)
+
+
+class Csd:
+    def __init__(self, sr=44100, ksmps=64, nchnls=2, a4=442, options=None,
+                 supress_display=False):
+        self.score: list[Union[list, tuple]] = []
+        self.instrs: dict[Union[str, int], str] = {}
+        self.globalcodes: list[str] = []
+        self.options: list[str] = []
+        if options:
+            self.set_options(*options)
+        self.sr = sr
+        self.ksmps = ksmps
+        self.nchnls = nchnls
+        self.a4 = a4
+        self._sample_format: str = None
+        self._defined_ftables = set()
+        self._min_ftable_index = 1
+        if supress_display:
+            pass # TODO
         
-        self.events.sort(key=lambda ev: ev.start)
-        for event in self.events:
-            write_event(stream, event)
+    def add_event(self, 
+                  instr: Union[int, float, str], 
+                  start: float, 
+                  dur: float, 
+                  args: list[float] = None) -> None:
+        """
+        Add an instrument ("i") event to the score
 
-    def addinstr(self, instr, instrstr):
+        Args:
+
+            instr: the instr number or name, as passed to add_instr
+            start: the start time
+            dur: the duration of the event
+            args: pargs beginning at p4
+        """
+        event = ["i", _wrap_string(instr), start, dur]
+        if args:
+            event.extend(_wrap_string(arg) for arg in args)
+        self.score.append(event)
+
+    def _assign_ftable_index(self, tabnum=0) -> int:
+        defined_ftables = self._defined_ftables
+        if tabnum > 0:
+            if tabnum in defined_ftables:
+                raise ValueError(f"ftable {tabnum} already defined")
+        else:
+            for tabnum in range(self._min_ftable_index, 9999):
+                if tabnum not in defined_ftables:
+                    break
+            else:
+                raise IndexError("All possible ftable slots used!")
+        defined_ftables.add(tabnum)
+        return tabnum
+
+
+    def _add_ftable(self, pargs) -> int:
+        """
+        Adds an ftable to the score
+
+        Args:
+            pargs: as passed to csound (without the "f")
+                p1 can be 0, in which case a table number
+                is assigned
+
+        Returns:
+            The index of the new ftable
+        """
+        tabnum = self._assign_ftable_index(pargs[0])
+        pargs = ["f", tabnum] + pargs[1:]
+        self.score.append(pargs)
+        return tabnum
+
+    def add_ftable_from_seq(self, seq: Sequence[float], tabnum:int=0, start=0
+                            ) -> int:
+        """
+        Create a ftable, fill it with seq, return the ftable index
+
+        Args:
+            seq: a sequence of floats to fill the table. The size of the
+                table is determined by the size of the seq.
+            tabnum: 0 to auto-assign an index
+            start: the same as f 1 2 3
+
+        Returns:
+
+        """
+        pargs = [tabnum, start, -len(seq), -2]
+        pargs.extend(seq)
+        return self._add_ftable(pargs)
+
+    def add_empty_ftable(self, size:int, tabnum: int=0) -> int:
+        """
+
+        Args:
+            tabnum: use 0 to autoassign an index
+            size: the size of the empty table
+
+        Returns:
+            The index of the created table
+        """
+        pargs = (tabnum, 0, -size, -2, 0)
+        return self._add_ftable(pargs)
+
+    def add_sndfile(self, sndfile, tabnum=0, start=0):
+        tabnum = self._assign_ftable_index(tabnum)
+        pargs = [tabnum, start, 0, -1, sndfile, 0, 0, 0]
+        self._add_ftable(pargs)
+        return tabnum
+
+    def destroy_table(self, tabnum:int, time:float) -> None:
+        """
+        Schedule ftable with index `tabnum` to be destroyed
+        at time `time`
+
+        Args:
+            tabnum: the index of the table to be destroyed
+            time: the time to destroy it
+        """
+        pargs = ("f", -tabnum, time)
+        self.score.append(pargs)
+
+    def set_end_marker(self, dur: float):
+        """
+        Add an end marker to the score
+        """
+        self.score.append(("e", dur))
+
+    def set_comment(self, comment:str):
+        self.set_options(f'-+id_comment="{comment}"')
+
+    def set_sample_format(self, fmt) -> None:
+        """
+        Set the sample format for recording
+
+        :param fmt: one of 16, 24, 32, 'float', 'double'
+        :return:
+        """
+        option = sample_format_option(fmt)
+        if option is None:
+            fmts = ", ".join(_fmtoptions.keys())
+            raise KeyError(f"fmt unknown, should be one of {fmts}")
+        if option:
+            self.set_options(option)
+            self._sample_format = option
+
+    def write_score(self, stream) -> None:
+        self.score.sort(key=_event_start)
+        for event in self.score:
+            line = " ".join(str(arg) for arg in event)
+            stream.write(line)
+            stream.write("\n")
+            
+    def add_instr(self, 
+                  instr: Union[int, float, str], 
+                  instrstr: str) -> None:
         self.instrs[instr] = instrstr
 
-    def writecsd(self, outfile, sr, ksmps=64, nchnls=2):
-        stream = open(outfile, "w")
-        stream.write("<CsoundSynthesizer>\n")
-        footer = "</CsoundSynthesizer>"
+    def add_global(self, code: str) -> None:
+        self.globalcodes.append(code)
+
+    def set_options(self, *options: str) -> None:
+        for opt in options:
+            if opt in _csound_format_options:
+                self._sample_format = opt
+            self.options.append(opt)
+
+    def dump(self) -> str:
+        stream = io.StringIO()
+        self.write_csd(stream)
+        return stream.getvalue()
+
+    def write_csd(self, stream) -> Optional[str]:
+        """
+        stream: the stream to write to. Either an open file, a io.StringIO stream or a path 
+        sr: the sample rate
+        ksmps: number of samples per period
+        nchnls: number of channels
+        a4: freq of a4
+        options: any options passed to csound
+        """
+        if isinstance(stream, str):
+            outfile = stream
+            stream = open(outfile, "w")
+        write = stream.write
+        write("<CsoundSynthesizer>\n")
+        
+        if self.options:
+            stream.write("\n<CsOptions>\n")
+
+            for option in self.options:
+                write(option)
+                write("\n")
+            write("</CsOptions>\n\n")
+
+        srstr = f"sr     = {self.sr}" if self.sr is not None else ""
+        
         txt = f"""
             <CsInstruments>
-            sr = {sr}
-            ksmps = {ksmps}
-            0dbfs = 1
-            nchnls = 2
+
+            {srstr}
+            ksmps  = {self.ksmps}
+            0dbfs  = 1
+            nchnls = {self.nchnls}
+            A4     = {self.a4}
 
             """
         txt = _textwrap.dedent(txt)
-        stream.write(txt)
-        instrkeys = sorted(self.instrs.keys())
-        if instrkeys[0] == 0:
-            stream.write(self.instrs[0])
-            instrkeys = instrkeys[1:]
-        for instrkey in instrkeys:
-            stream.write("instr {key}\n".format(key=instrkey))
-            for line in self.instr[instrkeys].splitlines():
-                stream.write("    {line}\n".format(line=line))
-            stream.write("endin\n")
-            stream.write(self.instrs[instrkeys])
-        stream.write("</CsInstruments>\n")
-        stream.write("<CsScore>\n")
-        self.writescore(stream)
-        stream.write("</CsScore>\n")
-        for line in footer.splitlines():
-            stream.write(line)
-            stream.write("\n")
-        
+        write(txt)
+        tab = "  "
 
-class Timeline(object):
+        for globalcode in self.globalcodes:
+            write(globalcode)
+            write("\n")
+        
+        for instr, instrcode in self.instrs.items():
+            write(f"instr {instr}\n")
+            body = _textwrap.dedent(instrcode)
+            body = _textwrap.indent(body, tab)
+            write(body)
+            write("endin\n")
+        
+        write("\n</CsInstruments>\n")
+        write("\n<CsScore>\n\n")
+        
+        self.write_score(stream)
+        
+        write("\n</CsScore>\n")
+        write("</CsoundSynthesizer")
+
+    def run(self,
+            output:str=None,
+            inputdev:str=None,
+            backend: str = None,
+            supressdisplay=False,
+            piped=False,
+            extra: list[str] = None) -> subprocess.Popen:
+        """
+        Run this csd. 
+        
+        Args:
+            output: the file to use as output. This will be passed
+                as the -o argument to csound.
+            inputdev: the input device to use
+            backend: the backend to use
+            supressdisplay: if True, debugging information is supressed
+            piped: if True, stdout and stderr are piped through
+                the Popen object, accessible through .stdout and .stderr
+                streams
+            extra: any extra args passed to the csound binary
+
+        Returns:
+            the subprocess.Popen object
+
+        """
+        if self._sample_format is None:
+            ext = os.path.splitext(output)[1]
+            if ext in {'.wav', '.aif', '.aiff'}:
+                self.set_sample_format('float')
+            elif ext == '.flac':
+                self.set_sample_format('24bit')
+        tmp = tempfile.mktemp(suffix=".csd")
+        with open(tmp, "w") as f:
+            self.write_csd(f)
+        logger.debug(f"Csd.run :: tempfile = {tmp}")
+        return run_csd(tmp, output=output, input=inputdev,
+                       backend=backend, supressdisplay=supressdisplay,
+                       piped=piped, extra=extra)
+
+        
+class Timeline:
+    
+    """
+    A soundfile timeline
+    """
+
     def __init__(self, sr=None):
         self.events = []
         self.sndfiles = {}
@@ -617,10 +861,10 @@ class Timeline(object):
         sr = max(self._sndinfo(sndfile).samplerate for sndfile in self.sndfiles)
         return sr
 
-    def totalduration(self):
+    def total_duration(self):
         return max(event["time"] + (event["end"] - event["start"]) for event in self.events)
 
-    def writecsd(self, outfile, sr=None, ksmps=64):
+    def write_csd(self, outfile, sr=None, ksmps=64):
         self.events.sort(key=lambda event:event['time'])
         orc = """
 <CsInstruments>
@@ -813,7 +1057,7 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
     _, csdfile = tempfile.mkstemp(suffix=".csd")
     with open(csdfile, "w") as f:
         f.write(csd)
-    _subprocess.call(["csound", "-f", csdfile])
+    subprocess.call(["csound", "-f", csdfile])
     if not debug:
         os.remove(time_gen23)
         os.remove(pitch_gen23)
@@ -821,7 +1065,7 @@ def mincer(sndfile, timecurve, pitchcurve, outfile=None, dt=0.002,
     return {'outfile': outfile, 'csdstr': csd, 'csd': csdfile}
 
 
-def _instrAsOrc(instrid, body, initstr, sr, ksmps, nchnls):
+def _instr_as_orc(instrid, body, initstr, sr, ksmps, nchnls):
     orc = """
 sr = {sr}
 ksmps = {ksmps}
@@ -838,7 +1082,7 @@ endin
     return orc
 
 
-def extractPargs(body:str) -> t.Set[int]:
+def extract_pargs(body:str) -> t.Set[int]:
     regex = r"\bp\d+"
     pargs = re.findall(regex, body)
     nums = [int(parg[1:]) for parg in pargs]
@@ -853,12 +1097,12 @@ def extractPargs(body:str) -> t.Set[int]:
     return set(nums)
 
 
-def numPargs(body:str) -> int:
+def num_pargs(body:str) -> int:
     """
     analyze body to determine the number of pargs needed for this instrument
     """
     try:
-        pargs = extractPargs(body)
+        pargs = extract_pargs(body)
     except ValueError:
         pargs = None
     if not pargs:
@@ -873,7 +1117,7 @@ def numPargs(body:str) -> int:
         raise ValueError(f"pargs {skippedpargs} skipped")
     return len(pargs)
 
-def pargNames(body:str) -> t.Dict[int, str]:
+def parg_names(body:str) -> t.Dict[int, str]:
     """
     Analyze body to determine the names (if any) of the pargs used
 
@@ -900,18 +1144,21 @@ def pargNames(body:str) -> t.Dict[int, str]:
         argnames.pop(idx, None)
     return argnames
 
-def numPargsMatchDefinition(instrbody: str, args: t.List) -> bool:
+
+def num_pargs_match_definition(instrbody: str, args: list) -> bool:
     lenargs = 0 if args is None else len(args)
-    numargs = numPargs(instrbody)
+    numargs = num_pargs(instrbody)
     if numargs != lenargs:
         msg = f"Passed {lenargs} pargs, but instrument expected {numargs}"
         logger.error(msg)
         return False
     return True
 
-def recInstr(body:str, events:t.List, init="", outfile="",
-             sr=44100, ksmps=64, nchnls=2, a4=442, samplefmt='float',
-             dur=None, comment=None, quiet=True) -> t.Tuple[str, _subprocess.Popen]:
+
+def rec_instr(body:str, events:list, init="", outfile="",
+              sr=44100, ksmps=64, nchnls=2, a4=442, samplefmt='float',
+              dur=None, comment=None, quiet=True
+              ) -> tuple[str, subprocess.Popen]:
     """
     Record one instrument for a given duration
 
@@ -924,62 +1171,48 @@ def recInstr(body:str, events:t.List, init="", outfile="",
     outfile:
         the generated soundfile, or None to generate a temporary file
     events:
-        a seq. of events, where each event is a list of pargs passed to the instrument,
-        beginning with p2: delay, dur, [p4, p5, ...]
+        a list of events, where each event is a list of pargs passed 
+        to the instrument, beginning with p2: delay, dur, [p4, p5, ...]
     sr, ksmps, nchnls: ...
     samplefmt: defines the sample format used for outfile, one of (16, 24, 32, 'float')
     """
-    assert isinstance(body, str)
-    if init is None: 
-        init = ""
-    instrnum = 100
-    
-    orc = f"""
-sr = {sr}
-ksmps = {ksmps}
-nchnls = {nchnls}
-0dbfs = 1
-A4 = {a4}
-
-{init}
-
-instr {instrnum}
-    {body}
-endin"""
-    score = []
-    if not isinstance(events, list) and all(isinstance(event, (tuple, list)) for event in events):
-        raise ValueError("events is a seq., where each item is a list of pargs passed to"
+    if not isinstance(events, list) or not all(isinstance(event, (tuple, list)) for event in events):
+        raise ValueError("events is a seq., where each item is a seq. of pargs passed to"
                          "the instrument, beginning with p2: [delay, dur, ...]"
                          f"Got {events} instead")
-    for event in events:
-        ok = numPargsMatchDefinition(body, event[2:])
-        if not ok:
-            logger.error(f"mismatch in number of pargs passed to instrument. pargs={event}")
-        argstr = ' '.join(str(arg) for arg in event) if event else ''
-        score.append(f'i {instrnum} {argstr}')
-    if dur is not None:
-        score.append(f'e {dur}')
-    sco = "\n".join(score)
+
+    csd = Csd(sr=sr, ksmps=ksmps, nchnls=nchnls, a4=a4)
     if not outfile:
         outfile = tempfile.mktemp(suffix='.wav', prefix='csdengine-rec-')
-    outfile = normalizePath(outfile)
-    if outfile[-4:] != ".wav":
-        raise ValueError(f"only .wav files are supported as output at the moment (given: {outfile})")
+
+    if init:
+        csd.add_global(init)
+    
+    instrnum = 100
+    
+    csd.add_instr(instrnum, body)
+    for event in events:
+        start, dur = event[0], event[1]
+        csd.add_event(instrnum, start, dur, event[2:])
+    
+    if dur is not None:
+        csd.set_end_marker(dur)
+
     fmtoption = {16: '', 24: '-3', 32: '-f', 'float': '-f'}.get(samplefmt)
     if fmtoption is None:
         raise ValueError("samplefmt should be one of 16, 24, 32, or 'float'")
-    extra = [fmtoption]
-    if comment:
-        extra.append(f'-+id_comment="{comment}"')
-    proc = run_csd(orc=orc, sco=sco, backend="", output=outfile, extra=extra, supressdisplay=quiet)
+    csd.set_options(fmtoption)
+
+    proc = csd.run(output=outfile)
     return outfile, proc
 
 
-def normalizePath(path):
+def normalize_path(path):
     return os.path.abspath(os.path.expanduser(path))
 
     
-def genBodyStaticSines(numsines, sineinterp=True, attack=0.05, release=0.1, curve='cos', extend=False):
+def gen_body_static_sines(numsines, sineinterp=True, attack=0.05, release=0.1, 
+                          curve='cos', extend=False):
     """
     Generates the body of an instrument for additive synthesis. In order to be
     used it must be wrapped inside "instr xx" and "endin"
@@ -1002,7 +1235,7 @@ def genBodyStaticSines(numsines, sineinterp=True, attack=0.05, release=0.1, curv
     freqs = [440, 660, 880]
     amps = [0.5, 0.3, 0.2]
     body = bodySines(len(freqs))
-    recInstr(dur=2, outfile="out.wav", body=body, args=[1, 1] + list(flatten(zip(freqs, amps))))
+    rec_instr(dur=2, outfile="out.wav", body=body, args=[1, 1] + list(flatten(zip(freqs, amps))))
     """
     lines = [
         "idur = p3",
@@ -1041,13 +1274,6 @@ def genBodyStaticSines(numsines, sineinterp=True, attack=0.05, release=0.1, curv
     return body
 
 
-def genSoundfontInstr(sf2path):
-    """
-    returns (body, init)
-    """
-    pass
-
-
 def _ftsave_read_text(path):
     # a file can have multiple tables saved
     lines = iter(open(path))
@@ -1077,7 +1303,8 @@ def _ftsave_read_text(path):
             values[i] = float(line)
         tables.append(values)
     return tables
-        
+ 
+
 def ftsave_read(path, mode="text"):
     """
     Read a file saved by ftsave, returns a list of tables
@@ -1086,3 +1313,41 @@ def ftsave_read(path, mode="text"):
         return _ftsave_read_text(path)
     else:
         raise ValueError("mode not supported")
+
+
+def get_used_output_channels(instrbody:str) -> tuple[set[int], set[str]]:
+    """
+    Given the body of an instrument, scan the code
+    for output opcodes (outch) to see which output channels
+    are used
+
+    Args:
+        instrbody: the body of a csound instrument (between instr/endin)
+
+    Returns:
+        Two set of channels, one with ints for all cases where the channel
+        is a constant, and a second set with variables used as channels,
+        for cases like "outch kchn, asignal"
+
+    """
+    outregex = re.compile(r"outch\ |outs\ |out\ ")
+    outchlines = [line.strip() for line in instrbody.splitlines()
+                  if outregex.search(line)]
+    outchans = set()
+    variables = set()
+    for outchline in outchlines:
+        if outchline.startswith("outch "):
+            opcode, rest = outchline.split("outch")
+            words = rest.split(",")
+            chns = [w.strip() for w in words[::2]]
+            for chn in chns:
+                if not chn.isdecimal():
+                    variables.add(chn)
+                else:
+                    outchans.add(int(chn))
+        elif outchline.startswith("outs "):
+            outchans.add(1)
+            outchans.add(2)
+        elif outchline.startswith("out "):
+            outchans.add(1)
+    return outchans, variables

@@ -17,6 +17,7 @@ from __future__ import division as _division, absolute_import, print_function
 
 import numpy as np
 import os
+import platform
 import tempfile
 import subprocess
 import bpf4 as _bpf
@@ -38,6 +39,10 @@ from emlib import typehints as t
 logger = logging.getLogger("emlib:audiosample")
 
 
+_sounddeviceDefaultDeviceSetByUser = False
+_initWasDone = False
+
+
 def _configCheck(config, key, oldvalue, newvalue):
     if key == 'editor':
         if lib.binary_exists(newvalue):
@@ -49,7 +54,7 @@ config = ConfigDict(
     name='emlib:audiosample',
     default={
         'editor': '/usr/bin/audacity',
-        'fade.shape': 'linear'
+        'fade.shape': 'linear',
     },
     precallback=_configCheck
 )
@@ -192,8 +197,54 @@ def select_audio_device(device):
     # select device 'system'
     >>> select_audio_device(7)
     """
-    import sounddevice as sd 
+    import sounddevice as sd
     sd.default.device = device 
+    global _sounddeviceDefaultDeviceSetByUser
+    _sounddeviceDefaultDeviceSetByUser = True
+
+
+def _init_sounddevice():
+    global _initWasDone
+    if _initWasDone:
+        return
+    _set_default_audio_device()
+    _initWasDone = True
+
+
+def _set_default_audio_device():
+    """
+    Set sensible default for each platform
+
+    At the time, only linux is done
+
+    Linux:
+        if jack is present, default to it, since the user probably wants
+        to use that (even if pulse is working)
+        otherwise, default to the default alsa device, which is pulse
+        if it is present
+
+    """
+    import sounddevice as sd
+    pltfrm = platform.system()
+    devices = sd.query_devices()
+    apis = sd.query_hostapis()
+
+    def set_default_to_hostapi(api):
+        default_outdevice = api['default_output_device']
+        if default_outdevice >= 0:
+            devname = devices[default_outdevice]['name']
+            logger.info(f"Setting default audio device to {devname}")
+            sd.default.device = default_outdevice
+            return True
+        return False
+
+    if pltfrm == "Linux":
+        for apiname in ['jack', 'alsa']:
+            api = next((api for api in apis if api['name'].lower().startswith(apiname)), None)
+            if api is None:
+                continue
+            if set_default_to_hostapi(api):
+                break
 
 
 def list_audio_devices():
@@ -287,6 +338,7 @@ class Sample(object):
             * list_audio_devices
             * select_audio_device
         """
+        _init_sounddevice()
         import sounddevice as sd
         mapping = list(range(chan, chan + self.channels))
         if isinstance(device, str):
@@ -643,7 +695,7 @@ class Sample(object):
                                          rewind=False)
         return Sample(samples, self.samplerate)
 
-    def get_channel(self, n):
+    def get_channel(self, n, contiguous=True):
         # type: (int) -> 'Sample'
         """
         return a new mono Sample with the given channel
@@ -654,6 +706,8 @@ class Sample(object):
             raise ValueError("this sample has only %d channel(s)!"
                              % self.channels)
         newsamples = self.samples[:, n]
+        if contiguous and not newsamples.flags.c_contiguous:
+            newsamples = np.ascontiguousarray(newsamples)
         return Sample(newsamples, self.samplerate)
 
     def estimate_freq(self, start=0.2, dur=0.15, strategy='autocorr'):
@@ -829,7 +883,7 @@ def concat(sampleseq):
     Samples should share samplingrate and numchannels 
     """
     s = np.concatenate([s.samples for s in sampleseq])
-    return Sample(s, samplet.Seq[0].samplerate)
+    return Sample(s, sampleseq[0].samplerate)
 
 
 def _mapn_between(func, n, t0, t1):

@@ -1,28 +1,33 @@
+from __future__ import annotations
+
 import appdirs
 import os
 import json
 import logging
 import sys
-import tabulate
 import re
 import weakref
 import textwrap
-import subprocess
-from types import FunctionType as _FunctionType
-import typing as t
-
+from types import FunctionType
+from typing import (Optional as Opt, Any, Tuple, Dict)
 
 logger = logging.getLogger("emlib.conftools")
 
 
-def _checkValidator(validatordict:dict, defaultdict:dict) -> dict:
+_UNKNOWN = object()
+
+
+def _checkValidator(validatordict: dict, defaultdict: dict) -> dict:
     """
     Checks the validity of the validator itself, and makes any needed
     postprocessing on the validator
 
-    :param validatordict: the validator dict
-    :param defaultdict: the dict containing defaults
-    :return: a postprocessed validator dict
+    Args:
+        validatordict: the validator dict
+        defaultdict: the dict containing defaults
+
+    Returns:
+        a postprocessed validator dict
     """
     stripped_keys = {key.split("::")[0] for key in validatordict.keys()}
     not_present = stripped_keys - defaultdict.keys()
@@ -70,7 +75,11 @@ def _openInEditor(cfg):
 
 class CheckedDict(dict):
 
-    def __init__(self, default: dict, validator: dict=None, help=None, callback=None, precallback=None) -> None:
+    def __init__(self,
+                 default: Dict[str, Any] = None,
+                 validator: Dict[str, Any] = None,
+                 docs: Dict[str, str] = None,
+                 callback=None, precallback=None) -> None:
         """
         A dictionary which checks that the keys and values are valid 
         according to a default dict and a validator.
@@ -90,7 +99,7 @@ class CheckedDict(dict):
             choices can be defined lazyly by giving a lambda which returns a list
             of possible choices
 
-        help: a dict containing help lines for keys defined in default
+        docs: a dict containing help lines for keys defined in default
 
         checkHook: a callback of the form (self, key, value) -> errormsg | None
             Will be called before setting the key to value. It should return None
@@ -105,12 +114,15 @@ class CheckedDict(dict):
             function (key, value) -> None
             This function is called AFTER the modification has been done.
         """
-        self.default = default
-        self._allowedkeys = set(default.keys())
-        self._validator = _checkValidator(validator, default) if validator else None
+        self.default = default if default else {}
+        self._validator = _checkValidator(validator, default) if validator else {}
+        self._docs = docs if docs else {}
+        self._allowedkeys = set(default.keys()) if default else set()
         self._precallback = precallback
         self._callback = callback
-        self._help = help
+
+    def _changed(self):
+        self._allowedkeys = set(self.default.keys())
 
     def diff(self) -> dict:
         """
@@ -124,7 +136,36 @@ class CheckedDict(dict):
                 out[key] = value
         return out
 
-    def addKey(self, key, value, type=None, choices=None, range=None, help=None):
+    def addKey(self, key: str,
+               value,
+               type=None,
+               choices=None,
+               range: Tuple[Any, Any] = None,
+               doc: str = None
+               ) -> None:
+        """
+        Add a key: value pair to the default settings. This is used when building the
+        default config item by item (see example). After adding all new keys it is
+        necessary to call .load()
+
+        Example:
+            cfg = ConfigDict("foo", load=False)
+            # We define a default step by step
+            cfg.addKey("size", 100, range=(50, 150))
+            cfg.addKey("color", "red", choices=("read", "blue", "green"))
+            # Now update the dict with the newly defined default and any
+            # saved version
+            cfg.load()
+
+        Args:
+            key: a string key
+            value: a default value
+            type: the type accepted, as passed to isinstance (can be a tuple)
+            choices: a seq of possible values
+            range: a (min, max) tuple defining allowed range
+            doc: documentation for this key
+
+        """
         self.default[key] = value
         self._allowedkeys.add(key)
         validator = self._validator
@@ -134,9 +175,9 @@ class CheckedDict(dict):
             validator[f"{key}::choices"] = choices
         if range:
             validator[f"{key}::range"] = range
-        if help:
-            self._help[key] = help
-        
+        if doc:
+            self._docs[key] = doc
+
     def __setitem__(self, key:str, value) -> None:
         if key not in self._allowedkeys:
             raise KeyError(f"Unknown key: {key}")
@@ -166,7 +207,7 @@ class CheckedDict(dict):
                 return errormsg
         return ""
         
-    def getChoices(self, key:str) -> t.Optional[list]:
+    def getChoices(self, key:str) -> Opt[list]:
         """
         Return a seq. of possible values for key `k`
         or None
@@ -178,21 +219,27 @@ class CheckedDict(dict):
             return None
         key2 = key+"::choices"
         choices = self._validator.get(key2, None)
-        if isinstance(choices, _FunctionType):
+        if isinstance(choices, FunctionType):
             realchoices = choices()
             self._validator[key2] = set(realchoices)
             return realchoices
         return choices
 
-    def getHelp(self, key:str) -> t.Optional[str]:
-        if self._help:
-            return self._help.get(key)
+    def getDoc(self, key: str) -> Opt[str]:
+        """ Get documentation for key (if present) """
+        if self._docs:
+            return self._docs.get(key)
 
-    def checkValue(self, key: str, value) -> t.Optional[str]:
+    
+    def getHelp(self, key:str) -> Opt[str]:
+        """ Get help string for key (if present) """
+        raise DeprecationWarning("Use .getDoc")
+    
+    def checkValue(self, key: str, value) -> Opt[str]:
         """
         Check if value is valid for key
 
-        Returns errormsg. If value is of correct type, errormsg is ""
+        Returns errormsg. If value is of correct type, errormsg is None
 
         Example:
 
@@ -213,10 +260,10 @@ class CheckedDict(dict):
             return f"Expected {t.__name__} for key {key}, got {type(value).__name__}"
         r = self.getRange(key)
         if r and not (r[0] <= value <= r[1]):
-            return f"Value should be within range {r}, got {value}"
+            return f"Value for key {key} should be within range {r}, got {value}"
         return None
 
-    def getRange(self, key:str) -> t.Tuple:
+    def getRange(self, key:str) -> Opt[tuple]:
         if key not in self._allowedkeys:
             raise KeyError(f"{key} is not a valid key")
         if not self._validator:
@@ -224,7 +271,7 @@ class CheckedDict(dict):
             return None
         return self._validator.get(key+"::range", None)
 
-    def getType(self, key:str) -> t.Union[type, tuple]:
+    def getType(self, key:str):
         """
         Returns the expected type for key, as a type
 
@@ -240,14 +287,16 @@ class CheckedDict(dict):
                 return definedtype
             choices = self.getChoices(key)
             if choices:
-                return tuple(set(type(choice) for choice in choices))
-        defaultvalue = self.default.get(key)
-        if defaultvalue is None:
-            raise KeyError("Key is not present in default config")
-        if isinstance(defaultvalue, (bytes, str)):
-            return str
-        else:
-            return type(defaultvalue)
+                types = set(type(choice) for choice in choices)
+                if len(types) == 1:
+                    return type(next(iter(choices)))
+                return tuple(types)
+        defaultval = self.default.get(key, _UNKNOWN)
+        if defaultval is _UNKNOWN:
+            raise KeyError(
+                f"Key {key} is not present in default config. "
+                f"Possible keys: {list(self.default.keys())}")
+        return str if isinstance(defaultval, (bytes, str)) else type(defaultval)
 
     def getTypestr(self, key:str) -> str:
         t = self.getType(key)
@@ -275,41 +324,90 @@ class CheckedDict(dict):
             raise ValueError(f"dict is invalid: {errormsg}")
         super().update(d)
 
+    def override(self, key:str, value, default=None):
+        """
+        The same as `value if value is not None else config.get(key, default)
+        """
+        return value if value is not None else self.get('key', default)
+
 
 class ConfigDict(CheckedDict):
 
-    registry:dict = {}
-    
-    def __init__(self, name:str, default:dict, validator:dict=None, help:dict=None,
+    registry: Dict[str, ConfigDict] = {}
+
+    def __init__(self, name:str,
+                 default: Dict[str, Any] = None,
+                 validator: Dict[str, Any] = None,
+                 docs: Dict[str, str] = None,
                  precallback=None) -> None:
         """
-        This is a persistent dictionary used for configuration
+        This is a persistent, unique dictionary used for configuration of
+        a module / app. It is saved under the config folder determined by
+        the OS (and is thus OS dependent) and no two instances of the same
+        config can coexist.
 
-        name: a str of the form `folder:config` or simply `config` if this is 
-            an isolated configuration. The json data will be saved at
-            $USERCONFIGDIR/folder/config.json
-            For instance, in Linux for name mydir:myconfig this would be: 
-            ~/.config/mydir/myconfig.json
+        Args:
+            name: a str of the form ``folder:config`` or ``folder/config``
+                (these are the same) or simply ``config`` if this is an
+                isolated configuration (not part of a bigger project). The
+                json data will be saved at ``$USERCONFIGDIR/folder/{name}.json``
+                For instance, in Linux for name mydir:myconfig this would be:
+                ~/.config/mydir/myconfig.json
 
-        default: a dict will all default values. A config can accept only
-            keys which are already present in the default
+            default: a dict with all default values. A config can accept only
+                keys which are already present in the default
 
-        validator: a dict containing choices and types for the keys in the
-            default. Given a default like: {'keyA': 'foo', 'keyB': 20},
-            a validator could be:
+            validator: a dict containing choices and types for the keys in the
+                default. Given a default like: ``{'keyA': 'foo', 'keyB': 20}``,
+                a validator could be:
 
-            {'keyA::choices': ['foo', 'bar'],
-             'keyB::type': float
+                {
+                  'keyA::choices': ['foo', 'bar'],
+                  'keyB::type': float
+                }
+
+                Choices can be defined lazyly by giving a lambda
+
+            precallback:
+                function (self, key, oldvalue, newvalue) -> None|newvalue,
+                If given, it is called BEFORE the modification is done
+                * return None to allow modification
+                * return any value to modify the value
+                * raise a ValueError exception to stop the transaction
+
+        Example:
+            default = {
+                "keyA": 10,
+                "keyB": 0.5,
+                "keyC": "blue
             }
-            Choices can be defined lazyly by giving a lambda
 
-        precallback:
-            function (self, key, oldvalue, newvalue) -> None|newvalue,
-            If given, it is called BEFORE the modification is done
-            * return None to allow modification
-            * return any value to modify the value
-            * raise a ValueError exception to stop the transaction
+            validator = {
+                "keyB::range" = (0, 1),
+                "keyC::choices" = ("blue", "red")
+            }
+
+            docs = {
+                "keyA": "documentation of keyA"
+                "keyC": "documentation of keyC"
+            }
+
+            cfg = ConfigDict("myproj:subproj",
+                             default=default,
+                             validator=validator,
+                             docs=docs)
+
+            A ConfigDict can also be defined item by item
+
+            config = ConfigDict("myproj:subproj")
+            config.addKey("keyA", 10, doc="documentaion of keyA")
+            config.addKey("keyB", 0.5, range=(0, 1))
+            config.addKey("keyC", "blue", choices=("blue", "red"),
+                          doc="documentation of keyC")
+            config.load()
+
         """
+        name = _normalizeName(name)
         if not _isValidName(name):
             raise ValueError(f"name {name} is invalid for a config")
         if name in ConfigDict.registry:
@@ -318,61 +416,70 @@ class ConfigDict(CheckedDict):
         if cfg and default != cfg.default:
             logger.debug(f"ConfigDict: config with name {name} already created"
                          "with different defaults. It will be overwritten")
-        super().__init__(default=default, validator=validator, help=help,
+        super().__init__(default=default, validator=validator, docs=docs,
                          callback=self._mycallback, precallback=precallback)
-        self.name = name
-        self._allowedkeys = set(default.keys())
+        self.name: str = name
+        # self._allowedkeys: set[str] = set(default.keys())
         base, configname = _parseName(name)
-        self._base = base
-        self._configfile = configname + ".json"
+        self._base: str = base
+        self._configfile: str = configname + ".json"
         self._configpath = None
         self._callbackreg = []
         self._ensureWritable()
-        self._helpwidth = 58
-        self.readConfig(update=True)
-        ConfigDict.registry[name] = weakref.ref(self)
+        self._helpwidth: int = 58
+        self.__class__.registry[name] = weakref.ref(self)
+        self._initdone = False
+        if default is not None:
+            self.load()
 
     def _mycallback(self, key, value):
         for pattern, func in self._callbackreg:
             if re.match(pattern, key):
                 func(self, key, value)
-        self._save()
+        self.save()
 
-    def register_callback(self, *args, **kws):
-        import warnings
-        warnings.warn("Deprecated! use registerCallback")
-
-    def registerCallback(self, func, pattern=None):
+    def registerCallback(self, func, pattern=None) -> None:
         """
         Register a callback to be fired when a key matching the given pattern is
         changed. If no pattern is given, your function will be called for
         every key.
 
-        func: a function of the form (dict, key, value) -> None
-
-            dict: this ConfigDict itself
-            key: the key which was just changed
-            value: the new value
+        Args:
+            func: a function of the form (dict, key, value) -> None
+                dict - this ConfigDict itself
+                key - the key which was just changed
+                value - the new value
+            pattern: call func when pattern matches key
         """
         self._callbackreg.append((pattern or r".*", func))
 
     def _ensureWritable(self) -> None:
+        """ Make sure that we can serialize this dict to disk """
         folder, _ = os.path.split(self.getPath())
         if not os.path.exists(folder):
             os.makedirs(folder)
 
-    def reset(self):
+    def reset(self) -> None:
         super().reset()
-        self._save()
+        self.save()
 
-    def _save(self, *args):
+    def save(self) -> None:
+        """
+        Normally a config doesn't need to be saved by the user,
+        it is saved whenever it is modified.
+        """
         path = self.getPath()
         logger.debug(f"Saving config to {path}")
         logger.debug("Config: %s" % json.dumps(self, indent=True))
         f = open(path, "w")
         json.dump(self, f, indent=True, sort_keys=True)
 
-    def __repr__(self) -> str:
+    def dump(self):
+        """ Dump this config to stdout """
+        print(str(self))
+
+    def __str__(self) -> str:
+        import tabulate
         header = f"Config: {self.name}\n"
         rows = []
         keys = sorted(self.keys())
@@ -394,8 +501,8 @@ class ConfigDict(CheckedDict):
             typestr = self.getTypestr(k)
             info.append(typestr)
             valuestr = str(v)
-            rows.append((k, valuestr, " ".join(info)))
-            doc = self.getHelp(k)
+            rows.append((k, valuestr, " | ".join(info)))
+            doc = self.getDoc(k)
             if doc:
                 doclines = textwrap.wrap(doc, self._helpwidth)
                 lines.extend(doclines)
@@ -404,12 +511,14 @@ class ConfigDict(CheckedDict):
         return header + tabulate.tabulate(rows)
 
     def getPath(self) -> str:
+        """ Return the path this dict will be saved to """
         if self._configpath is not None:
             return self._configpath
-        self._configpath = path = getPath(self.name)
+        self._configpath = path = _configPathFromName(self.name)
         return path
 
     def update(self, d:dict) -> None:
+        """ update this dict with `d` """
         errormsg = self.checkDict(d)
         if errormsg:
             logger.error(f"ConfigDict: {errormsg}")
@@ -417,20 +526,17 @@ class ConfigDict(CheckedDict):
             raise ValueError("dict is invalid")
         super().update(d)
 
-    def openInEditor(self):
-        raise DeprecationWarning("use .edit instead")
-        return self.edit()
-
-    def edit(self):
+    def edit(self) -> ConfigDict:
         """
         Edit (and reload) this config in an external application
         """
-        self._save()
+        self.save()
         _openInEditor(self.getPath())
         _waitForClick()
-        self.readConfig()
+        self.load()
+        return self
 
-    def readConfig(self, update=True) -> dict:
+    def load(self) -> ConfigDict:
         """
         Read the saved config, update self. This is used internally but it can be usedful
         if the file is changed externally and no monitoring is activated
@@ -454,8 +560,7 @@ class ConfigDict(CheckedDict):
             try:
                 confdict = json.load(open(configpath))
                 if self.default is None:
-                    logger.debug("Setting read config as default")
-                    self.default = confdict.copy()
+                    raise ValueError("Default config not set")
             except json.JSONDecodeError:
                 error = sys.exc_info()[0]
                 logger.error(f"Could not read config {configpath}: {error}")
@@ -466,24 +571,23 @@ class ConfigDict(CheckedDict):
                     logger.error("Couldn't read config. No default given, we give up")
                     raise
 
+        # only keys in default should be accepted, but keys in the read
+        # config should be discarded with a warning
+        keysOnlyInRead = confdict.keys() - self.default.keys()
+        if keysOnlyInRead:
+            logger.warning(f"ConfigDict {self.name}, saved at {configpath}")
+            logger.warning("There are keys defined in the saved"
+                           " config which are not present in the default config. They will"
+                           " be skipped:")
+            logger.warning(f"   {keysOnlyInRead}")
+
         # merge strategy: 
         # * if a key is shared between default and read dict, read dict has priority
         # * if a key is present only in default, it is added
-        def merge(readdict, default):
-            out = {}
-            sharedkeys = readdict.keys() & default.keys()
-            for key in sharedkeys:
-                out[key] = readdict[key]
-            onlyInDefault = default.keys() - readdict.keys()
-            for key in onlyInDefault:
-                out[key] = default[key]
-            return out
-
-        confdict = merge(confdict, self.default)
-        
-        if update:
-            self.update(confdict)
-        return confdict
+        confdict = _merge_dicts(confdict, self.default)
+        self.checkDict(confdict)
+        super().update(confdict)
+        self._initdone = True
 
 
 def _makeName(configname: str, base: str = None) -> str:
@@ -492,8 +596,19 @@ def _makeName(configname: str, base: str = None) -> str:
     else:
         return f":{configname}"
 
+    
+def _merge_dicts(readdict, default):
+    out = {}
+    sharedkeys = readdict.keys() & default.keys()
+    for key in sharedkeys:
+        out[key] = readdict[key]
+        onlyInDefault = default.keys() - readdict.keys()
+    for key in onlyInDefault:
+        out[key] = default[key]
+    return out
 
-def _parseName(name: str) -> t.Tuple[str, t.Optional[str]]:
+    
+def _parseName(name: str) -> Tuple[str, Opt[str]]:
     """
     Returns (configname, base) (which can be None) 
     """
@@ -507,82 +622,27 @@ def _parseName(name: str) -> t.Tuple[str, t.Optional[str]]:
     return base, configname
 
 
-def makeConfig(name: str, default: dict, validator: dict=None, force=False, validHook=None) -> ConfigDict:
-    """ 
-    Example
-    ~~~~~~~
+def _isValidName(name: str) -> bool:
+    return re.fullmatch(r"[a-zA-Z0-9\.\:_]+", name) is not None
 
-    default = {
-        'keyA': 10,
-        'keyB': 'foo'
-    }
 
-    validator = {
-        'keyA::type': (int, float),
-        'keyB::choices': ['foo', 'bar'],
-    }
-
-    config = makeConfig('myapp:myconfig', default=default, validator=validator)
-
-    name:
-        unique id of the configuration, a string of the form [base:]configfile
-    
-        For example, a configfile "foo" with a base "base" will
-        be saved as foo.json under folder "base" (in linux, this is
-        "~/.config/base/foo.json"
-        
-        If base is not given, name should be just "foo". In this case, 
-        "foo.json" will be saved at the config path instead (in linux, 
-        this is "~/.config", in other platforms that may vary)
-
-    default: dict
-        a dictionary holding all possible keys with the default values
-
-    validator: dict (optional)
-        A validator can specify either the choices for a given key, 
-        or the type(s) that a given key can accept. This is specified 
-        by appending "::choices" or "::types" to any key in default
-
-        original key    validator key
-        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        mykey           mykey::choices
-        mykey           mykey::type
-
-        * choices should be a list of possible values the key can accept
-        * type should be the type or types (as passed to isinstance) that
-          a value can have
-
-        It is not necessary to specify a validation for each key. If no validation
-        is given, the values are checked against the default value
-
-    force: bool
-        In the case that a given config already exists with different defaults,
-        force needs to be set to True to force the creation of the given
-        config, otherwise an exception will be raised
+def _normalizeName(name: str) -> str:
     """
-    import warnings
-    warnings.warn("DEPRECATED. Use ConfigDict directly")
-    cfg = getConfig(name)
-    if cfg and default != cfg.default:
-        if not force:
-            raise KeyError(f"A config with name {name} was already created "
-                           "but the defaults differ")
-        else:
-            logger.debug(f"makeConfig: config with name {name} already created"
-                         "with different defaults. It will be overwritten")
-    return ConfigDict(name=name, default=default, validator=validator, validHook=validHook)
-
-
-def _isValidName(name):
-    return re.fullmatch(r"[a-zA-Z0-9\.\:_]+", name)
+    Originally a name would be of the form project:name,
+    later on we enabled the / to act as path separator
+    """
+    if "/" in name:
+        return name.replace("/", ":")
+    return name
 
 
 def _checkName(name):
     if not _isValidName(name):
-        raise ValueError(f"{name} is not a valid name for a config: {msg}."
+        raise ValueError(f"{name} is not a valid name for a config."
                          " It should contain letters, numbers and any of '.', '_', ':'")
 
-def getConfig(name: str) -> t.Optional[ConfigDict]:
+    
+def getConfig(name: str) -> Opt[ConfigDict]:
     """ 
     name is the unique id of the configuration: 
 
@@ -592,11 +652,12 @@ def getConfig(name: str) -> t.Optional[ConfigDict]:
     be saved as foo.json under folder "base" (in linux, this is
     "~/.config/base/foo.json"
 
-    If base is not given, name should be ":foo", or just "foo"
+    If base is not given, name should be just "foo"
     In this case, "foo.json" will be saved at the config path 
     instead (in linux, this is "~/.config", in other platforms 
     that may vary)
     """
+    name = _normalizeName(name)
     _checkName(name)
     confref = ConfigDict.registry.get(name)
     if confref:
@@ -604,7 +665,7 @@ def getConfig(name: str) -> t.Optional[ConfigDict]:
     return None
     
 
-def activeConfigs() -> t.Dict[str, ConfigDict]:
+def activeConfigs() -> Dict[str, ConfigDict]:
     """
     Returns a dict of active configs
     """
@@ -616,19 +677,20 @@ def activeConfigs() -> t.Dict[str, ConfigDict]:
     return out
 
 
-def removeConfig(name:str) -> bool:
+def _removeConfigFromDisk(name:str) -> bool:
     """
     Remove the given config from disc, returns True if it was found and removed,
     False otherwise
     """
-    configpath = getPath(name)
+    configpath = _configPathFromName(name)
     if os.path.exists(configpath):
         os.remove(configpath)
         return True
     return False 
 
 
-def getPath(name:str) -> str:
+def _configPathFromName(name:str) -> str:
+    name = _normalizeName(name)
     userconfigdir = appdirs.user_config_dir()
     base, configname = _parseName(name) 
     configfile = configname + ".json"
@@ -637,4 +699,3 @@ def getPath(name:str) -> str:
     else:
         configdir = userconfigdir
     return os.path.join(configdir, configfile)
-

@@ -39,7 +39,9 @@ class Event:
         :param group: if given, a string used to identify events that belong together. If unser,
                       it is interpreted as not belonging to any group
         """
-        # we preserve the given values to know if this event has a set dur and offset
+        # to avoid confusion, optional attributes (dur, offset) will always have a default
+        # value set. If they were not given one, we preserve this in the _* variable,
+        # which can be accessed via .hasDur, .hasOffset, etc.
         self._dur = dur
         self._offset = offset
         self.dur: F = F(dur) if dur is not None else F(1)
@@ -75,10 +77,12 @@ class Event:
             return ":".join(annot.text for annot in self.annots)
         return None
 
-    def asmusic21(self): ...
-
     def avgPitch(self) -> float:
-        raise NotImplemented()
+        pitches = self.getPitches()
+        return sum(pitches)/len(pitches) if pitches else 0
+
+    def getPitches(self) -> list[float]:
+        raise NotImplementedError()
 
     def clone(self, **kws):
         out = copy.deepcopy(self)
@@ -114,8 +118,11 @@ class Note(Event):
     def silence(cls, dur:F, offset:F=0):
         return Note(pitch=0, dur=dur, offset=offset)
 
-    def avgPitch(self) -> float:
-        return self.pitch
+    def getPitches(self):
+        pitches = [self.pitch]
+        if self.endpitch:
+            pitches.append(self.endpitch)
+        return pitches
 
     def isGlissInternal(self):
         """ Is this gliss between pitch and endpitch? """
@@ -146,10 +153,6 @@ class Note(Event):
     def __hash__(self):
         return hash((self.pitch, self.dur, self.endpitch, self.offset))
 
-    def asmusic21(self):
-        from emlib.music import m21tools
-        return m21tools.makeNote(self.pitch)
-
 
 class Chord(Event):
     def __init__(self, pitches:t.List[float], dur:F=None, offset:F=None,
@@ -178,24 +181,17 @@ class Chord(Event):
         s = "".join(ss)
         return f"Chord({s})"
 
-    def avgPitch(self) -> float:
-        """
-        Returns the average pitch of this chord. This is used to process
-        events in order to have an homogeneus interface between notes and
-        chords for operations like determining the clef or packing events
-        into tracks
-        """
-        return sum(self.pitches) / len(self.pitches)
+    def getPitches(self) -> list[float]:
+        return self.pitches
 
     def isSilence(self) -> bool:
         return not self.pitches
 
     def __hash__(self):
-        return hash((self.dur, self.offset) + tuple(self.pitches))
-
-    def asmusic21(self):
-        from emlib.music import m21tools
-        return m21tools.makeChord(self.pitches)
+        data = (float(self.dur), float(self.offset), *self.pitches)
+        if self.endpitches:
+            data += tuple(self.endpitches)
+        return hash(data)
 
     def isGlissInternal(self):
         return self.gliss and self.endpitches != self.pitches
@@ -209,10 +205,11 @@ class Track(list):
         """
         A Track is a list of non-simultaneous events (a Part)
 
-        :param events: the events (notes, chords) in this track
-        :param label: a label to identify this track in particular (a name)
-        :param groupid: an identification (given by makeId), used to identify
-            tracks which belong to a same group
+        Args:
+            events: the events (notes, chords) in this track
+            label: a label to identify this track in particular (a name)
+            groupid: an identification (given by makeId), used to identify
+                tracks which belong to a same group
         """
         if events:
             super().__init__(events)
@@ -343,32 +340,17 @@ def _makeGroups(events:t.Seq[Event]) -> t.List[t.U[Event, t.List[Event]]]:
 
 
 def needsSplit(events: t.Seq[Event], threshold=1) -> bool:
-    G = 0
-    F = 0
-    G15a = 0
-
-    for event in events:
-        if isinstance(event, Note):
-            pitch = event.pitch
-            if 55<pitch<=93:
-                G += 1
-            elif 93<pitch:
-                G15a += 1
-            else:
-                F += 1
-        elif isinstance(event, Chord):
-            for pitch in event.pitches:
-                if 55<pitch<=93:
-                    G += 1
-                elif 93<pitch:
-                    G15a += 1
-                else:
-                    F += 1
+    G, F, G15a = 0, 0, 0
+    allpitches = sum((ev.getPitches() for ev in events), [])
+    for pitch in allpitches:
+        if 55 < pitch <= 93:
+            G += 1
+        elif 93 < pitch:
+            G15a += 1
         else:
-            raise TypeError(f"Object not supported for splitting: {event} {type(event)}")
+            F += 1
     numExceeded = sum(int(numnotes > threshold) for numnotes in (G, F, G15a))
-    needsSplit = numExceeded > 1
-    return needsSplit
+    return numExceeded > 1
 
 
 def splitEvents(events: t.Seq[Event], groupid=None) -> t.List[Track]:
@@ -376,10 +358,13 @@ def splitEvents(events: t.Seq[Event], groupid=None) -> t.List[Track]:
     Assuming that events are not simultenous, split the events into
     different tracks if the range makes it necessary
 
-    :param events: the events to split
-    :param groupid: if given, this id will be used to identify the
-        generated tracks (see makeId)
-    :return: a list of Tracks (between 1 and 3, one for each clef)
+    Args:
+        events: he events to split
+        groupid: if given, this id will be used to identify the
+            generated tracks (see makeId)
+
+    Returns:
+         list of Tracks (between 1 and 3, one for each clef)
     """
     G = []
     F = []
@@ -387,7 +372,7 @@ def splitEvents(events: t.Seq[Event], groupid=None) -> t.List[Track]:
 
     for event in events:
         if isinstance(event, Note):
-            pitch = event.pitch
+            pitch = event.avgPitch()
             if 55 < pitch <= 93:
                 G.append(event)
             elif 93 < pitch:
@@ -491,11 +476,12 @@ class AbstractScore:
     def __init__(self, score, pageSize:str='a4', orientation='portrait', staffSize=12,
                  eventTracks: t.List[Track]=None, includeBranch=True) -> None:
         """
-        score: the internal representation of the score according to the backend
-        pageSize: size of the page, such as 'a4' or 'a3'
-        orientation: 'portrait' or 'landscape'
-        staffSize: staff size in points
-        includeBranch: ???
+        Args:
+            score: the internal representation of the score according to the backend
+            pageSize: size of the page, such as 'a4' or 'a3'
+            orientation: 'portrait' or 'landscape'
+            staffSize: staff size in points
+            includeBranch: ???
         """
         self.score = score
         self.pageSize: str = pageSize or 'a4'
@@ -516,31 +502,39 @@ class AbstractScore:
         playNotes(events, defaultinstr=instr)
 
 
-def makeScore(tracks: t.List[Track], pageSize='a4', orientation='portrait', staffSize=12,
-              includeBranch=True, backend='music21') -> AbstractScore:
+def makeScore(tracks: t.List[Track], pageSize='a4',
+              orientation='portrait', staffSize=12,
+              includeBranch=True, backend='music21'
+              ) -> AbstractScore:
     """
-    tracks:
-        a list of Tracks, as returned by packInTracks(events)
-    pageSize:
-        a string like 'a4', 'a3', etc.
-    orientation:
-        'landscape' or 'portrait'
-    staffSize:
-        staff size
+    Make a score from the list of tracks. Returns either
+    an AbsScore or a Music21Score depending on backend
 
-    backend:
-        the backend to use (abjad only at the moment)
+    Args:
+
+        tracks:
+            a list of Tracks, as returned by packInTracks(events)
+        pageSize:
+            a string like 'a4', 'a3', etc.
+        orientation:
+            'landscape' or 'portrait'
+        staffSize:
+            staff size
+        backend:
+            the backend to use (abjad only at the moment)
+        includeBranch:
+            add branck to the score
 
     Example:
 
-    notes = [node2note(node) for node in nodes]
-    tracks = packInTracks(notes)
-    score = makescore(tracks)
-    score.save("myscore.pdf")
+        notes = [node2note(node) for node in nodes]
+        tracks = packInTracks(notes)
+        score = makescore(tracks)
+        score.save("myscore.pdf")
     """
     from . import quantization
     assert all(isinstance(track, Track) for track in tracks), str(tracks)
-    # assert all(isinstance(track, list) for track in tracks), str(tracks)
+
     if backend == 'abjad':
         from . import abjscore
         from emlib.music import abjadtools
@@ -563,3 +557,30 @@ def quantizeVoice(events: t.Seq[Event], grid="simple", divsPerSemitone=4, showce
     voice = quantization.quantizeVoice(events=events, grid=grid, showcents=showcents,
                                        divsPerSemitone=divsPerSemitone)
     return voice
+
+
+def midinotesNeedSplit(midinotes, splitpoint=60, margin=4) -> bool:
+    if len(midinotes) == 0:
+        return False
+    numabove = sum(int(m > splitpoint - margin) for m in midinotes)
+    numbelow = sum(int(m < splitpoint + margin) for m in midinotes)
+    return bool(numabove and numbelow)
+
+
+def clefNameFromMidinotes(midis: t.List[float]) -> str:
+    """
+    Given a list of midinotes, return the best clef to
+    fit these notes
+
+    """
+    if not midis:
+        return "treble"
+    avg = sum(midis)/len(midis)
+    if avg>80:
+        return "treble8va"
+    elif avg>58:
+        return "treble"
+    elif avg>36:
+        return "bass"
+    else:
+        return "bass8vb"

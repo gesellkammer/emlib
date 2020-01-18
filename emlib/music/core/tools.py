@@ -1,14 +1,19 @@
+from __future__ import annotations
+
 import os
-from fractions import Fraction
-
+import re
 import music21 as m21
-
 from emlib import lib
-from emlib.pitchtools import *
-from emlib import typehints as t
+from .common import *
+from emlib.music import scoring
+import emlib.music.scoring.quantization as quant
+import textwrap
+from fractions import Fraction
+import emlib.typehints as t
 
 
-from .config import config, logger
+class AudiogenError(Exception): pass
+
 
 insideJupyter = lib.inside_jupyter()
 
@@ -55,43 +60,193 @@ def enharmonic(n:str) -> str:
 #
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def addColumn(mtx, col):
-    if not lib.isiterable(col):
-        col = [col]*len(mtx)
-    if isinstance(mtx[0], tuple):
-        return [row+(elem,) for row, elem in zip(mtx, col)]
-    elif isinstance(mtx[0], list):
-        return [row+[elem] for row, elem in zip(mtx, col)]
+
+def midicents(midinote: float) -> int:
+    """
+    Returns the cents to next chromatic pitch
+
+    :param midinote: a (fractional) midinote
+    :return: cents to next chromatic pitch
+    """
+    return int(round((midinote - round(midinote)) * 100))
+
+
+def quantizeMidi(midinote:float, step=1.0) -> float:
+    return round(midinote / step) * step
+
+
+def centsshown(centsdev:int, divsPerSemitone:int) -> str:
+    """
+    Given a cents deviation from a chromatic pitch, return
+    a string to be shown along the notation, to indicate the
+    true tuning of the note. If we are very close to a notated
+    pitch (depending on divsPerSemitone), then we don't show
+    anything. Otherwise, the deviation is always the deviation
+    from the chromatic pitch
+
+    :param centsdev: the deviation from the chromatic pitch
+    :param divsPerSemitone: 4 means 1/8 tones
+    :return: the string to be shown alongside the notated pitch
+    """
+    # cents can be also negative (see self.cents)
+    pivot = int(round(100 / divsPerSemitone))
+    dist = min(centsdev%pivot, -centsdev%pivot)
+    if dist <= 2:
+        return ""
+    if centsdev < 0:
+        # NB: this is not a normal - sign! We do this to avoid it being confused
+        # with a syllable separator during rendering (this is currently the case
+        # in musescore
+        return f"–{-centsdev}"
+    return str(int(centsdev))
+
+
+if insideJupyter:
+    from IPython.core.display import display as jupyterDisplay
+    from IPython.core.display import Image as JupyterImage
+
+
+def setJupyterHookForClass(cls, func, fmt='image/png'):
+    """
+    Register func as a displayhook for class `cls`
+    """
+    if not insideJupyter:
+        logger.debug("_setJupyterHookForClass: not inside IPython/jupyter, skipping")
+        return
+    import IPython
+    ip = IPython.get_ipython()
+    formatter = ip.display_formatter.formatters[fmt]
+    return formatter.for_type(cls, func)
+
+
+def imgSize(path:str) -> tuple[int, int]:
+    """ returns (width, height) """
+    import PIL
+    im = PIL.Image.open(path)
+    return im.size
+
+
+def jupyterMakeImage(path: str) -> JupyterImage:
+    """
+    Makes a jupyter Image, which can be displayed inline inside
+    a notebook
+
+    Args:
+        path: the path to the image file
+
+    Returns:
+        an IPython.core.display.Image
+
+    """
+    if not insideJupyter:
+        raise RuntimeError("Not inside a Jupyter session")
+
+    scalefactor = config.get('show.scalefactor', 1.0)
+    if scalefactor != 1.0:
+        imgwidth, imgheight = imgSize(path)
+        width = imgwidth*scalefactor
     else:
-        raise TypeError(f"mtx should be a seq. of tuples or lists, but got {mtx} ({type(mtx[0])})")
+        width = None
+    return JupyterImage(filename=path, embed=True, width=width)
 
 
-def fillColumns(rows: t.List[list], sentinel=None) -> t.List[list]:
+def jupyterShowImage(path: str):
     """
-    Converts a series of rows with possibly unequeal number of elements per row
-    so that all rows have the same length, filling each new row with elements
-    from the previous, if they do not have enough elements (elements are "carried"
-    to the next row)
+    Show an image inside (inline) of a jupyter notebook
+
+    Args:
+        path: the path to the image file
+
     """
-    maxlen = max(len(row) for row in rows)
-    initrow = [0] * maxlen
-    outrows = [initrow]
-    for row in rows:
-        lenrow = len(row)
-        if lenrow < maxlen:
-            row = row + outrows[-1][lenrow:]
-        if sentinel in row:
-            row = row.__class__(x if x is not sentinel else lastx for x, lastx in zip(row, outrows[-1]))
-        outrows.append(row)
-    # we need to discard the initial row
-    return outrows[1:]
+    if not insideJupyter:
+        logger.error("jupyter is not available")
+        return
+
+    img = jupyterMakeImage(path)
+    return jupyterDisplay(img)
+
+
+def pngOpenExternal(path:str, wait=False) -> None:
+    """
+    Open a png image in an external application
+    The application can be configured via config['app.png']
+
+    Args:
+        path: the path to the png
+        wait: if True, wait until the application exits
+
+    """
+    app = config.get('app.png')
+    if not app:
+        if wait:
+            logger.debug("pngOpenExternal: called with wait=True," 
+                         "but opening with standard app so can't wait")
+        lib.open_with_standard_app(path)
+        return
+    cmd = f'{app} "{path}"'
+    if wait:
+        os.system(cmd)
+    else:
+        os.system(cmd + " &")
+
+
+def pngShow(image:str, external=False) -> None:
+    """
+    Show a png either inside jupyter or with an external app
+
+    Args:
+        image: the path to an image
+        external: if True, it will show in an external app even
+            inside jupyter
+
+    """
+    if external or not insideJupyter:
+        pngOpenExternal(image)
+    else:
+        jupyterShowImage(image)
+
+
+def m21JupyterHook(enable=True) -> None:
+    """
+    Set an ipython-hook to display music21 objects inline on the
+    ipython notebook
+    """
+    if not insideJupyter:
+        logger.debug("m21JupyterHook: not inside ipython/jupyter, skipping")
+        return
+    from IPython.core.getipython import get_ipython
+    from IPython.core import display
+    ip = get_ipython()
+    formatter = ip.display_formatter.formatters['image/png']
+    if enable:
+        def showm21(stream):
+            fmt = config['m21.displayhook.format']
+            filename = str(stream.write(fmt))
+            return display.Image(filename=filename)._repr_png_()
+
+        dpi = formatter.for_type(m21.Music21Object, showm21)
+        return dpi
+    else:
+        logger.debug("disabling display hook")
+        formatter.for_type(m21.Music21Object, None)
 
 
 def asmidi(x) -> float:
+    """
+    Convert x to a midinote
+
+    Args:
+        x: a str ("4D", "1000hz") a number (midinote) or anything
+           with an attribute .midi
+
+    Returns:
+        a midinote
+
+    """
     if isinstance(x, str):
         return str2midi(x)
     elif isinstance(x, (int, float)):
-        assert 0 <= x <= 200, f"Expected a midinote (0-127) but got {x}"
+        assert 0<=x<=200, f"Expected a midinote (0-127) but got {x}"
         return x
     elif hasattr(x, 'midi'):
         return x.midi
@@ -103,8 +258,11 @@ def asfreq(n) -> float:
     Convert a midinote, notename of Note to a freq.
     NB: a float value is interpreted as a midinote
 
-    :param n: a note as midinote, notename or Note
-    :return: a frequency taking into account the A4 defined in emlib.pitch
+    Args:
+        n: a note as midinote, notename or Note
+
+    Returns:
+        a frequency taking into account the A4 defined in emlib.pitch
     """
     if isinstance(n, str):
         return n2f(n)
@@ -141,143 +299,167 @@ def notes2ratio(n1, n2, maxdenominator=16) -> Fraction:
     return Fraction.from_float(f1/f2).limit_denominator(maxdenominator)
 
 
-def normalizeFade(fade:t.U[float, t.Tup[float, float]]) -> t.Tup[float, float]:
+def m21FromScoringEvents(events: List[scoring.Event], split=None, showcents=None,
+                         divsPerSemitone=None) -> m21.stream.Stream:
     """
-    Returns (fadein, fadeout)
+    Creates a m21 voice from the events
+
+    Args:
+        events: the events to convert
+        split: if true, split events across multiple staves
+        showcents: show cents as text
+        divsPerSemitone: divisions of the semitone
+
+    Returns:
+        a music21 stream (either a Voice or a Score, depending on split)
+
     """
-    if isinstance(fade, tuple):
-        if len(fade) != 2:
-            raise IndexError(f"fade: expected a tuple or list of len=2, got {fade}")
-        fadein, fadeout = fade
-    elif isinstance(fade, (int, float)):
-        fadein = fadeout = fade
+    divsPerSemitone = (divsPerSemitone if divsPerSemitone is not None else
+                       config['show.semitoneDivisions'])
+    showgliss = config['show.gliss']
+    if showcents is None: showcents = config['show.cents']
+    if split is None: split = config['show.split']
+    stream = quant.m21FromEvents(events,
+                                 split=split,
+                                 showCents=showcents,
+                                 showGliss=showgliss,
+                                 divsPerSemitone=divsPerSemitone)
+    return stream
+
+
+def midinotesNeedSplit(midinotes, splitpoint=60, margin=4) -> bool:
+    if len(midinotes) == 0:
+        return False
+    numabove = sum(int(m > splitpoint - margin) for m in midinotes)
+    numbelow = sum(int(m < splitpoint + margin) for m in midinotes)
+    return bool(numabove and numbelow)
+
+
+def splitByAmp(midis: list[float], amps:list[float], numGroups=8, maxNotesPerGroup=8
+               ) -> list[list[float]]:
+    """
+    split the notes by amp into groups (similar to a histogram based on amplitude)
+
+    Args:
+
+        midis: a seq of midinotes
+        amps: a seq of amplitudes in dB (same length as midinotes)
+        numGroups: the number of groups to divide the notes into
+        maxNotesPerGroup: the maximum of included notes per group, picked by loudness
+
+    Returns:
+        a list of chords with length=numgroups
+    """
+    step = (dbToAmpCurve*numGroups).floor()
+    notes = []
+    # 0         1     2     3   4
+    # notename, note, freq, db, step
+    for note, amp in zip(midis, amps):
+        db = amp2db(amp)
+        notes.append((m2n(note), note, m2f(note), db, int(step(db))))
+    chords = [[] for _ in range(numGroups)]
+    notes2 = sorted(notes, key=lambda n: n[3], reverse=True)
+    for note in notes2:
+        chord = chords[note[4]]
+        if len(chord) <= maxNotesPerGroup:
+            chord.append(note)
+    for chord in chords:
+        chord.sort(key=lambda n: n[3], reverse=True)
+    return [ch for ch in chords]
+
+
+def analyzeAudiogen(audiogen:str, check=True) -> dict:
+    """
+    Args:
+        audiogen: as passed to play.defPreset
+        check: if True, will check that audiogen is well formed
+
+    Returns:
+        a dict with keys:
+            numSignals (int): number of a_ variables
+            minSignal: min. index of a_ variables
+            maxSignal: max. index of a_ variables
+                (normally minsignal+numsignals = maxsignal)
+    """
+    audiovarRx = re.compile(r"\ba[0-9]\b")
+    outOpcodeRx = re.compile(r"\boutch\b")
+    audiovarsList = []
+    numOutchs = 0
+    for line in audiogen.splitlines():
+        foundAudiovars = audiovarRx.findall(line)
+        audiovarsList.extend(foundAudiovars)
+        outOpcode = outOpcodeRx.fullmatch(line)
+        if outOpcode is not None:
+            opcode = outOpcode.group(0)
+            args = line.split(opcode)[1].split(",")
+            assert len(args)%2 == 0
+            numOutchs = len(args) / 2
+
+    audiovars = set(audiovarsList)
+    chans = [int(v[1:]) for v in audiovars]
+    maxchan = max(chans)
+    # check that there is an audiovar for each channel
+    if check:
+        if len(audiovars) == 0:
+            raise AudiogenError("audiogen defines no output signals (a_ variables)")
+
+        for i in range(maxchan+1):
+            if f"a{i}" not in audiovars:
+                raise AudiogenError("Not all channels are defined", i, audiovars)
+
+    needsRouting = numOutchs == 0
+    numSignals = len(audiovars)
+    if needsRouting:
+        numOuts = int(math.ceil(numSignals/2))*2
     else:
-        raise TypeError(f"fade: expected a fadetime or a tuple of (fadein, fadeout), got {fade}")
-    return fadein, fadeout
+        numOuts = numOutchs
+
+    out = {
+        'signals': audiovars,
+        # number of signals defined in the audiogen
+        'numSignals': numSignals,
+        'minSignal': min(chans),
+        'maxSignal': max(chans),
+        # if numOutchs is 0, the audiogen does not implement routing
+        'numOutchs': numOutchs,
+        'needsRouting': needsRouting,
+        'numOutputs': numOuts
+    }
+    return out
 
 
-def midicents(midinote: float) -> int:
+def reindent(text, prefix="", stripEmptyLines=True):
+    if stripEmptyLines:
+        text = lib.strip_lines(text)
+    text = textwrap.dedent(text)
+    if prefix:
+        text = textwrap.indent(text, prefix=prefix)
+    return text
+
+
+def getIndentation(code:str) -> int:
+    """ get the number of spaces used to indent code """
+    for line in code.splitlines():
+        stripped = line.lstrip()
+        if stripped:
+            spaces = len(line) - len(stripped)
+            return spaces
+    return 0
+
+
+def joinCode(codes: t.Iter[str]) -> str:
     """
-    Returns the cents to next chromatic pitch
+    Like join, but preserving indentation
 
-    :param midinote: a (fractional) midinote
-    :return: cents to next chromatic pitch
+    Args:
+        codes: a list of code strings
+
+    Returns:
+
     """
-    return int(round((midinote - round(midinote)) * 100))
-
-
-def centsshown(centsdev, divsPerSemitone=None) -> str:
-    """
-    Given a cents deviation from a chromatic pitch, return
-    a string to be shown along the notation, to indicate the
-    true tuning of the note. If we are very close to a notated
-    pitch (depending on divsPerSemitone), then we don't show
-    anything. Otherwise, the deviation is always the deviation
-    from the chromatic pitch
-
-    :param centsdev: the deviation from the chromatic pitch
-    :param divsPerSemitone: if given, overrides the value in the config
-    :return: the string to be shown alongside the notated pitch
-    """
-    # cents can be also negative (see self.cents)
-    divsPerSemitone = divsPerSemitone or config['show.semitoneDivisions']
-    pivot = int(round(100 / divsPerSemitone))
-    dist = min(centsdev%pivot, -centsdev%pivot)
-    if dist <= 2:
-        return ""
-    if centsdev < 0:
-        # NB: this is not a normal - sign! We do this to avoid it being confused
-        # with a syllable separator during rendering (this is currently the case
-        # in musescore
-        return f"–{-centsdev}"
-    return str(int(centsdev))
-
-
-def pngOpenExternal(path:str, wait=False) -> None:
-    app = config.get(f'app.png')
-    if not app:
-        if wait:
-            logger.debug("pngOpenExternal: called with wait=True," 
-                         "but opening with standard app so can't wait")
-        lib.open_with_standard_app(path)
-        return
-    cmd = f'{app} "{path}"'
-    if wait:
-        os.system(cmd)
-    else:
-        os.system(cmd + " &")
-
-
-try:
-    from IPython.core.display import display as jupyterDisplay
-except ImportError:
-    jupyterDisplay = pngOpenExternal
-
-
-def setJupyterHookForClass(cls, func, fmt='image/png'):
-    """
-    Register func as a displayhook for class `cls`
-    """
-    if not insideJupyter:
-        logger.debug("_setJupyterHookForClass: not inside IPython/jupyter, skipping")
-        return
-    import IPython
-    ip = IPython.get_ipython()
-    formatter = ip.display_formatter.formatters[fmt]
-    return formatter.for_type(cls, func)
-
-
-def imgSize(path:str) -> t.Tup[int, int]:
-    """ returns (width, height) """
-    import PIL
-    im = PIL.Image.open(path)
-    return im.size
-
-
-def jupyterMakeImage(path: str):
-    from IPython.core.display import Image
-    scalefactor = config.get('show.scalefactor', 1.0)
-    if scalefactor != 1.0:
-        imgwidth, imgheight = imgSize(path)
-        width = imgwidth*scalefactor
-    else:
-        width = None
-    return Image(filename=path, embed=True, width=width)  # ._repr_png_()
-
-
-def jupyterShowImage(path: str):
-    img = jupyterMakeImage(path)
-    return jupyterDisplay(img)
-
-
-def pngShow(image, external=False):
-    if external or not insideJupyter:
-        pngOpenExternal(image)
-    else:
-        jupyterShowImage(image)
-
-
-def m21JupyterHook(enable=True) -> None:
-    """
-    Set an ipython-hook to display music21 objects inline on the
-    ipython notebook
-    """
-    if not insideJupyter:
-        logger.debug("m21JupyterHook: not inside ipython/jupyter, skipping")
-        return
-    from IPython.core.getipython import get_ipython
-    from IPython.core import display
-    ip = get_ipython()
-    formatter = ip.display_formatter.formatters['image/png']
-    if enable:
-        def showm21(stream):
-            fmt = config['m21.displayhook.format']
-            filename = str(stream.write(fmt))
-            return display.Image(filename=filename)._repr_png_()
-
-        dpi = formatter.for_type(m21.Music21Object, showm21)
-        return dpi
-    else:
-        logger.debug("disabling display hook")
-        formatter.for_type(m21.Music21Object, None)
-
+    codes2 = [textwrap.dedent(code) for code in codes if code]
+    code = "\n".join(codes2)
+    numspaces = getIndentation(codes[0])
+    if numspaces:
+        code = textwrap.indent(code, prefix=" "*numspaces)
+    return code

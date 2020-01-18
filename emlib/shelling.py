@@ -39,10 +39,16 @@ class Proc:
 
 
 def allpids():
+    """
+    This works only on unixy systems
+    """
     return [int(pid) for pid in os.listdir('/proc') if pid != 'curproc' and pid.isdigit()]
         
 
 def readargs(pid):
+    """
+    This only works only on unixy systems
+    """
     args = None
     try:
         with open(f'/proc/{pid}/cmdline', mode='rb') as fd:
@@ -54,7 +60,7 @@ def readargs(pid):
 
 def allprocs(skipempty=True, pids=None):
     """
-    Get a list of all processes running
+    Get a list of all processes running (does not work on Windows)
 
     returns a list of Procs 
     """

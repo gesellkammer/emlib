@@ -1,9 +1,8 @@
 import os
 from emlib import lib
-from . import core
-
 from emlib.music import m21tools
 import emlib.typehints as t
+from . import core
 
 
 def _openPdf(pdf:str) -> None:
@@ -57,3 +56,6 @@ class Music21Score(core.AbstractScore):
         This extracts back a list of tracks from the current score
         """
         raise NotImplemented()
+
+
+

@@ -38,7 +38,8 @@ setup(
         "sounddevice",
         "sndfileio",
         "pillow",
-        "decorator"
+        "decorator",
+        "cachetools"
     ],
     license="BSD",
     zip_safe=False,

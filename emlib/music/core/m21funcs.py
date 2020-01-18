@@ -1,23 +1,39 @@
 import music21 as m21
 import emlib.typehints as t
-from .config import config
 from emlib.music import m21tools
+from emlib import iterlib
+
+from .config import config
+from . import tools
 
 
-def m21Note(pitch: t.U[str, float], showcents=None, **options) -> m21.note.Note:
+def m21Note(pitch: t.U[str, float], showcents=None, divsPerSemitone=None,
+            **options) -> m21.note.Note:
     """
     Create a m21.note.Note, taking semitoneDivisions into account
 
-    :param pitch: a notename or a midinote, possibly with fractional part
-    :param showcents: if True, attach the cents representation as a lyric
-    :param options: options passed to m21.note.Note
-    :return: the generated note
+    Args:
+        pitch: a notename or a midinote, possibly with fractional part
+        showcents: if True, attach the cents representation as a lyric
+        options: options passed to m21.note.Note
+
+    Returns:
+        the generated note
     """
     assert isinstance(pitch, (str, int, float))
-    divsPerSemitone = config['show.semitoneDivisions']
+    divs = divsPerSemitone or config['show.semitoneDivisions']
     showcents = showcents if showcents is not None else config['show.cents']
-    note, centsdev = m21tools.makeNote(pitch, divsPerSemitone=divsPerSemitone, showcents=showcents,
-                                       **options)
+    note, centsdev = m21tools.makeNote(pitch, divsPerSemitone=divs,
+                                       showcents=showcents, **options)
+    return note
+
+def m21MicrotonalNote(pitch: float, duration, showcents=None, divsPerSemitone=None, **options):
+    divs = divsPerSemitone or config['show.semitoneDivisions']
+    basepitch = tools.quantizeMidi(pitch, 1/divs)
+    note = m21Note(basepitch, quarterLength=duration, divsPerSemitone=divs,
+                   showcents=showcents, **options)
+    cents = int((pitch - basepitch) * 100)
+    note.microtone = cents
     return note
 
 
@@ -53,3 +69,25 @@ def m21TextExpression(text:str, style:str=None) -> m21.expressions.TextExpressio
 
 def m21Label(text:str):
     return m21TextExpression(text, style='label')
+
+
+def bestClef(midinotes: t.Iter[float]) -> m21.clef.Clef:
+    """
+    Return a m21 Clef which best fits the given pitches
+
+    Args:
+        midinotes: the pitches to
+
+    Returns:
+
+    """
+    mean = iterlib.avg(midinotes, None)
+    if mean is None:
+        # no notes
+        return m21.clef.TrebleClef()
+    elif mean > 90:
+        return m21.clef.Treble8vaClef()
+    elif mean > 59:
+        return m21.clef.TrebleClef()
+    else:
+        return m21.clef.BassClef()
