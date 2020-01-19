@@ -328,12 +328,10 @@ def _loadPreset(presetPath: str) -> [str, _InstrDef]:
         except json.JSONDecodeError:
             logger.warning(f"Could not load preset {presetPath}")
             return None
-    elif ext == '.yaml':
-        d = presetutils.loadYamlPreset(presetPath)
     elif ext == '.ini':
         d = presetutils.loadIniPreset(presetPath)
     else:
-        raise ValueError("Only .json or .yaml presets are supported")
+        raise ValueError("Only .json or .ini presets are supported")
     assert 'name' in d and 'audiogen' in d, d
 
     presetName = d['name']
@@ -664,8 +662,6 @@ class _PresetManager:
         if fmt == 'json':
             with open(outpath, "w") as f:
                 json.dump(d, f, indent=True)
-        elif fmt == 'yaml':
-            presetutils.saveYamlPreset(d, outpath)
         elif fmt == 'ini':
             presetutils.saveIniPreset(d, outpath)
         else:
@@ -720,6 +716,11 @@ class _PresetManager:
         return renderer
 
     def makePresetTemplate(presetName: str, edit=False) -> str:
+        """
+        Create a new preset with the given name. The preset can then be
+        edited as a text file. If edit is True, then it is opened to be
+        edited right away
+        """
         return presetutils.makeIniPresetTemplate(presetName=presetName,
                                                  edit=edit)
 

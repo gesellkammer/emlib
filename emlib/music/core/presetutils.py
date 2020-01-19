@@ -1,37 +1,8 @@
-import yaml
 import re
 import os
 from emlib import lib as _lib
 
 from .config import presetsPath
-
-
-class _MultilineString(str): pass
-
-
-def _MultilineStringRepresenter(dumper, data):
-    return dumper.represent_scalar('tag:yaml.org,2002:str', str(data), style='|')
-    
-
-yaml.add_representer(_MultilineString, _MultilineStringRepresenter)
-
-
-def saveYamlPreset(d:dict, outpath:str) -> None:
-    d = d.copy()
-    d['audiogen'] = _MultilineString(d['audiogen'])
-    print(yaml.dump(d))
-    with open(outpath, "w") as f:
-        yaml.dump(d, stream=f)
-
-
-def loadYamlPreset(path: str) -> dict:
-    """
-    Given the path to a .yaml preset, return the dict which
-    this preset represents
-    """
-    with open(path) as f:
-        d = yaml.load(f, Loader=yaml.SafeLoader)
-    return d
 
 
 def _normalizeIncludes(includes):

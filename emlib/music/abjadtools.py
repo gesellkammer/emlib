@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from fractions import Fraction as F
 import copy
+import enum
 
 import abjad as abj
 from emlib.music import lilytools
@@ -40,7 +41,38 @@ def voiceSetClef(voice: abj.Voice) -> abj.Voice:
     return voice
 
 
-def noteTied(n):
+class TieTypes(enum.Enum):
+    NOTTIED = 0
+    TIEDFORWARD = 1
+    TIEDBACKWARD = 2
+    TIEDBOTH = 3
+
+
+def noteTied(note: abj.core.Note) -> TieTypes:
+    """
+    Returns a int describind the state:
+        0: not tied
+        1: tied forward
+        2: tied backwards
+        3: tied in both directions
+
+    tied = noteTied(note)
+    forward = tied & 0b01
+    backwards = tied & 0b10
+    both = tied & 0b11
+    """
+    logical_tie = abj.inspect(note).logical_tie()
+    if len(logical_tie) == 1:
+        return TieTypes.NOTTIED
+    if note is logical_tie[0]:
+        return TieTypes.TIEDFORWARD
+    elif note is logical_tie[-1]:
+        return TieTypes.TIEDBACKWARD
+    else:
+        return TieTypes.TIEDBOTH
+
+
+def _noteTied(n):
     """
     Returns a int describind the state:
         0: not tied
@@ -89,7 +121,29 @@ def addLiteral(obj, text:str, position:str= "after") -> None:
     abj.attach(abj.LilyPondLiteral(text, format_slot=position), obj)
 
 
+def isAttack(note:abj.Note) -> bool:
+    """
+    an attack is the first of a group of tied notes. The group
+    can be of length 1 for a single note.
+    """
+    logical_tie = abj.inspect(note).logical_tie()
+    return logical_tie[0] is note
+
+
 def getAttacks(voice:abj.Voice) -> t.List[abj.Note]:
+    """
+    Returns a list of notes or gracenotes which represent an attack
+    (they are not tied to a previous note)
+    """
+    
+    attacks = []
+    for leaf in abj.iterate(voice).leaves():
+        if isinstance(leaf, abj.Note) and isAttack(leaf):
+            attacks.append(leaf)
+    return attacks
+
+
+def _getAttacks(voice:abj.Voice) -> t.List[abj.Note]:
     """
     Returns a list of notes or gracenotes which represent an attack
     (they are not tied to a previous note)
@@ -107,6 +161,11 @@ def getAttacks(voice:abj.Voice) -> t.List[abj.Note]:
                     return span
         return None
 
+    def isAttack(note) -> bool:
+        insp = abj.inspect(note)
+        logical_tie = insp.logical_tie()
+        return logical_tie[0] is note
+        
     for leaf in leaves:
         if isinstance(leaf, (abj.Rest, abj.Note)):
             #graces = abj.inspect(leaf).grace_container()
@@ -176,11 +235,15 @@ def saveLily(score: abj.Score, outfile: str=None,
     """
     Save the score as a .ly file, returns the path of the saved file
 
-    :param score: the abj.Score to save
-    :param outfile: the path of the lilypond file (or None to save to a temp file)
-    :param pageSize: the size as str, one of "a4", "a3"
-    :param orientation: one of 'landscape', 'portrait'
-    :param staffSize: the size of the staff, in points. Default=12
+    Args:
+        score: the abj.Score to save
+        outfile: the path of the lilypond file (or None to save to a temp file)
+        pageSize: the size as str, one of "a4", "a3"
+        orientation: one of 'landscape', 'portrait'
+        staffSize: the size of the staff, in points. Default=12
+
+    Returns:
+        the path to the saved file
     """
     import tempfile
     if outfile is None:
@@ -196,12 +259,12 @@ def savePdf(score: abj.Score, outfile: str,
     """
     Save this score as pdf
 
-    :param score: the abj.Score to save
-    :param outfile: the path to save to
-    :param pageSize: the size as str, one of "a4", "a3"
-    :param orientation: one of 'landscape', 'portrait'
-    :param staffSize: the size of the staff, in points. Default=12
-
+    Args:
+        score: the abj.Score to save
+        outfile: the path to save to
+        pageSize: the size as str, one of "a4", "a3"
+        orientation: one of 'landscape', 'portrait'
+        staffSize: the size of the staff, in points. Default=12
     """
     # we generate a lilyfile, then a pdf from there
     import tempfile
@@ -214,8 +277,11 @@ def voicesToScore(voices: t.List[abj.Voice]) -> abj.Score:
     """
     voices: a list of voices as returned by [makevoice(notes) for notes in ...]
 
-    :param voices: a list of voices
-    :return: a Score
+    Args:
+        voices: a list of voices
+    
+    Return: 
+        an abjad Score
     """
     voices.sort(key=voiceMeanPitch, reverse=True)
     staffs = [abj.Staff([voice]) for voice in voices]
@@ -227,7 +293,13 @@ def lilyfileFindBlock(lilyfile: abj.LilyPondFile, blockname:str) -> t.Opt[int]:
     """
     Find the index of a Block. This is used to find an insertion
     point to put macro definitions
-    Returns the index of the Block, or None if not found
+    
+    Args:
+        lilyfile: an abjad LilypondFile
+        blockname: the name of the block to find
+
+    Returns:
+        the index of the block, or None if not found
     """
     for i, item in enumerate(lilyfile.items):
         if isinstance(item, abj.Block) and item.name == blockname:
@@ -235,7 +307,7 @@ def lilyfileFindBlock(lilyfile: abj.LilyPondFile, blockname:str) -> t.Opt[int]:
     return None
 
 
-def lilyfileAddHeader(lilyfile: abj.LilyPondFile, enablePointAndClick=False):
+def lilyfileAddHeader(lilyfile: abj.LilyPondFile, enablePointAndClick=False) -> None:
     """
     Adds a header to the given LyliPondFile
     """
@@ -261,35 +333,45 @@ def lilyfileAddHeader(lilyfile: abj.LilyPondFile, enablePointAndClick=False):
     lilyfile.items.insert(idx, blocktext)
 
 
-def voiceAddAnnotation(voice: abj.Voice, annotations: t.List[t.Opt[str]], fontSize:int=10, attacks=None):
+def voiceAddAnnotation(voice: abj.Voice, annotations: t.List[t.Opt[str]], 
+                       fontSize:int=10, attacks=None) -> None:
     """
-    add the annotations to each note in this voice
+    Add the annotations to each note in this voice
 
-    attacks: the result of calling getAttacks.
+    Args:
+        voice: the voice to add annotations to
+        annotations: a list of annotations. There should be one annotation
+            per attack (if no annotation is needed for a specific attack,
+            that slot should be None).
+            An annotation can have a prefix: 
+                _ is a bottom annotation (default) 
+                ^ is an top annotation 
+        attacks: the result of calling getAttacks. Used for the case where attacks
+            have already been calculated before.
+        fontSize: the size to use for the annotations
     """
     # prefix = "_" if orientation == "down" else "^"
     attacks = attacks or getAttacks(voice)
-    # fontSize = fontSize if fontSize is not None else config['score.annotation.fontSize']
-
     if len(attacks) != len(annotations):
         for p in attacks: print(p)
         for p in annotations: print(p)
         # raise ValueError("Annotation mismatch")
     for attack, annotstr in zip(attacks, annotations):
-        if annotstr:
-            annots = annotstr.split(";")
-            for annot in annots:
-                if annot[0] not in  "_^":
-                    prefix = "_"
-                else:
-                    prefix = annot[0]
-                    annot = annot[1:]
-                if fontSize <= 0:
-                    literal = f'{prefix}"{annot}"'
-                else:
-                    literal = fr"{prefix}\markup {{\abs-fontSize #{fontSize} {{ {annot} }} }}"
-                addLiteral(attack, literal, "after")
-                # abjAddLiteral(attack, literal, "after")
+        if not annotstr:
+            continue
+        annots = annotstr.split(";")
+        for annot in annots:
+            if annot[0] not in  "_^":
+                prefix = "_"
+            else:
+                prefix = annot[0]
+                annot = annot[1:]
+            if fontSize <= 0:
+                literal = f'{prefix}"{annot}"'
+            else:
+                literal = fr"{prefix}\markup {{\abs-fontSize #{fontSize} {{ {annot} }} }}"
+            addLiteral(attack, literal, "after")
+            # abjAddLiteral(attack, literal, "after")
 
 
 def voiceAddGliss(voice: abj.Voice, glisses: t.List[bool], usemacros=True, skipsame=True, attacks=None):
@@ -423,19 +505,24 @@ def extractMatching(abjobj, matchfunc):
 
 def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> m21.stream.Stream:
     """
+    Convert an abjadobject to a m21 stream
+    
+    Args:
+        abjobj: the abjad object to convert
+        m21stream: the stream being converted to
+        level: the level of recursion
+        durfactor: current duration factor
+        tup: current m21 tuplet
+        state: a dictionary used to pass global state
 
-    :param abjobj: the abjad object to convert
-    :param m21stream: the stream being converted to
-    :param level: the level of recursion
-    :param durfactor: current duration factor
-    :param tup: current m21 tuplet
-    :param state: a dictionary used to pass global state
-    :return: the music21 stream
+    Returns: 
+        the music21 stream
     """
     indent = "\t"*level
     if state is None:
         state = {}
     debug = state.get('debug', False)
+
 
     def append(stream, obj):
         if debug:
@@ -445,7 +532,7 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
     if hasattr(abjobj, '__iter__'):
         if debug:
             print(indent, "iter", type(abjobj), abjobj)
-        if isinstance(abjobj, abj.core.Measure):       # Measure
+        if abj.__version_info__ <= (3,0) and isinstance(abjobj, abj.core.Measure):       # Measure
             meas0 = abjobj
             timesig = meas0.time_signature
             meas = m21.stream.Measure()
@@ -463,6 +550,19 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
             for meas in voice0:
                 _abjtom21(meas, voice, level+1, durfactor, tup, state=state)
             append(m21stream, voice)
+        elif isinstance(abjobj, abj.core.Staff):
+            abjstaff = abjobj
+            m21staff = m21.stream.Part()
+            leaves = abj.select(abjstaff).leaves()
+            measures = leaves.group_by_measure()
+            # TODO: deal with timesignatures
+            for meas in measures:
+                m21meas = m21.stream.Measure()
+                for elem in meas:
+                    _abjtom21(elem, m21meas, level+1, durfactor, tup, state=state)
+                append(m21staff, m21meas)
+            append(m21stream, m21staff)
+
         elif isinstance(abjobj, abj.core.Tuplet):      # Tuplet
             mult = abjobj.multiplier
             newtup = m21.duration.Tuplet(mult.denominator, mult.numerator, bracket=True)
@@ -482,7 +582,8 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
             print("\t"*level, "tup: ", tup, "no iter", type(abjobj), abjobj)
         if isinstance(abjobj, (abj.core.Rest, abj.core.Note)):
             # check if it has gracenotes
-            graces = abj.inspect(abjobj).grace_container()
+            graces = abj.inspect(abjobj).before_grace_container()
+            # graces = abj.inspect(abjobj).grace_container()
             if graces:
                 for grace in graces:
                     if isinstance(grace, abj.Note):
@@ -506,9 +607,8 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
                 tie = noteTied(note)
                 if debug:
                     print("\t"*level, "tie: ", tie)
-                if isNoteTied(note):
+                if tie == TieTypes.TIEDFORWARD:
                     m21note.tie = m21.tie.Tie()
-                # m21note = copy.deepcopy(m21note)
                 append(m21stream, m21note)
         else:
             if debug:
@@ -516,13 +616,16 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
     return m21stream
 
 
-def abjadToMusic21(abjadStream: abj.AbjadObject, debug=False) -> m21.stream.Stream:
+def abjadToMusic21(abjadStream, debug=False) -> m21.stream.Stream:
     """
     Convert an abjad stream to a music21 stream
 
-    :param abjadStream: an abjad stream
-    :param debug: If True, print debugging information
-    :return: the corresponding music21 stream
+    Args:
+        abjadStream: an abjad stream
+        debug: If True, print debugging information
+
+    Returns: 
+        the corresponding music21 stream
     """
     m21stream = m21.stream.Stream()
     out = _abjtom21(abjadStream, m21stream, state={'debug': debug})
