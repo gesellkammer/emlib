@@ -55,9 +55,16 @@ def makeAbjadVoice(notes: Seq[Note], grid="simple", glissUseMacros=True,
     """
     Create an abjad Voice by quantizing the notes
 
-    notes: a seq. of Notes
-    divisors: possible divisions of the quarter note
-    grid: possible subdivisions of the pulse (see quantizationSearchTrees)
+    Args:
+        notes: a seq. of Notes
+        grid: XXX
+        glissUseMacros: XXX
+        glissSkipSamePitch: do not create a gliss. if the gliss would be 
+            between notes of same pitch
+        annotationFontSize: the font size for text annotations
+
+    Returns:
+        an abjad Voice
     """
     assert all(isinstance(note, Note) for note in notes)
     # notes = [snapTime(note, divisors) for note in notes]
@@ -69,7 +76,7 @@ def makeAbjadVoice(notes: Seq[Note], grid="simple", glissUseMacros=True,
     # as a note with a duration represented as negative milliseconds
     # see https://github.com/Abjad/abjad-ext-nauert/blob/master/abjadext/nauert/QEventSequence.py
     # In version 2, a silence is represented as a positive dur with None as pitch
-    indicateSilenceByNegativeDuration = False
+    indicateSilenceByNegativeDuration = True
     if indicateSilenceByNegativeDuration:
         for note in continuousNotes:
             millis = int(float(note.dur)*1000)
@@ -162,13 +169,17 @@ def quantizeAsAbjadRhythm(events: Seq[Event], grid="simple", annot=False, gliss=
     return voice, mapping
 
 
-def _makeMusic21Voice(notes: Seq[Note], grid="simple") -> m21.stream.Stream:
+def _makeMusic21Voice(notes: Seq[Note], grid="simple") -> m21.stream.Part:
     """
     Create a music21 Part by quantizing these notes
 
-    notes: a seq. of Notes
-    divisors: possible divisions of the quarter note
-    grid: possible subdivisions of the pulse
+    Args:
+        notes: a seq. of Notes
+        divisors: possible divisions of the quarter note
+        grid: possible subdivisions of the pulse
+
+    Returns:
+        the generated music21 Part
     """
     abjvoice = makeAbjadVoice(notes=notes, grid=grid)
     m21voice = abjadtools.abjadToMusic21(abjvoice)
@@ -176,7 +187,19 @@ def _makeMusic21Voice(notes: Seq[Note], grid="simple") -> m21.stream.Stream:
 
 
 def makeMusic21Voice(notes: Seq[Note], grid="simple", divsPerSemitone=4,
-                     showcents=False):
+                     showcents=False) -> m21.stream.Part:
+    """
+    Create a music21.Voice with the given notes
+
+    Args:
+        notes: the notes in the part
+        grid: XXX
+        divsPerSemitone: max. subdivision of the semitone
+        showcents: should we show the cents deviation as text?
+
+    Returns:
+        the generated music21 Part
+    """
     if divsPerSemitone <= 2:
         return _makeMusic21Voice(notes, grid=grid)
     oversampling = 100
@@ -214,7 +237,8 @@ def quantizeVoice(events: Seq[Event], grid="simple", divsPerSemitone=4,
         showgliss: generate glissando lines when indicated by the given Events
         verify: verify the quantization
 
-    Return: the generated music21 streamF
+    Returns: 
+        the generated music21 stream
     """
     abjvoice, mapping = quantizeAsAbjadRhythm(events, grid=grid)
 

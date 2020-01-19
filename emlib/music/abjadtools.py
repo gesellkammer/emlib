@@ -503,7 +503,8 @@ def extractMatching(abjobj, matchfunc):
             yield from extractMatching(elem, matchfunc)
 
 
-def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> m21.stream.Stream:
+def _abjtom21(abjobj, m21stream, level=0, durfactor=4, 
+              tup=None, state=None) -> m21.stream.Stream:
     """
     Convert an abjadobject to a m21 stream
     
@@ -523,33 +524,21 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
         state = {}
     debug = state.get('debug', False)
 
-
-    def append(stream, obj):
+    def append(stream, obj, msg=""):
+        assert stream is not obj
         if debug:
-            print(indent, f"{stream}  <- {obj}")
+            print(indent, f"{stream}  <- {obj}    {msg}")
         stream.append(obj)
 
     if hasattr(abjobj, '__iter__'):
         if debug:
             print(indent, "iter", type(abjobj), abjobj)
-        if abj.__version_info__ <= (3,0) and isinstance(abjobj, abj.core.Measure):       # Measure
-            meas0 = abjobj
-            timesig = meas0.time_signature
-            meas = m21.stream.Measure()
-            oldtimesig = state.get('timesig')
-            if timesig != oldtimesig:
-                append(meas, m21.meter.TimeSignature(f"{timesig.numerator}/{timesig.denominator}"))
-                state['timesig'] = timesig
-            for elem in meas0:
-                _abjtom21(elem, meas, level+1, durfactor, tup, state=state)
-            append(m21stream, meas)
-        elif isinstance(abjobj, abj.core.Voice):       # Voice
-            voice0 = abjobj
+        if isinstance(abjobj, abj.core.Voice):       # Voice
             # voice = m21.stream.Voice()
-            voice = m21.stream.Part()
-            for meas in voice0:
-                _abjtom21(meas, voice, level+1, durfactor, tup, state=state)
-            append(m21stream, voice)
+            m21voice = m21.stream.Part()
+            for meas in abjobj:
+                _abjtom21(meas, m21voice, level+1, durfactor, tup, state=state)
+            append(m21stream, m21voice, "stream append voice")
         elif isinstance(abjobj, abj.core.Staff):
             abjstaff = abjobj
             m21staff = m21.stream.Part()
@@ -560,9 +549,8 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
                 m21meas = m21.stream.Measure()
                 for elem in meas:
                     _abjtom21(elem, m21meas, level+1, durfactor, tup, state=state)
-                append(m21staff, m21meas)
-            append(m21stream, m21staff)
-
+                append(m21staff, m21meas, "staff append meas")
+            append(m21stream, m21staff, "stream append staff")
         elif isinstance(abjobj, abj.core.Tuplet):      # Tuplet
             mult = abjobj.multiplier
             newtup = m21.duration.Tuplet(mult.denominator, mult.numerator, bracket=True)
@@ -574,6 +562,13 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4, tup=None, state=None) -> 
                 _abjtom21(elem, m21stream, level+1, durfactor*abjobj.multiplier, tup=newtup, state=state)
             if debug:
                 print(indent, "closing tuple")
+        elif isinstance(abjobj, abj.core.Container):
+            # a measure in a Voice
+            # TODO: time signature
+            meas = m21.stream.Measure()
+            for elem in abjobj:
+                _abjtom21(elem, meas, level+1, durfactor, tup, state=state)
+            append(m21stream, meas, "container: stream append meas")
         else:
             if debug:
                 print("????", type(abjobj), abjobj)
