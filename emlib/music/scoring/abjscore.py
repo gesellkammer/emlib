@@ -1,11 +1,10 @@
 from . import core
 import os
-from emlib import lib
 
 import abjad as abj
-from emlib.music import abjadtools as abjtools
-from emlib.music import lilytools
+import abjadtools as abjtools
 
+from emlib import lib
 import emlib.typehints as t
 
 
@@ -56,6 +55,6 @@ class AbjScore(core.AbstractScore):
             self._saveLily(outfile)
         elif ext == '.pdf':
             lilyfile = self._saveLily(outfile)
-            lilytools.lily2pdf(lilyfile, outfile)
+            abjtools.lilytools.lily2pdf(lilyfile, outfile)
         else:
             raise ValueError(f"format {ext} not supported. Possible formats: .ly, .pdf")

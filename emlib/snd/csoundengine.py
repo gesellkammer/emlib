@@ -9,6 +9,7 @@ import ctypes as _ctypes
 import atexit as _atexit
 import textwrap as _textwrap
 import logging
+
 from emlib.pitchtools import m2f
 from emlib.conftools import ConfigDict as _ConfigDict
 from emlib.snd import csound
@@ -741,7 +742,7 @@ class CsoundEngine:
                 block = True
         if block or callback:
             return self._makeTableNotify(data=data, size=size, tabnum=tabnum,
-                                         block=block, callback=callback)
+                                         callback=callback)
         # Create a table asynchronously
         assert tabnum > 0
         if not data:

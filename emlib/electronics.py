@@ -344,7 +344,7 @@ def _normalizevalue(value):
 
 
 def _getscaling(unit):
-    if isinstance(unit, _Number):
+    if isinstance(unit, (int, float)):
         return unit
     if unit[-1] in 'VFA':
         unit = unit[:-1]

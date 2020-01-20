@@ -4,7 +4,7 @@ import abjad as abj
 from abjadext import nauert
 from emlib.music import m21tools
 from emlib.typehints import *
-from emlib.music import abjadtools
+import abjadtools
 from emlib.music import m21fix
 
 from .core import *

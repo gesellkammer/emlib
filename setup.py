@@ -45,7 +45,8 @@ setup(
         "cachetools",
         "ctcsound",
         "abjad>=3.1",
-        "abjad-ext-nauert @ https://github.com/Abjad/abjad-ext-nauert/tarball/master"
+        "abjad-ext-nauert @ https://github.com/Abjad/abjad-ext-nauert/tarball/master",
+        "abjadtools"
     ],
     license="BSD",
     zip_safe=False,
