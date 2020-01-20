@@ -13,7 +13,7 @@ setup(
     name='emlib',
     python_requires=">=3.7",
     version=".".join(map(str, version)),
-    description='Utilities for sound, music notation, acoustics, etc.',
+    description='Utilities for sound, music notation, acoustics, etc',
     long_description=readme,
     author='Eduardo Moguillansky',
     author_email='eduardo.moguillansky@gmail.com',
