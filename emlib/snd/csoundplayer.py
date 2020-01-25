@@ -3,20 +3,20 @@ import ctcsound
 import re
 import uuid
 from typing import NamedTuple, Dict, List, Union, Optional as Opt
-import ctypes 
+import ctypes
 import atexit
 import textwrap
 import logging
-from emlib import conftools
+from configdict import ConfigDict
+
 from emlib.snd import csound
 from functools import lru_cache
 from string import Template as _Template
 
-
 logger = logging.getLogger("emlib.csoundplayer")
 
 _defaultconfig = {
-    'sr': 0,   # 0 indicates the default sr of the backend
+    'sr': 0,  # 0 indicates the default sr of the backend
     'numchannels': 2,
     'ksmps': 64,
     'linux.backend': 'jack',
@@ -32,12 +32,15 @@ _validator = {
     'A4::range': (410, 460)
 }
 
-config = conftools.ConfigDict("emlib:synthplayer", default=_defaultconfig, validator=_validator)
-        
+config = ConfigDict("emlib:synthplayer",
+                    default=_defaultconfig,
+                    validator=_validator)
 
-class CsdInstrError(ValueError): 
+
+class CsdInstrError(ValueError):
     pass
-    
+
+
 class _SynthDef(NamedTuple):
     qname: str
     instrnum: int
@@ -48,8 +51,7 @@ _MYFLTPTR = ctypes.POINTER(ctcsound.MYFLT)
 _csound_reserved_instrnum = 100
 _csound_reserved_instr_turnoff = _csound_reserved_instrnum + 0
 
-
-_csd:str = _Template("""
+_csd: str = _Template("""
 sr     = {sr}
 ksmps  = {ksmps}
 nchnls = {nchnls}
@@ -67,8 +69,7 @@ instr ${instr_turnoff}
     turnoff2 iwhich, 4, 1
     turnoff
 endin
-""").safe_substitute(
-    instr_turnoff=_csound_reserved_instr_turnoff)
+""").safe_substitute(instr_turnoff=_csound_reserved_instr_turnoff)
 
 
 @lru_cache(maxsize=1)
@@ -96,7 +97,7 @@ def testcsoundapi(dur=20, nchnls=2, backend=None, sr=None):
         iperiod = 1
         kchn init -1
         ktrig metro 1/idur
-        kchn = (kchn + ktrig) % nchnls 
+        kchn = (kchn + ktrig) % nchnls
         anoise pinker
         outch kchn+1, anoise
         printk2 kchn
@@ -116,16 +117,23 @@ def testcsoundapi(dur=20, nchnls=2, backend=None, sr=None):
 
 
 class CsoundPlayer:
-
-    def __init__(self, sr=None, ksmps=None, backend=None, outdev="dac", a4=None, nchnls=None):
+    def __init__(self,
+                 sr=None,
+                 ksmps=None,
+                 backend=None,
+                 outdev="dac",
+                 a4=None,
+                 nchnls=None):
         """
         NB: don't create instances directly, call getPlayer
         """
         cfg = config
-        backend = backend if backend is not None else cfg[f'{sys.platform}.backend']
+        backend = backend if backend is not None else cfg[
+            f'{sys.platform}.backend']
         backends = csound.get_audiobackends()
         if backend not in backends:
-            raise ValueError(f"backend should be one of {backends}, but got {backend}")
+            raise ValueError(
+                f"backend should be one of {backends}, but got {backend}")
         sr = sr if sr is not None else cfg['sr']
         if sr == 0:
             sr = csound.get_sr(backend)
@@ -139,7 +147,7 @@ class CsoundPlayer:
         self.ksmps = ksmps
         self.nchnls = nchnls or cfg['numchannels']
 
-        self._fracnumdigits = 3 
+        self._fracnumdigits = 3
         self._cs = None
         self._pt = None
         self._exited = False
@@ -162,10 +170,14 @@ class CsoundPlayer:
     def _getfracinst(self, num, instance):
         frac = instance / (10**self._fracnumdigits)
         return num + frac
-        
-    def _startCsound(self):        
+
+    def _startCsound(self):
         cs = ctcsound.Csound()
-        orc = self._csdstr.format(sr=self.sr, ksmps=self.ksmps, nchnls=2, backend=self.backend, a4=self.a4)
+        orc = self._csdstr.format(sr=self.sr,
+                                  ksmps=self.ksmps,
+                                  nchnls=2,
+                                  backend=self.backend,
+                                  a4=self.a4)
         options = ["-d", "-odac", "-+rtaudio=%s" % self.backend, "-m 0"]
         for opt in options:
             cs.setOption(opt)
@@ -176,7 +188,7 @@ class CsoundPlayer:
         pt.play()
         self._cs = cs
         self._pt = pt
-    
+
     def stop(self):
         if self._exited:
             return
@@ -188,7 +200,7 @@ class CsoundPlayer:
         self._pt = None
         self._instcounter = {}
         self._instrRegistry = {}
-        
+
     def restart(self) -> None:
         self.stop()
         self._startCsound()
@@ -200,7 +212,7 @@ class CsoundPlayer:
         val = ctcsound.cast(valptr, _MYFLTPTR).contents.value
         func(chan, val)
 
-    def registerOutvalueCallback(self, chan:str, func) -> None:
+    def registerOutvalueCallback(self, chan: str, func) -> None:
         """
         Register a function `func` which will be called whenever a
         channel `chan` is changed in csound via the "outvalue" opcode
@@ -216,7 +228,7 @@ class CsoundPlayer:
     def getCsound(self):
         return self._cs
 
-    def defInstr(self, instr:str, name:str=None) -> None:
+    def defInstr(self, instr: str, name: str = None) -> None:
         """
         Compile a csound instrument
 
@@ -232,13 +244,13 @@ class CsoundPlayer:
         logger.debug(f"defInstr: {name}")
         logger.debug(instr)
 
-    def evalCode(self, code:str):
+    def evalCode(self, code: str):
         """
         Evaluates code at instr0 (global code, only i-rate)
         """
         return self._cs.evalCode(code)
-        
-    def sched(self, instrnum, delay:float=0, dur:float=-1, args=[]):
+
+    def sched(self, instrnum, delay: float = 0, dur: float = -1, args=[]):
         """
         Schedule an instrument
 
@@ -247,9 +259,9 @@ class CsoundPlayer:
         dur      : duration of the event
         args     : any other args expected by the instrument
 
-        Returns: 
-            the fractional number of the instr started. 
-            This can be used to kill the event later on 
+        Returns:
+            the fractional number of the instr started.
+            This can be used to kill the event later on
             (see unsched)
         """
         instance = self._getinstance(instrnum)
@@ -257,21 +269,23 @@ class CsoundPlayer:
         pargs = [instrfrac, delay, dur]
         pargs.extend(args)
         self._pt.scoreEvent(0, "i", pargs)
-        logger.debug(f"CsoundPlayer.sched: scoreEvent(0, 'i', {pargs})  -> {instrfrac}")
+        logger.debug(
+            f"CsoundPlayer.sched: scoreEvent(0, 'i', {pargs})  -> {instrfrac}")
         return instrfrac
 
-    def unsched(self, instrfrac:float, delay:float=0) -> None:
+    def unsched(self, instrfrac: float, delay: float = 0) -> None:
         """
         mode: similar to turnoff2
         """
-        self._pt.scoreEvent(0, "i", [_csound_reserved_instr_turnoff, 0, 0.1, instrfrac])
+        self._pt.scoreEvent(
+            0, "i", [_csound_reserved_instr_turnoff, 0, 0.1, instrfrac])
 
 
 def _getUUID() -> str:
     return str(uuid.uuid1())
 
 
-_players = {}   # type: Dict[str, CsoundPlayer]
+_players = {}  # type: Dict[str, CsoundPlayer]
 _managers = {}  # type: Dict[str, _InstrManager]
 
 
@@ -283,29 +297,32 @@ def _cleanup() -> None:
         stopPlayer(name)
 
 
-def getPlayer(name: str="default") -> CsoundPlayer:
+def getPlayer(name: str = "default") -> CsoundPlayer:
     player = _players.get(name)
     if not player:
         player = initPlayer(name=name)
     return player
 
 
-def initPlayer(name: str="default",
-               sr:int=None, backend:str=None, outdev:str="dac", a4:float=None
-               ) -> CsoundPlayer:
+def initPlayer(name: str = "default",
+               sr: int = None,
+               backend: str = None,
+               outdev: str = "dac",
+               a4: float = None) -> CsoundPlayer:
     """
     This routine is only necessary if a csound engine needs to be started
     with specific parameters, which should not be saved for later.
     Otherwise, change the default values in config
     """
     if name in _players:
-        raise KeyError(f"A Player with name {name} already exists, cannot initialize")
+        raise KeyError(
+            f"A Player with name {name} already exists, cannot initialize")
     player = CsoundPlayer(sr=sr, backend=backend, outdev=outdev, a4=a4)
     _players[name] = player
     return player
 
 
-def stopPlayer(name:str="default") -> None:
+def stopPlayer(name: str = "default") -> None:
     player = _players.get(name)
     if not player:
         raise KeyError("player not found")
@@ -327,14 +344,14 @@ class Synth(AbstrSynth):
     when a CsoundInstr is scheduled
     """
 
-    def __init__(self, group:str, synthid:float) -> None:
+    def __init__(self, group: str, synthid: float) -> None:
         self.group = group
         self.synthid = synthid
         self._playing = True
 
     def isPlaying(self) -> bool:
         return self._playing
-    
+
     def getManager(self) -> '_InstrManager':
         return getManager(self.group)
 
@@ -363,8 +380,13 @@ class SynthGroup(AbstrSynth):
 class CsoundInstr:
     __slots__ = ['body', 'name', 'initcode', 'group']
 
-    def __init__(self, body: str, name: str, initcode: str = None, group: str = "default",
-                 ) -> None:
+    def __init__(
+            self,
+            body: str,
+            name: str,
+            initcode: str = None,
+            group: str = "default",
+    ) -> None:
         """
         *** A CsoundInstr is created via makeInstr, DON'T CREATE IT DIRECTLY ***
 
@@ -385,7 +407,8 @@ class CsoundInstr:
 
     def __repr__(self):
         header = f"CsoundInstr({self.name}, group={self.group})"
-        return "\n".join((header, "> init\n", str(self.initcode), "\n> body", self.body))
+        return "\n".join(
+            (header, "> init\n", str(self.initcode), "\n> body", self.body))
 
     def _getManager(self):
         return getManager(self.group)
@@ -402,7 +425,10 @@ class CsoundInstr:
         delay: how long to wait to start the synth (this is always relative time)
         """
         manager = self._getManager()
-        return manager.sched(self.name, priority=priority, delay=delay, dur=dur,
+        return manager.sched(self.name,
+                             priority=priority,
+                             delay=delay,
+                             dur=dur,
                              args=args)
 
 
@@ -425,17 +451,18 @@ class _InstrManager:
     but this is an implementation detail.
     """
 
-    def __init__(self, name:str="default") -> None:
+    def __init__(self, name: str = "default") -> None:
         self.name: str = name
         self.instrDefs = {}  # type: Dict[str, '_CsoundInstr']
 
         self._bucketsize: int = 1000
         self._numbuckets: int = 10
-        self._buckets = [{} for _ in range(self._numbuckets)]  # type: List[Dict[str, int]]
-        self._synthdefs = {}                                   # type: Dict[str, _SynthDef]
-        self._synths = {}                                      # type: Dict[float, Synth]
+        self._buckets = [{} for _ in range(self._numbuckets)
+                         ]  # type: List[Dict[str, int]]
+        self._synthdefs = {}  # type: Dict[str, _SynthDef]
+        self._synths = {}  # type: Dict[float, Synth]
         self._isDeallocCallbackSet = False
-        
+
     def _deallocCallback(self, _, synthid):
         synth = self._synths.get(synthid)
         if synth is None:
@@ -448,21 +475,23 @@ class _InstrManager:
     def getPlayer(self) -> CsoundPlayer:
         player = getPlayer(self.name)
         if not self._isDeallocCallbackSet:
-            player.registerOutvalueCallback("__dealloc__", self._deallocCallback)
+            player.registerOutvalueCallback("__dealloc__",
+                                            self._deallocCallback)
         return player
 
-    def getInstrnum(self, instrname:str, priority:int) -> int:
+    def getInstrnum(self, instrname: str, priority: int) -> int:
         assert 1 <= priority < self._numbuckets - 1
         bucket = self._buckets[priority]
         instrnum = bucket.get(instrname)
         if instrnum is not None:
             return instrnum
         idx = len(bucket) + 1
-        instrnum = self._bucketsize*priority + idx
-        bucket[instrname] = instrnum 
+        instrnum = self._bucketsize * priority + idx
+        bucket[instrname] = instrnum
         return instrnum
 
-    def defInstr(self, name:str, body:str, initcode:str=None) -> CsoundInstr:
+    def defInstr(self, name: str, body: str,
+                 initcode: str = None) -> CsoundInstr:
         """
         name     : a name to identify this instr, or None, in which case a UUID is created
         body     : the body of the instrument
@@ -475,17 +504,24 @@ class _InstrManager:
             logger.debug(f"Instrument already defined in group {self.name}\n"
                          "The previous definition will be used")
             return instr
-        instr = CsoundInstr(name=name, body=body, initcode=initcode, group=self.name)
+        instr = CsoundInstr(name=name,
+                            body=body,
+                            initcode=initcode,
+                            group=self.name)
         self.instrDefs[name] = instr
         if initcode:
             self.getPlayer().evalCode(initcode)
         return instr
 
-    def getInstr(self, name:str) -> 'CsoundInstr':
+    def getInstr(self, name: str) -> 'CsoundInstr':
         return self.instrDefs.get(name)
 
-    def sched(self, instrname:str, priority:int=1, delay:float=0, dur:float=-1, args=[]
-              ) -> Synth:
+    def sched(self,
+              instrname: str,
+              priority: int = 1,
+              delay: float = 0,
+              dur: float = -1,
+              args=[]) -> Synth:
         player = self.getPlayer()
         qname = _qualifiedName(instrname, priority)
         synthdef = self._synthdefs.get(qname)
@@ -495,21 +531,22 @@ class _InstrManager:
             instrdef = self.instrDefs.get(instrname)
             if instrdef is None:
                 instrs = ", ".join(self.instrDefs.keys())
-                raise ValueError(f"sched: instrument {instrName} has not been declared in group {self.name}"
-                                 f". Delcared instruments are: {instrs}")
+                raise ValueError(
+                    f"sched: instrument {instrName} has not been declared in group {self.name}"
+                    f". Delcared instruments are: {instrs}")
             instrnum = self.getInstrnum(instrname, priority)
             instrtxt = _instrWrapBody(instrdef.body, instrnum)
             logger.debug("\n*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-")
             logger.debug(instrtxt)
             logger.debug("\n*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-")
             player.defInstr(instrtxt, qname)
-            self._synthdefs[qname] = _SynthDef(qname, instrnum)    
+            self._synthdefs[qname] = _SynthDef(qname, instrnum)
         synthid = player.sched(instrnum, delay=delay, dur=dur, args=args)
         synth = Synth(self.name, synthid=synthid)
         self._synths[synthid] = synth
         return synth
 
-    def unsched(self, synthid:Union[float, List[float]], delay=0) -> None:
+    def unsched(self, synthid: Union[float, List[float]], delay=0) -> None:
         logger.debug(f"Manager: asking player to unsched {synthid}")
         player = self.getPlayer()
         if isinstance(synthid, float):
@@ -523,11 +560,11 @@ class _InstrManager:
         self.unsched(synthids, delay=0)
 
 
-def _qualifiedName(name:str, priority:int) -> str:
+def _qualifiedName(name: str, priority: int) -> str:
     return f"{name}:{priority}"
 
 
-def _instrWrapBody(body:str, instrnum:int, notify=True, dedent=True) -> str:
+def _instrWrapBody(body: str, instrnum: int, notify=True, dedent=True) -> str:
     if notify:
         s = """
         instr {instrnum}
@@ -555,7 +592,7 @@ def _instrWrapBody(body:str, instrnum:int, notify=True, dedent=True) -> str:
     return s
 
 
-def getManager(name: str="default") -> _InstrManager:
+def getManager(name: str = "default") -> _InstrManager:
     """
     Get a specific Manager. A Manager controls a series of
     instruments and normally has its own csound engine
@@ -564,16 +601,19 @@ def getManager(name: str="default") -> _InstrManager:
     if not manager:
         manager = _InstrManager(name)
         _managers[name] = manager
-    return manager 
+    return manager
 
 
-def unschedAll(group:str='default') -> None:
+def unschedAll(group: str = 'default') -> None:
     man = getManager(group)
     man.unschedAll()
 
 
 @lru_cache()
-def makeInstr(body:str, initcode:str=None, name:str=None, group:str='default') -> CsoundInstr:
+def makeInstr(body: str,
+              initcode: str = None,
+              name: str = None,
+              group: str = 'default') -> CsoundInstr:
     """
     Creates a new CsoundInstr as part of group `group`
 
@@ -589,17 +629,22 @@ def makeInstr(body:str, initcode:str=None, name:str=None, group:str='default') -
     return getManager(group).defInstr(name=name, body=body, initcode=initcode)
 
 
-def getInstr(name:str, group='default') -> Opt[CsoundInstr]:
+def getInstr(name: str, group='default') -> Opt[CsoundInstr]:
     man = getManager(name=group)
     instrdef = man.getInstr(name)
-    return makeInstr(body=instrdef.body, initcode=instrdef.initcode, name=instrdef.name, group=group)
+    return makeInstr(body=instrdef.body,
+                     initcode=instrdef.initcode,
+                     name=instrdef.name,
+                     group=group)
 
 
 def availableInstrs(group='default'):
     man = getManager(name=group)
     return man.instrDefs.keys()
 
+
 # -----------------------------------------------------------------------------
+
 
 def InstrSineGliss(name='sinegliss', group='default'):
     body = """
@@ -618,6 +663,7 @@ def InstrSineGliss(name='sinegliss', group='default'):
     """
     return makeInstr(body=body, name=name, group=group)
 
+
 def InstrSine(name='sine', group='default'):
     body = """
         iDur = p3
@@ -633,4 +679,3 @@ def InstrSine(name='sine', group='default'):
 
 def makeDefaultInstrs():
     InstrSine()
-

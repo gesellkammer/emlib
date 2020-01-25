@@ -1,4 +1,4 @@
-from emlib.conftools import ConfigDict
+from configdict import ConfigDict
 
 APPNAME = 'emlib:lsys'
 

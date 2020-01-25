@@ -7,7 +7,7 @@ import sys
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (0, 4, 1)
+version = (0, 4, 3)
 
 setup(
     name='emlib',
@@ -35,7 +35,7 @@ setup(
         "scipy",
         "music21",
         "bpf4",
-        "notifydict",
+        "configdict",
         "appdirs",
         "tabulate",
         "sounddevice",
@@ -45,7 +45,8 @@ setup(
         "cachetools",
         "ctcsound",
         "abjad>=3.1",
-        "abjad-ext-nauert @ https://github.com/Abjad/abjad-ext-nauert/tarball/master",
+        # "abjad-ext-nauert @ https://github.com/Abjad/abjad-ext-nauert/tarball/master",
+        "abjad-ext-nauert",
         "abjadtools"
     ],
     license="BSD",

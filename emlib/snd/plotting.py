@@ -1,9 +1,7 @@
 from emlib import numpytools
 from scipy import signal
 import numpy as np
-from emlib import conftools
-# import matplotlib as mpl
-# from matplotlib.ticker import Formatter as _Formatter
+from configdict import ConfigDict
 
 
 def _get_cmaps():
@@ -11,31 +9,29 @@ def _get_cmaps():
     return plt.colormaps()
 
 
-config = conftools.ConfigDict(
-    __name__, 
-    default={
-        'spectrogram_colormap': 'inferno'
-    },
-    validator={
-        'spectrogram_colormap::choices': _get_cmaps
-    }
-)
+config = ConfigDict(__name__,
+                    default={'spectrogram_colormap': 'inferno'},
+                    validator={'spectrogram_colormap::choices': _get_cmaps})
 
 
-def plot_power_spectrum(samples, samplerate, framesize=2048, window=('kaiser', 9)):
+def plot_power_spectrum(samples,
+                        samplerate,
+                        framesize=2048,
+                        window=('kaiser', 9)):
     """
-    window: As passed to scipy.signal.get_window
-        * `blackman`, `hamming`, `hann`, `bartlett`, `flattop`, `parzen`, `bohman`, 
-          `blackmanharris`, `nuttall`, `barthann`, `kaiser` (needs beta), 
+    Args:
+        window: As passed to scipy.signal.get_window
+          `blackman`, `hamming`, `hann`, `bartlett`, `flattop`, `parzen`, `bohman`,
+          `blackmanharris`, `nuttall`, `barthann`, `kaiser` (needs beta),
           `gaussian` (needs standard deviation)
 
 
     """
     w = signal.get_window(window, framesize)
-    
+
     def func(s):
         return s * w
-    
+
     import matplotlib.pyplot as plt
     return plt.psd(samples, framesize, samplerate, window=func)
 
@@ -43,7 +39,7 @@ def plot_power_spectrum(samples, samplerate, framesize=2048, window=('kaiser', 9
 def get_channel(samples, channel):
     if len(samples.shape) == 1:
         return samples
-    return samples[:,channel]
+    return samples[:, channel]
 
 
 def get_num_channels(samples):
@@ -61,7 +57,8 @@ def iter_channels(samples, start=0, end=0):
 
 
 def _envelope(x, hop):
-    return numpytools.overlapping_frames(x, hop_length=hop, frame_length=hop).max(axis=0)
+    return numpytools.overlapping_frames(x, hop_length=hop,
+                                         frame_length=hop).max(axis=0)
 
 
 def _frames_to_time(frames, sr, hop_length, n_fft=None):
@@ -70,20 +67,21 @@ def _frames_to_time(frames, sr, hop_length, n_fft=None):
 
 
 def _frames_to_samples(frames, hop_length=512, n_fft=None):
-    offset = int(n_fft//2) if n_fft else 0
+    offset = int(n_fft // 2) if n_fft else 0
     return (np.asanyarray(frames) * hop_length + offset).astype(int)
+
 
 def _plot_matplotlib(samples, samplerate):
     import matplotlib.pyplot as plt
     numch = get_num_channels(samples)
     numsamples = samples.shape[0]
     dur = numsamples / samplerate
-    times = np.linspace(0, dur, numsamples)    
+    times = np.linspace(0, dur, numsamples)
     for i in range(numch):
         if i == 0:
-            axes = ax1 = plt.subplot(numch, 1, i+1)
+            axes = ax1 = plt.subplot(numch, 1, i + 1)
         else:
-            axes = plt.subplot(numch, 1, i+1, sharex=ax1, sharey=ax1)
+            axes = plt.subplot(numch, 1, i + 1, sharex=ax1, sharey=ax1)
         if i < numch - 1:
             plt.setp(axes.get_xticklabels(), visible=False)
         chan = get_channel(samples, i)
@@ -111,23 +109,25 @@ def _plot_samples_matplotlib2(samples, samplerate, profile):
     numsamples = samples.shape[0]
     if maxpoints is not None:
         if maxpoints < numsamples:
-            targetsr = min(maxsr, (samplerate*numsamples) // maxpoints)
+            targetsr = min(maxsr, (samplerate * numsamples) // maxpoints)
         hop_length = samplerate // targetsr
     print(f"targetsr: {targetsr}, hop_length: {hop_length}")
     for i in range(numch):
         if i == 0:
-            axes = ax1 = plt.subplot(numch, 1, i+1)
+            axes = ax1 = plt.subplot(numch, 1, i + 1)
         else:
-            axes = plt.subplot(numch, 1, i+1, sharex=ax1, sharey=ax1)
+            axes = plt.subplot(numch, 1, i + 1, sharex=ax1, sharey=ax1)
         if i < numch - 1:
             plt.setp(axes.get_xticklabels(), visible=False)
-        
+
         chan = get_channel(samples, i)
         env = _envelope(np.ascontiguousarray(chan), hop_length)
         print(env.max())
         samples_top = env
         samples_bottom = -env
-        locs = _frames_to_time(np.arange(len(samples_top)), sr=samplerate, hop_length=hop_length)
+        locs = _frames_to_time(np.arange(len(samples_top)),
+                               sr=samplerate,
+                               hop_length=hop_length)
         axes.fill_between(locs, samples_bottom, samples_top)
         axes.set_xlim([locs.min(), locs.max()])
     return True
@@ -149,13 +149,30 @@ def plot_samples(samples, samplerate, profile="medium"):
             break
 
 
-def spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap=4, cmap=None, mindb=-90):
-    mpl_spectrogram(samples=samples, samplerate=samplerate, fftsize=fftsize, 
-                    window=window, overlap=overlap, mindb=mindb)
+def spectrogram(samples,
+                samplerate,
+                fftsize=2048,
+                window='hamming',
+                overlap=4,
+                cmap=None,
+                mindb=-90):
+    mpl_spectrogram(samples=samples,
+                    samplerate=samplerate,
+                    fftsize=fftsize,
+                    window=window,
+                    overlap=overlap,
+                    mindb=mindb)
 
 
-def mpl_spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap=4, axes=None, cmap=None, 
-                    interpolation='bilinear', mindb=-90):
+def mpl_spectrogram(samples,
+                    samplerate,
+                    fftsize=2048,
+                    window='hamming',
+                    overlap=4,
+                    axes=None,
+                    cmap=None,
+                    interpolation='bilinear',
+                    mindb=-90):
     """
     samples: a channel of audio data
     samplerate: the samplerate of the audio data
@@ -171,6 +188,12 @@ def mpl_spectrogram(samples, samplerate, fftsize=2048, window='hamming', overlap
     noverlap = fftsize - hopsize
     win = signal.get_window(window, fftsize)
     cmap = cmap if cmap is not None else config['spectrogram_colormap']
-    axes.specgram(samples, NFFT=fftsize, Fs=samplerate, noverlap=noverlap, window=win, cmap=cmap, 
-                  interpolation=interpolation, vmin=mindb)
+    axes.specgram(samples,
+                  NFFT=fftsize,
+                  Fs=samplerate,
+                  noverlap=noverlap,
+                  window=win,
+                  cmap=cmap,
+                  interpolation=interpolation,
+                  vmin=mindb)
     return axes

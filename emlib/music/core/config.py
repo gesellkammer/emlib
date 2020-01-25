@@ -6,8 +6,8 @@ import music21 as m21
 import appdirs
 from functools import lru_cache
 import tempfile
+from configdict import ConfigDict
 
-from emlib import conftools
 from ._base import *
 
 
@@ -154,8 +154,8 @@ def _checkConfig(cfg, key, oldvalue, value):
             return newvalue
 
 
-config = conftools.ConfigDict(f'emlib:music_core', _defaultconfig, validator=_validator,
-                              docs=_docs, precallback=_checkConfig)
+config = ConfigDict(f'emlib:music_core', _defaultconfig, validator=_validator,
+                    docs=_docs, precallback=_checkConfig)
 
 
 # Environment

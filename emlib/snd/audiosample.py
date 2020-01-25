@@ -25,19 +25,17 @@ import pysndfile
 import logging
 import sys
 import fnmatch as _fnmatch
+from configdict import ConfigDict
 
 from emlib.snd import sndfiletools
 from emlib.snd.resample import resample as _resample
 from emlib.pitchtools import amp2db, db2amp
-from emlib.conftools import ConfigDict
 from emlib.snd.sndfile import sndread
 from emlib import numpytools
 from emlib import lib
 from emlib import typehints as t
 
-
 logger = logging.getLogger("emlib:audiosample")
-
 
 _sounddeviceDefaultDeviceSetByUser = False
 _initWasDone = False
@@ -47,20 +45,20 @@ def _configCheck(config, key, oldvalue, newvalue):
     if key == 'editor':
         if lib.binary_exists(newvalue):
             return None
-        logger.error("Setting editor to {newvalue}, but it could not be found!")
+        logger.error(
+            "Setting editor to {newvalue}, but it could not be found!")
         return oldvalue
 
-config = ConfigDict(
-    name='emlib:audiosample',
-    default={
-        'editor': '/usr/bin/audacity',
-        'fade.shape': 'linear',
-    },
-    precallback=_configCheck
-)
+
+config = ConfigDict(name='emlib:audiosample',
+                    default={
+                        'editor': '/usr/bin/audacity',
+                        'fade.shape': 'linear',
+                    },
+                    precallback=_configCheck)
 
 
-def _increase_suffix(filename:str) -> str:
+def _increase_suffix(filename: str) -> str:
     name, ext = os.path.splitext(filename)
     tokens = name.split("-")
     newname = None
@@ -68,7 +66,7 @@ def _increase_suffix(filename:str) -> str:
         suffix = tokens[-1]
         try:
             suffixnum = int(suffix)
-            newname = "{}-{}".format(name[:-len(suffix)], suffixnum+1)
+            newname = "{}-{}".format(name[:-len(suffix)], suffixnum + 1)
         except ValueError:
             pass
     if newname is None:
@@ -84,8 +82,10 @@ def _arrays_match_length(a, b, mode='longer', pad=0):
     if mode is 'longer', then the shorter array is padded with 'pad'
     if mode is 'shorter', the longer array is truncated
     """
-    assert isinstance(a, np.ndarray), ("a: Expected Array, got "+str(a.__class__))
-    assert isinstance(b, np.ndarray), ("b: Expected Array, got "+str(b.__class__))
+    assert isinstance(a, np.ndarray), ("a: Expected Array, got " +
+                                       str(a.__class__))
+    assert isinstance(b, np.ndarray), ("b: Expected Array, got " +
+                                       str(b.__class__))
     lena = len(a)
     lenb = len(b)
     if lena == lenb:
@@ -95,7 +95,7 @@ def _arrays_match_length(a, b, mode='longer', pad=0):
         if pad == 0:
             func = np.zeros_like
         else:
-            func = lambda arr:np.ones_like(arr)*pad
+            func = lambda arr: np.ones_like(arr) * pad
         if lena < maxlen:
             tmp = func(b)
             tmp[:lena] = a
@@ -177,7 +177,7 @@ def select_audio_device(device):
 
     device: the index in the list of devices, or the name of the device
 
-  
+
     Example
     ~~~~~~~
 
@@ -198,7 +198,7 @@ def select_audio_device(device):
     >>> select_audio_device(7)
     """
     import sounddevice as sd
-    sd.default.device = device 
+    sd.default.device = device
     global _sounddeviceDefaultDeviceSetByUser
     _sounddeviceDefaultDeviceSetByUser = True
 
@@ -240,7 +240,10 @@ def _set_default_audio_device():
 
     if pltfrm == "Linux":
         for apiname in ['jack', 'alsa']:
-            api = next((api for api in apis if api['name'].lower().startswith(apiname)), None)
+            api = next(
+                (api
+                 for api in apis if api['name'].lower().startswith(apiname)),
+                None)
             if api is None:
                 continue
             if set_default_to_hostapi(api):
@@ -252,7 +255,7 @@ def list_audio_devices():
     Print a list of possible output sound devices, which can be
     selected via select_device
     """
-    import sounddevice as sd 
+    import sounddevice as sd
     return sd.query_devices()
 
 
@@ -274,7 +277,6 @@ def stop():
 
 
 class Sample(object):
-
     def __init__(self, sound, samplerate=None, start=0, end=0):
         # type: (t.U[str, np.ndarray], t.Opt[int]) -> None
         """
@@ -297,7 +299,7 @@ class Sample(object):
             raise TypeError(
                 "sound should be a path to a sndfile or a seq. of samples")
         self.channels = numchannels(self.samples)  # type: int
-        self._asbpf = None                    # type: t.Opt[_bpf.BpfInterface]
+        self._asbpf = None  # type: t.Opt[_bpf.BpfInterface]
         self._sdplayers = []
 
     @property
@@ -306,8 +308,8 @@ class Sample(object):
         return self.samples.shape[0]
 
     def __repr__(self):
-        s = "Sample: dur=%f sr=%d ch=%d" % (
-            self.duration, self.samplerate, self.channels)
+        s = "Sample: dur=%f sr=%d ch=%d" % (self.duration, self.samplerate,
+                                            self.channels)
         return s
 
     @property
@@ -320,7 +322,7 @@ class Sample(object):
         # type: (str, float, float) -> 'Sample'
         samples, sr = sndread(filename, start=start, end=end)
         return cls(samples, samplerate=sr)
-    
+
     def play(self, device=None, loop=False, chan=1):
         # type: (bool) -> None
         """
@@ -333,8 +335,8 @@ class Sample(object):
         loop: if True, loop endlessly (use audiosample.stop() to stop it)
         chan: the channel to play to. For a stereo file, playback is always
               on successive channels
-                
-        To select the sound device, see: 
+
+        To select the sound device, see:
             * list_audio_devices
             * select_audio_device
         """
@@ -344,9 +346,14 @@ class Sample(object):
         if isinstance(device, str):
             device = find_audio_device(device)
             if not device:
-                raise KeyError(f"Device {device} not found, see list_audio_devices()")
-        return sd.play(self.samples, self.samplerate, loop=loop, device=device, mapping=mapping)
-        
+                raise KeyError(
+                    f"Device {device} not found, see list_audio_devices()")
+        return sd.play(self.samples,
+                       self.samplerate,
+                       loop=loop,
+                       device=device,
+                       mapping=mapping)
+
     def asbpf(self):
         # type: () -> _bpf.BpfInterface
         if self._asbpf not in (None, False):
@@ -367,8 +374,8 @@ class Sample(object):
     def plot_spectrograph(self, framesize=2048, window='hamming', at=0, dur=0):
         """
         window: As passed to scipy.signal.get_window
-                `blackman`, `hamming`, `hann`, `bartlett`, `flattop`, `parzen`, `bohman`, 
-                `blackmanharris`, `nuttall`, `barthann`, `kaiser` (needs beta), 
+                `blackman`, `hamming`, `hann`, `bartlett`, `flattop`, `parzen`, `bohman`,
+                `blackmanharris`, `nuttall`, `barthann`, `kaiser` (needs beta),
                 `gaussian` (needs standard deviation)
 
         Plots the spectrograph of the entire sample (slice before to use only
@@ -378,31 +385,44 @@ class Sample(object):
         """
         from . import plotting
         if self.channels > 1:
-            samples = self.samples[:,0]
+            samples = self.samples[:, 0]
         else:
             samples = self.samples
-        s0 = 0 if at == 0 else int(at*self.samplerate)
-        s1 = self.nframes if dur == 0 else min(self.nframes, int(dur*self.samplerate) - s0)
+        s0 = 0 if at == 0 else int(at * self.samplerate)
+        s1 = self.nframes if dur == 0 else min(self.nframes,
+                                               int(dur * self.samplerate) - s0)
         if s0 > 0 or s1 != self.nframes:
             samples = samples[s0:s1]
-        plotting.plot_power_spectrum(samples, self.samplerate, framesize=framesize, window=window)
+        plotting.plot_power_spectrum(samples,
+                                     self.samplerate,
+                                     framesize=framesize,
+                                     window=window)
 
-    def plot_spectrogram(self, fftsize=2048, window='hamming', overlap=4, mindb=-120):
+    def plot_spectrogram(self,
+                         fftsize=2048,
+                         window='hamming',
+                         overlap=4,
+                         mindb=-120):
         """
         fftsize: the size of the fft
-        window: window type. One of 'hamming', 'hanning', 'blackman', ... 
+        window: window type. One of 'hamming', 'hanning', 'blackman', ...
                 (see scipy.signal.get_window)
         mindb: the min. amplitude to plot
         """
         from . import plotting
         if self.channels > 1:
-            samples = self.samples[:,0]
+            samples = self.samples[:, 0]
         else:
             samples = self.samples
-        return plotting.spectrogram(samples, self.samplerate, window=window, fftsize=fftsize,
-                                    overlap=overlap, mindb=mindb)
+        return plotting.spectrogram(samples,
+                                    self.samplerate,
+                                    window=window,
+                                    fftsize=fftsize,
+                                    overlap=overlap,
+                                    mindb=mindb)
 
-    def open_in_editor(self, wait=True, app=None, format='wav') -> t.Opt['Sample']:
+    def open_in_editor(self, wait=True, app=None,
+                       format='wav') -> t.Opt['Sample']:
         """
         Open the sample in an external editor. The original
         is not changed.
@@ -423,7 +443,7 @@ class Sample(object):
             return Sample.read(sndfile)
         return None
 
-    def write(self, outfile:str, bits:int=None, **metadata) -> str:
+    def write(self, outfile: str, bits: int = None, **metadata) -> str:
         """
         write the samples to outfile
 
@@ -441,8 +461,10 @@ class Sample(object):
                 bits = 24
             else:
                 raise ValueError("extension should be wav, aif or flac")
-        o = open_sndfile_to_write(outfile, channels=self.channels,
-                                  samplerate=self.samplerate, bits=bits)
+        o = open_sndfile_to_write(outfile,
+                                  channels=self.channels,
+                                  samplerate=self.samplerate,
+                                  bits=bits)
         o.write_frames(self.samples)
         if metadata:
             _modify_metadata(outfile, metadata)
@@ -454,7 +476,7 @@ class Sample(object):
         return a copy of this Sample
         """
         return Sample(self.samples.copy(), self.samplerate)
-        
+
     def __add__(self, other):
         # type: (t.U[float, 'Sample']) -> 'Sample'
         if isinstance(other, Sample):
@@ -489,8 +511,8 @@ class Sample(object):
             other = _mapn_between(other, len(self.samples), 0, self.duration)
         return Sample(self.samples * other, self.samplerate)
 
-    def __pow__(self, other:float) -> 'Sample':
-        return Sample(self.samples ** other, self.samplerate)
+    def __pow__(self, other: float) -> 'Sample':
+        return Sample(self.samples**other, self.samplerate)
 
     def __imul__(self, other):
         # type: (t.U[float, 'Sample']) -> 'Sample'
@@ -534,8 +556,9 @@ class Sample(object):
         sliced_by_samples = s.samples[fromsample:tosample]
         """
         if not isinstance(item, slice):
-            raise ValueError("We only support sample[start:end]."
-                             "To access individual samples, use sample.samples[index]")
+            raise ValueError(
+                "We only support sample[start:end]."
+                "To access individual samples, use sample.samples[index]")
         start, stop, step = item.start, item.stop, item.step
         if stop is None:
             stop = self.duration
@@ -553,8 +576,11 @@ class Sample(object):
     def fade(self, fadetime, mode='inout', shape=None):
         if shape is None:
             shape = config['fade.shape']
-        sndfiletools.fade_array(self.samples, self.samplerate, fadetime=fadetime,
-                                mode=mode, shape=shape)
+        sndfiletools.fade_array(self.samples,
+                                self.samplerate,
+                                fadetime=fadetime,
+                                mode=mode,
+                                shape=shape)
         return self
 
     def prepend_silence(self, dur):
@@ -567,8 +593,8 @@ class Sample(object):
 
     def normalize(self, headroom=0):
         # type: (float) -> 'Sample'
-        """Normalize in place 
-        
+        """Normalize in place
+
         headroom: maximum peak in dB
         """
         max_peak_possible = db2amp(headroom)
@@ -596,8 +622,8 @@ class Sample(object):
         data = self.samples if self.channels == 1 else self.samples[:, 0]
         data = np.abs(data)
         for pos in np.arange(0, self.nframes, chunksize):
-            maximum = np.max(data[pos:pos+chunksize])
-            X.append(pos/samplerate)
+            maximum = np.max(data[pos:pos + chunksize])
+            X.append(pos / samplerate)
             Y.append(maximum)
         return _bpf.Linear.fromxy(X, Y)
 
@@ -609,7 +635,7 @@ class Sample(object):
 
     def rmsbpf(self, dt=0.005):
         # type: (float) -> _bpf.Sampled
-        """ 
+        """
         Return a bpf representing the rms of this sample as a function of time
         """
         s = self.samples
@@ -626,7 +652,7 @@ class Sample(object):
     def mono(self):
         # type: () -> 'Sample'
         """
-        Return a new Sample with this sample downmixed to mono 
+        Return a new Sample with this sample downmixed to mono
         Returns self if already mono
         """
         if self.channels == 1:
@@ -670,7 +696,7 @@ class Sample(object):
         out = self.remove_silence_left(threshold, margin, window)
         out = out.remove_silence_right(threshold, margin, window)
 
-    def resample(self, samplerate:int) -> 'Sample':
+    def resample(self, samplerate: int) -> 'Sample':
         """
         Return a new Sample with the given samplerate
         """
@@ -683,15 +709,16 @@ class Sample(object):
         # type: (_bpf.BpfInterface, bool) -> 'Sample'
         """
         bpf: a bpf mapping time -> time
-        
+
         Example 1: Read sample at half speed
 
         dur = sample1.duration
-        sample2 = sample1.scrub(bpf.linear((0, 0), 
+        sample2 = sample1.scrub(bpf.linear((0, 0),
                                            (dur*2, dur)
                                            ))
         """
-        samples, sr = sndfiletools.scrub((self.samples, self.samplerate), bpf, 
+        samples, sr = sndfiletools.scrub((self.samples, self.samplerate),
+                                         bpf,
                                          rewind=False)
         return Sample(samples, self.samplerate)
 
@@ -703,8 +730,8 @@ class Sample(object):
         if self.channels == 1 and n == 0:
             return self
         if n > (self.channels - 1):
-            raise ValueError("this sample has only %d channel(s)!"
-                             % self.channels)
+            raise ValueError("this sample has only %d channel(s)!" %
+                             self.channels)
         newsamples = self.samples[:, n]
         if contiguous and not newsamples.flags.c_contiguous:
             newsamples = np.ascontiguousarray(newsamples)
@@ -732,25 +759,32 @@ class Sample(object):
 
     def spectrum(self, resolution=30, **kws):
         import sndtrck
-        return sndtrck.analyze_samples(self.samples, self.samplerate, 
-                                       resolution=resolution, **kws)
+        return sndtrck.analyze_samples(self.samples,
+                                       self.samplerate,
+                                       resolution=resolution,
+                                       **kws)
 
-    def chord_at(self, t:float, resolution=30, **kws):
+    def chord_at(self, t: float, resolution=30, **kws):
         margin = 0.15
-        t0 = max(0, t-margin)
-        t1 = min(self.duration, t+margin)
+        t0 = max(0, t - margin)
+        t1 = min(self.duration, t + margin)
         import sndtrck
-        s = sndtrck.analyze_samples(self[t0:t1].samples, self.samplerate, 
-                                    resolution=resolution, hop=2)
+        s = sndtrck.analyze_samples(self[t0:t1].samples,
+                                    self.samplerate,
+                                    resolution=resolution,
+                                    hop=2)
         chord = s.chord_at(t - t0)
         return chord
 
     def chunks(self, chunksize, hop=None, pad=False):
         """
         Iterate over the samples in chunks of chunksize. If pad is True,
-        the last chunk will be zeropadded, if necessary 
+        the last chunk will be zeropadded, if necessary
         """
-        return numpytools.chunks(self.samples, chunksize=chunksize, hop=hop, padwith=(0 if pad else None))
+        return numpytools.chunks(self.samples,
+                                 chunksize=chunksize,
+                                 hop=hop,
+                                 padwith=(0 if pad else None))
 
 
 def first_sound(samples, threshold=-120.0, period=256, hopratio=0.5):
@@ -780,12 +814,14 @@ def last_sound(samples, threshold=-120.0, period=256, hopratio=1.0):
     """
     Find the end of the last sound in the samples.
     (the last time where the rms is lower than the given threshold)
-    
+
     Returns -1 if no sound is found
     """
     samples1 = samples[::-1]
-    i = first_sound(samples1, threshold=threshold,
-                    period=period, hopratio=hopratio)
+    i = first_sound(samples1,
+                    threshold=threshold,
+                    period=period,
+                    hopratio=hopratio)
     if i < 0:
         return i
     return len(samples) - (i + period)
@@ -796,7 +832,7 @@ def rms(arr):
     """
     calculate the root-mean-square of the arr
     """
-    return ((abs(arr) ** 2) / len(arr)).sum()
+    return ((abs(arr)**2) / len(arr)).sum()
 
 
 def broadcast_samplerate(a, b):
@@ -831,7 +867,7 @@ def numchannels(samples):
     """
     assert isinstance(samples, np.ndarray)
     return 1 if len(samples.shape) == 1 else samples.shape[1]
-    
+
 
 def _as_numpy_samples(samples):
     # type: (t.U[Sample, np.ndarray]) -> np.ndarray
@@ -871,7 +907,7 @@ def mono(samples):
     channels = numchannels(samples)
     if channels == 1:
         return samples
-    return np.sum(samples, axis=1)/channels
+    return np.sum(samples, axis=1) / channels
 
 
 def concat(sampleseq):
@@ -880,7 +916,7 @@ def concat(sampleseq):
     sampleseq: a seq. of Samples
 
     concat the given Samples into one Sample.
-    Samples should share samplingrate and numchannels 
+    Samples should share samplingrate and numchannels
     """
     s = np.concatenate([s.samples for s in sampleseq])
     return Sample(s, sampleseq[0].samplerate)
@@ -973,14 +1009,17 @@ def open_sndfile_to_write(filename, channels=1, samplerate=48000, bits=None):
     ext = ext[1:4].lower()
     if not ext or ext not in encodings:
         raise ValueError("The extension of the file is not supported")
-    
+
     encoding = encodings[ext].get(bits)
     if encoding is None:
         raise ValueError("no format possible for %s with %d bits" %
                          (ext, bits))
     fmt = pysndfile.construct_format(ext, encoding)
-    return pysndfile.PySndfile(filename, 'w', format=fmt,
-                               channels=channels, samplerate=samplerate)
+    return pysndfile.PySndfile(filename,
+                               'w',
+                               format=fmt,
+                               channels=channels,
+                               samplerate=samplerate)
 
 
 def gen_silence(dur, channels, sr):
@@ -989,7 +1028,7 @@ def gen_silence(dur, channels, sr):
     Generate a silent Sample with the given characteristics
     """
     if channels == 1:
-        samples = np.zeros((int(dur*sr),), dtype=float)
+        samples = np.zeros((int(dur * sr), ), dtype=float)
     else:
-        samples = np.zeros((int(dur*sr), channels), dtype=float)
+        samples = np.zeros((int(dur * sr), channels), dtype=float)
     return Sample(samples, sr)

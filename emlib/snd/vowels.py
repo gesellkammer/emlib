@@ -2,23 +2,15 @@ from math import pi, sqrt
 from emlib.pitchtools import *
 import bpf4 as bpf
 from emlib.snd import csoundengine
-from emlib.mus import Chord, Note
+from emlib.music import Chord, Note
 from emlib.iterlib import flatten
+from configdict import ConfigDict
 
-
-from emlib import conftools
 import emlib.typehints as t
 
-
-config = conftools.ConfigDict(
-    "emlib:vowels",
-    default={
-        'vowelsynth.method': 'fof2'
-    },
-    validator={
-        'vowelsynth.method::choices': ['fof2']
-    }
-)
+config = ConfigDict("emlib:vowels",
+                    default={'vowelsynth.method': 'fof2'},
+                    validator={'vowelsynth.method::choices': ['fof2']})
 
 
 class Vowel(t.NamedTuple):
@@ -32,17 +24,17 @@ class Vowel(t.NamedTuple):
 
     def transpose(self, interval):
         ratio = interval2ratio(interval)
-        freqs = [f*ratio for f in self.freqs]
+        freqs = [f * ratio for f in self.freqs]
         return Vowel(dbs=self.dbs, bws=self.bws, freqs=freqs)
 
     def scalebw(self, factor):
         bws = [bw * factor for bw in self.bws]
         return Vowel(bws=bws, dbs=self.dbs, freqs=self.freqs)
-    
+
 
 def getVowel(descr: t.U[str, t.Tup[str, str]]) -> Vowel:
     """
-    descr: a string of the form "vocal:register", like "i:bass", or 
+    descr: a string of the form "vocal:register", like "i:bass", or
            a tuple ('i', 'bass')
     """
     if isinstance(descr, str):
@@ -50,66 +42,142 @@ def getVowel(descr: t.U[str, t.Tup[str, str]]) -> Vowel:
     elif isinstance(descr, tuple):
         vowel, register = descr
     else:
-        raise TypeError("descr should be a str like 'i:bass' or a tuple like ('i', 'bass')")
+        raise TypeError(
+            "descr should be a str like 'i:bass' or a tuple like ('i', 'bass')"
+        )
     return formants[vowel][register]
 
 
 # The praat data was taken by synthesizing a vowel and analyzing it later
 # The bandwidth for the third formant gives in some very big values, these
-# have been reduced. The analysis does not yield intesity values for the 
+# have been reduced. The analysis does not yield intesity values for the
 # bandwidths.
-
 
 formants: t.Dict[str, t.Dict[str, Vowel]] = {
     'e': {
-        'bass':       Vowel(dbs=[0, -12, -9,  -12, -18], bws=[40, 80,  100, 120, 120], freqs=[400, 1620, 2400, 2800, 3100]),
-        'counterten': Vowel(dbs=[0, -14, -18, -20, -20], bws=[70, 80,  100, 120, 120], freqs=[440, 1800, 2700, 3000, 3300]),
-        'soprano':    Vowel(dbs=[0, -20, -15, -40, -56], bws=[60, 100, 120, 150, 200], freqs=[350, 2000, 2800, 3600, 4950]),
-        'alto':       Vowel(dbs=[0, -24, -30, -35, -60], bws=[60, 80,  120, 150, 200], freqs=[400, 1600, 2700, 3300, 4950]),
-        'tenor':      Vowel(dbs=[0, -14, -12, -14, -20], bws=[70, 80,  100, 120, 120], freqs=[400, 1700, 2600, 3200, 3580]),
-        'praat-male': Vowel(dbs=[0, -12, -9, -12, -60],  bws=[90, 190, 220, 260, 120], freqs=[432, 1895, 2170, 2600, 3580]),
-        'male':       Vowel(dbs=[0, -12, -9, -12, -60],  bws=[90, 190, 220, 260, 120], freqs=[432, 1895, 2170, 2600, 3580])
+        'bass':
+        Vowel(dbs=[0, -12, -9, -12, -18],
+              bws=[40, 80, 100, 120, 120],
+              freqs=[400, 1620, 2400, 2800, 3100]),
+        'counterten':
+        Vowel(dbs=[0, -14, -18, -20, -20],
+              bws=[70, 80, 100, 120, 120],
+              freqs=[440, 1800, 2700, 3000, 3300]),
+        'soprano':
+        Vowel(dbs=[0, -20, -15, -40, -56],
+              bws=[60, 100, 120, 150, 200],
+              freqs=[350, 2000, 2800, 3600, 4950]),
+        'alto':
+        Vowel(dbs=[0, -24, -30, -35, -60],
+              bws=[60, 80, 120, 150, 200],
+              freqs=[400, 1600, 2700, 3300, 4950]),
+        'tenor':
+        Vowel(dbs=[0, -14, -12, -14, -20],
+              bws=[70, 80, 100, 120, 120],
+              freqs=[400, 1700, 2600, 3200, 3580]),
+        'praat-male':
+        Vowel(dbs=[0, -12, -9, -12, -60],
+              bws=[90, 190, 220, 260, 120],
+              freqs=[432, 1895, 2170, 2600, 3580]),
+        'male':
+        Vowel(dbs=[0, -12, -9, -12, -60],
+              bws=[90, 190, 220, 260, 120],
+              freqs=[432, 1895, 2170, 2600, 3580])
     },
     'o': {
-        'bass':       Vowel([0, -11, -21, -20, -40], [40, 80, 100, 120, 120], [400, 750, 2400, 2600, 2900]),
-        'counterten': Vowel([0, -10, -26, -22, -34], [40, 80, 100, 120, 120], [430, 820, 2700, 3000, 3300]),
-        'soprano':    Vowel([0, -11, -22, -22, -50], [70, 80, 100, 130, 135], [450, 800, 2830, 3800, 4950]),
-        'alto':       Vowel([0, -9,  -16, -28, -55], [70, 80, 100, 130, 135], [450, 800, 2830, 3500, 4950]),
-        'tenor':      Vowel([0, -10, -12, -12, -26], [40, 80, 100, 120, 120], [400, 800, 2600, 2800, 3000]),
-        'praat-male': Vowel([0, -10, -12, -12, -60], [107,94, 483, 224, 120], [540,  940, 2050, 2570, 3000]),
+        'bass':
+        Vowel([0, -11, -21, -20, -40], [40, 80, 100, 120, 120],
+              [400, 750, 2400, 2600, 2900]),
+        'counterten':
+        Vowel([0, -10, -26, -22, -34], [40, 80, 100, 120, 120],
+              [430, 820, 2700, 3000, 3300]),
+        'soprano':
+        Vowel([0, -11, -22, -22, -50], [70, 80, 100, 130, 135],
+              [450, 800, 2830, 3800, 4950]),
+        'alto':
+        Vowel([0, -9, -16, -28, -55], [70, 80, 100, 130, 135],
+              [450, 800, 2830, 3500, 4950]),
+        'tenor':
+        Vowel([0, -10, -12, -12, -26], [40, 80, 100, 120, 120],
+              [400, 800, 2600, 2800, 3000]),
+        'praat-male':
+        Vowel([0, -10, -12, -12, -60], [107, 94, 483, 224, 120],
+              [540, 940, 2050, 2570, 3000]),
         # 'male':       Vowel([0, -10, -12, -12, -26], [40, 80, 100, 120, 120], [400, 800, 2600, 2800, 3000])
-        'male':       Vowel([0, -10, -12, -12, -43], [73, 87, 291, 172, 120], [470, 870, 2325, 2685, 3000])
+        'male':
+        Vowel([0, -10, -12, -12, -43], [73, 87, 291, 172, 120],
+              [470, 870, 2325, 2685, 3000])
     },
     'a': {
-        'bass':       Vowel([0, -7, -9,  -9,  -20], [60, 70, 110, 120, 130], [600, 1040, 2250, 2450, 2750]),
-        'counterten': Vowel([0, -6, -23, -24, -38], [80, 90, 120, 130, 140], [660, 1120, 2750, 3000, 3350]),
-        'soprano':    Vowel([0, -6, -32, -20, -50], [80, 90, 120, 130, 140], [800, 1150, 2900, 3900, 4950]),
-        'alto':       Vowel([0, -4, -20, -36, -60], [80, 90, 120, 130, 140], [800, 1150, 2800, 3500, 4950]),
-        'tenor':      Vowel([0, -6, -7,  -8,  -22], [80, 90, 120, 130, 140], [650, 1080, 2650, 2900, 3250]),
-        'praat-male': Vowel([0, -6, -7,  -8,  -60], [82, 130,350, 260, 120], [825, 1300, 2100, 2580, 3000]),
-        'male':       Vowel([0, -6, -7,  -8,  -41], [81, 110,235, 195, 130], [737, 1190, 2375, 2740, 3125])
-    },  
+        'bass':
+        Vowel([0, -7, -9, -9, -20], [60, 70, 110, 120, 130],
+              [600, 1040, 2250, 2450, 2750]),
+        'counterten':
+        Vowel([0, -6, -23, -24, -38], [80, 90, 120, 130, 140],
+              [660, 1120, 2750, 3000, 3350]),
+        'soprano':
+        Vowel([0, -6, -32, -20, -50], [80, 90, 120, 130, 140],
+              [800, 1150, 2900, 3900, 4950]),
+        'alto':
+        Vowel([0, -4, -20, -36, -60], [80, 90, 120, 130, 140],
+              [800, 1150, 2800, 3500, 4950]),
+        'tenor':
+        Vowel([0, -6, -7, -8, -22], [80, 90, 120, 130, 140],
+              [650, 1080, 2650, 2900, 3250]),
+        'praat-male':
+        Vowel([0, -6, -7, -8, -60], [82, 130, 350, 260, 120],
+              [825, 1300, 2100, 2580, 3000]),
+        'male':
+        Vowel([0, -6, -7, -8, -41], [81, 110, 235, 195, 130],
+              [737, 1190, 2375, 2740, 3125])
+    },
     'u': {
-        'bass':       Vowel([0, -20, -32, -28, -36], [40, 80, 100, 120, 120], [350, 600, 2400, 2675, 2950]),
-        'counterten': Vowel([0, -20, -23, -30, -34], [40, 60, 100, 120, 120], [370, 630, 2750, 3000, 3400]),
-        'soprano':    Vowel([0, -16, -35, -40, -60], [50, 60, 170, 180, 200], [325, 700, 2700, 3800, 4950]),
-        'alto':       Vowel([0, -12, -30, -40, -64], [50, 60, 170, 180, 200], [325, 700, 2530, 3500, 4950]),
-        'tenor':      Vowel([0, -20, -17, -14, -26], [40, 60, 100, 120, 120], [350, 600, 2700, 2900, 3300]),
-        'praat-male': Vowel([0, -12, -26, -20, -60], [80, 63, 250, 180, 220], [366, 733, 1855, 2540, 3540]),
-        'male':       Vowel([0, -12, -26, -20, -60], [80, 63, 250, 180, 220], [366, 733, 1855, 2540, 3540])
-
+        'bass':
+        Vowel([0, -20, -32, -28, -36], [40, 80, 100, 120, 120],
+              [350, 600, 2400, 2675, 2950]),
+        'counterten':
+        Vowel([0, -20, -23, -30, -34], [40, 60, 100, 120, 120],
+              [370, 630, 2750, 3000, 3400]),
+        'soprano':
+        Vowel([0, -16, -35, -40, -60], [50, 60, 170, 180, 200],
+              [325, 700, 2700, 3800, 4950]),
+        'alto':
+        Vowel([0, -12, -30, -40, -64], [50, 60, 170, 180, 200],
+              [325, 700, 2530, 3500, 4950]),
+        'tenor':
+        Vowel([0, -20, -17, -14, -26], [40, 60, 100, 120, 120],
+              [350, 600, 2700, 2900, 3300]),
+        'praat-male':
+        Vowel([0, -12, -26, -20, -60], [80, 63, 250, 180, 220],
+              [366, 733, 1855, 2540, 3540]),
+        'male':
+        Vowel([0, -12, -26, -20, -60], [80, 63, 250, 180, 220],
+              [366, 733, 1855, 2540, 3540])
     },
     'i': {
-        'bass':       Vowel([0, -30, -16, -22, -28], [60,  90, 100, 120, 120], [250, 1750, 2600, 3050, 3340]),
-        'counterten': Vowel([0, -24, -24, -36, -36], [40,  90, 100, 120, 120], [270, 1850, 2900, 3350, 3590]),
-        'soprano':    Vowel([0, -12, -26, -26, -44], [60,  90, 100, 120, 120], [270, 2140, 2950, 3900, 4950]),
-        'alto':       Vowel([0, -20, -30, -36, -60], [50, 100, 120, 150, 200], [350, 1700, 2700, 3700, 4950]),
-        'tenor':      Vowel([0, -15, -18, -20, -30], [40,  90, 100, 120, 120], [290, 1870, 2800, 3250, 3540]),
-        'praat-male': Vowel([0, -12, -18, -20, -60], [100, 230, 450, 260, 220],[290, 1926, 2297, 2610, 3540]),
-        'male':       Vowel([0, -17, -20, -25, -42], [60, 136, 216, 166, 153], [283, 1882, 2665, 3070, 3556])
-
-    }   
-}       
+        'bass':
+        Vowel([0, -30, -16, -22, -28], [60, 90, 100, 120, 120],
+              [250, 1750, 2600, 3050, 3340]),
+        'counterten':
+        Vowel([0, -24, -24, -36, -36], [40, 90, 100, 120, 120],
+              [270, 1850, 2900, 3350, 3590]),
+        'soprano':
+        Vowel([0, -12, -26, -26, -44], [60, 90, 100, 120, 120],
+              [270, 2140, 2950, 3900, 4950]),
+        'alto':
+        Vowel([0, -20, -30, -36, -60], [50, 100, 120, 150, 200],
+              [350, 1700, 2700, 3700, 4950]),
+        'tenor':
+        Vowel([0, -15, -18, -20, -30], [40, 90, 100, 120, 120],
+              [290, 1870, 2800, 3250, 3540]),
+        'praat-male':
+        Vowel([0, -12, -18, -20, -60], [100, 230, 450, 260, 220],
+              [290, 1926, 2297, 2610, 3540]),
+        'male':
+        Vowel([0, -17, -20, -25, -42], [60, 136, 216, 166, 153],
+              [283, 1882, 2665, 3070, 3556])
+    }
+}
 
 
 def _listmul(seq, scalar):
@@ -131,15 +199,19 @@ def interpolateVowel(vowels, weights=None):
     if isinstance(vowels[0], str):
         vowels = [getVowel(vowel) for vowel in vowels]
     sumweights = sum(weights)
-    normalizedWeights = [w/sumweights for w in weights]
+    normalizedWeights = [w / sumweights for w in weights]
     rows = list(zip(vowels, normalizedWeights))
-    avgfreqs = _sumcolumns([_listmul(vowel.freqs, weight) for vowel, weight in rows])
-    avgdbs = _sumcolumns([_listmul(vowel.dbs, weight) for vowel, weight in rows])
-    avgbws = _sumcolumns([_listmul(vowel.bws, weight) for vowel, weight in rows])
+    avgfreqs = _sumcolumns(
+        [_listmul(vowel.freqs, weight) for vowel, weight in rows])
+    avgdbs = _sumcolumns(
+        [_listmul(vowel.dbs, weight) for vowel, weight in rows])
+    avgbws = _sumcolumns(
+        [_listmul(vowel.bws, weight) for vowel, weight in rows])
     return Vowel(dbs=avgdbs, bws=avgbws, freqs=avgfreqs)
 
 
 _cache = {}
+
 
 def vowelInstr(kind='fof2'):
     """
@@ -150,9 +222,10 @@ def vowelInstr(kind='fof2'):
     else:
         raise KeyError(f"no instr with kind {kind}")
 
+
 def _vowelInstrFof2():
     instr = _cache.get('vowelInstr.fof2')
-    if instr: 
+    if instr:
         return instr
     body = """
         itotdur = p3
@@ -176,7 +249,7 @@ def _vowelInstrFof2():
         iform5 = p21
         iband5 = p22
         iamp5  = p23
-        
+
         ivibamount = 2 ^ (-ivibinterval / 12)   ; vibrato should be always downwards
 
         iBurstRise init 0.003
@@ -208,7 +281,8 @@ def _vowelInstrFof2():
     init = """
         ;gi_fof2rise ftgen 0, 0, 4096, 7, 0, 4096, 1  ; a simple linear envelope
     """
-    _cache['vowelInstr'] = instr = csoundengine.makeInstr(name='vowels.fof2', body=body,
+    _cache['vowelInstr'] = instr = csoundengine.makeInstr(name='vowels.fof2',
+                                                          body=body,
                                                           initcode=init)
     return instr
 
@@ -223,7 +297,8 @@ def instrData(vowel):
 def _synthVowelFof2(midinote, vowel, dur, vibrate=0, vibamount=0.25, gain=1.0):
     # type: (t.U[float, t.Tup[float, float]], t.U[str, Vowel], float, float) -> csoundengine.AbstrSynth
     instr = vowelInstr('fof2')
-    midi0, midi1 = midinote if isinstance(midinote, tuple) else (midinote, midinote)
+    midi0, midi1 = midinote if isinstance(midinote, tuple) else (midinote,
+                                                                 midinote)
     vowel = asVowel(vowel)
     data = instrData(vowel)
     args = [gain, midi0, midi1, vibrate, vibamount] + data
@@ -231,12 +306,24 @@ def _synthVowelFof2(midinote, vowel, dur, vibrate=0, vibamount=0.25, gain=1.0):
     return synth
 
 
-def synthVowel(midinote, vowel, dur=4, gain=1.0, method='fof2', vibrate=0, vibamount=0.25):
+def synthVowel(midinote,
+               vowel,
+               dur=4,
+               gain=1.0,
+               method='fof2',
+               vibrate=0,
+               vibamount=0.25):
     # type: (t.U[float, t.Tup[float, float]], t.U[str, Vowel], float, float, str) -> csoundengine.AbstrSynth
     if method == 'fof2':
-        return _synthVowelFof2(midinote, vowel, dur, gain=gain, vibamount=vibamount, vibrate=vibrate)
+        return _synthVowelFof2(midinote,
+                               vowel,
+                               dur,
+                               gain=gain,
+                               vibamount=vibamount,
+                               vibrate=vibrate)
     else:
-        raise ValueError(f"method {method} not supported. It should be one of ['noise'] ")
+        raise ValueError(
+            f"method {method} not supported. It should be one of ['noise'] ")
 
 
 # ------------------------------------------------------------
@@ -244,10 +331,10 @@ def synthVowel(midinote, vowel, dur=4, gain=1.0, method='fof2', vibrate=0, vibam
 
 def _overtones_tri(f0, maxfreq):
     """
-    It is possible to approximate a triangle wave with additive synthesis by summing 
-    odd harmonics of the fundamental while multiplying every other odd harmonic by −1 
-    (or, equivalently, changing its phase by π) and multiplying the amplitude of the 
-    harmonics by one over the square of their mode number, n, (which is equivalent 
+    It is possible to approximate a triangle wave with additive synthesis by summing
+    odd harmonics of the fundamental while multiplying every other odd harmonic by −1
+    (or, equivalently, changing its phase by π) and multiplying the amplitude of the
+    harmonics by one over the square of their mode number, n, (which is equivalent
     to one over the square of their relative frequency to the fundamental)
                1
     An = ---------------
@@ -258,7 +345,7 @@ def _overtones_tri(f0, maxfreq):
         fn = f0 * n
         if fn > maxfreq:
             break
-        an = 1 / ((fn/f0)**2)
+        an = 1 / ((fn / f0)**2)
         overtones.append((fn, an))
     return overtones
 
@@ -269,10 +356,10 @@ def _overtones_saw(f0, maxfreq):
     """
     overtones = []
     for n in range(1, 1000000, 1):
-        fn = f0*n
+        fn = f0 * n
         if fn > maxfreq:
             break
-        an = 1/n
+        an = 1 / n
         overtones.append((fn, an))
     return overtones
 
@@ -280,18 +367,19 @@ def _overtones_saw(f0, maxfreq):
 def _overtones_square(f0, maxfreq):
     overtones = []
     for n in range(1, 1000000, 2):
-        fn = f0*n
+        fn = f0 * n
         if fn > maxfreq:
             break
         # an = 2/(pi*n)
-        an = 4/pi * 1/n
+        an = 4 / pi * 1 / n
         overtones.append((fn, an))
     return overtones
+
 
 def _overtones_const(f0, maxfreq):
     overtones = []
     for n in range(1, 1000000):
-        fn = f0*n
+        fn = f0 * n
         if fn > maxfreq:
             break
         overtones.append((fn, 1))
@@ -318,13 +406,15 @@ def makeOvertones(f0, model='saw', maxfreq=8000):
 
 def findVowel(freqs: t.List[float]) -> str:
     """
-    Find the vowel whose formant freqs are nearest to the 
+    Find the vowel whose formant freqs are nearest to the
     freqs given
     """
-    def vowelDistance(voweldef: Vowel, freqs:t.List[float]) -> float:
+
+    def vowelDistance(voweldef: Vowel, freqs: t.List[float]) -> float:
         vowelfreqs = voweldef.freqs[:len(freqs)]
-        dist = sqrt(sum((f2m(vowelfreq) - f2m(freq))**2
-                        for vowelfreq, freq in zip(vowelfreqs, freqs)))
+        dist = sqrt(
+            sum((f2m(vowelfreq) - f2m(freq))**2
+                for vowelfreq, freq in zip(vowelfreqs, freqs)))
         return dist
 
     results = []
@@ -337,7 +427,7 @@ def findVowel(freqs: t.List[float]) -> str:
     return f"{vowel}:{register}"
 
 
-def asVowel(vowel:t.U[str, Vowel]) -> Vowel:
+def asVowel(vowel: t.U[str, Vowel]) -> Vowel:
     """
     Converts a string to a Vowel. If a Vowel is passed, it is returned as is
 
@@ -348,7 +438,9 @@ def asVowel(vowel:t.U[str, Vowel]) -> Vowel:
     elif isinstance(vowel, str):
         return getVowel(vowel)
     else:
-        raise TypeError(f"expected a Vowel or a vowel desc. (like 'i:bass'), but got {vowel}")
+        raise TypeError(
+            f"expected a Vowel or a vowel desc. (like 'i:bass'), but got {vowel}"
+        )
 
 
 def listVowels():
@@ -368,7 +460,7 @@ class VowelFilter:
         """
         a VowelFilter uses a vowel definition to generate a spectral surface,
         mapping frequency to gain
-        
+
         vowel: a Vowel or a vowel description
         bwmul: a multiplier to the bandwidths defined in a Vowel
         bwknee: as a ratio of the bandwidth
@@ -392,12 +484,8 @@ class VowelFilter:
             bw = self.vowel.bws[i] * self.bwmul
             bw2 = bw * 0.5
             transitionbw = bw2 * transition
-            b = bpf.halfcos(
-                0, 0, 
-                freq - bw2 - transitionbw, 0, 
-                freq - bw2, amp, 
-                freq + bw2, amp, 
-                freq + bw2 + transitionbw, 0)
+            b = bpf.halfcos(0, 0, freq - bw2 - transitionbw, 0, freq - bw2,
+                            amp, freq + bw2, amp, freq + bw2 + transitionbw, 0)
             curves.append(b)
         return bpf.core.Max(*curves)
 
@@ -408,7 +496,7 @@ class VowelFilter:
         overtones: as generated via makeOvertones
         mindb: min. amplitude to be present in the result
         wet: the result is a combination of the original overtones and the
-            filtered result. When wet is 1, the result is composed only of 
+            filtered result. When wet is 1, the result is composed only of
             the filtered result.
         """
         return vocalChord(overtones, self, mindb=mindb, wet=wet)
@@ -417,7 +505,10 @@ class VowelFilter:
 def vocalChordFromF0(f0, vowel, model='saw', mindb=-90, wet=1.0):
     overtones = makeOvertones(f0=f0, model=model)
     vowelfilter = VowelFilter(asVowel(vowel))
-    return vocalChord(overtones=overtones, vowelfilter=vowelfilter, mindb=mindb, wet=wet)
+    return vocalChord(overtones=overtones,
+                      vowelfilter=vowelfilter,
+                      mindb=mindb,
+                      wet=wet)
 
 
 def vocalChord(overtones: t.List[t.Tup[float, float]],
@@ -444,7 +535,7 @@ def vocalChord(overtones: t.List[t.Tup[float, float]],
     pairs = []
     for freq, amp in overtones:
         ampwet = vowelfilter.ampAt(freq) * amp
-        amp2 = amp * (1-wet) + ampwet * wet
+        amp2 = amp * (1 - wet) + ampwet * wet
         if amp2db(amp2) > mindb:
             pairs.append((freq, amp2))
     return Chord([Note(f2m(freq), amp=amp) for freq, amp in pairs])

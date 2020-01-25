@@ -26,6 +26,10 @@ helper functions to work with csound
 logger = _logging.getLogger("emlib.csound")  # type: _logging.Logger
 
 
+_csoundbin = None
+_OPCODES = None
+
+
 class PlatformNotSupported(Exception):
     pass
 
@@ -34,25 +38,19 @@ def nextpow2(n:int) -> int:
     return int(2 ** _math.ceil(_math.log(n, 2)))
     
 
-def table_size_sndfile(filename:str) -> int:
-    """
-    return the length of the table for GEN01 (read sound file)
-    the length must be the next power of 2 bigger than the number 
-    of samples in the sound file
-    """
-    import sndfileio
-    info = sndfileio.sndinfo(filename)
-    return nextpow2(info.nframes)
-    
-
 def find_csound() -> Optional[str]:
+    global _csoundbin
+    if _csoundbin:
+        return _csoundbin
     csound = _shutil.which("csound")
     if csound:
+        _csoundbin = csound
         return csound
     logger.error("csound is not in the path!")
     if sys.platform.startswith("linux") or sys.platform == 'darwin':
         for path in ['/usr/local/bin/csound', '/usr/bin/csound']:
             if os.path.exists(path) and not os.path.isdir(path):
+                _csoundbin = path
                 return path
         return None
     elif sys.platform == 'win32':
@@ -93,8 +91,6 @@ def get_version() -> tuple[int, int, int]:
                 return (major, minor, patch)
     else:
         raise IOError("Did not found a csound version")
-
-_OPCODES = None
 
 
 def csound_subproc(args, piped=True):
