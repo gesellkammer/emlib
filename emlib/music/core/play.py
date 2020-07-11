@@ -35,7 +35,7 @@ import fnmatch
 from datetime import datetime
 
 from emlib.snd import csoundengine
-from emlib import typehints as t
+from emlib.typehints import U, Opt
 
 
 from .config import config, logger, presetsPath, recordPath
@@ -54,17 +54,24 @@ class PlayEngineNotStarted(Exception): pass
 @dataclass
 class _InstrDef:
     """
-    tabledef: a dict mapping parameter name to parameter default value
-              the parameter name can be an index if the parameter has no name
+        body: the body of the instrument preset
+        name: the name of the preset
+        init: any init code (global code)
+        includes: #include files
+        audiogen: the audio generating code
+        tabledef: a dict(param1: default1, param2: default2, ...)
+        tableinit: ???
+        tablemap: ???
+
     """
     body: str
     name: str = None
     init: str = None
     includes: list[str] = None
     audiogen: str = None
-    tabledef: t.Dict[t.U[str, int], float] = None
-    tableinit: t.List[float] = None
-    tablemap: t.Dict[str, int] = None
+    tabledef: dict[U[str, int], float] = None
+    tableinit: list[float] = None
+    tablemap: dict[str, int] = None
     userDefined: bool = False
     numsignals: int = 1
     numouts: int = 2
@@ -364,7 +371,7 @@ def _loadPreset(presetPath: str) -> [str, _InstrDef]:
     return presetName, instrdef
 
 
-def _loadPresets() -> t.Dict[str, _InstrDef]:
+def _loadPresets() -> dict[str, _InstrDef]:
     """
     loads all presets from presetsPath, return a dict {presetName:instrdef}
     """
@@ -450,25 +457,24 @@ class _PresetManager:
                   audiogen: str,
                   init:str=None,
                   includes: list[str] = None,
-                  tabledef: t.U[list[float], dict[str, float]] = None,
+                  tabledef: U[list[float], dict[str, float]] = None,
                   generateTableCode=True,
                   _userDefined=True,
                   ) -> _InstrDef:
         """
-        Define a new instrument preset. 
+        Define a new instrument preset. The defined preset can be used
+        as mynote.play(..., instr='name'), where name is the name of the
+        preset.
 
-        The new instrument is created by defining the audio
-        generating part.
-
-        Available variables:
+        A preset is created by defining the audio generating part as
+        csound code. Each preset has access to the following variables:
 
             kpitch: pitch as fractional midi
             kamp  : linear amplitude (0-1)
             kfreq : frequency corresponding to kpitch
 
-        Each preset CAN have an associated ftable, in which case p4
-        will hold the index to such table. If p4 is < 1, then
-        this preset does not have an associated ftable
+        Each preset CAN have an associated ftable, passed as p4.
+        If p4 is < 1, then the given preset has no associated ftable
 
         audiogen should generate an audio output signal named 'a0' for channel 1,
         a1 for channel 2, etc.
@@ -499,7 +505,8 @@ class _PresetManager:
             asig vco2 kamp, kfreq, 10
             asig moogladder a0, sc_lag:k(kcutoff, 0.1), kq
             '''
-            manager.defPresetSimple(name='mypreset', audiogen=audiogen, tabledef=dict(cutoff=4000, q=1))
+            manager.defPreset(name='mypreset', audiogen=audiogen,
+                              tabledef=dict(cutoff=4000, q=1))
 
         See Also:
             defPresetSoundfont
@@ -550,7 +557,7 @@ class _PresetManager:
                            init: str = None,
                            includes: list[str] = None,
                            postproc:str=None,
-                           tabledef: t.U[list[float], dict[str, float]] = None,
+                           tabledef: U[list[float], dict[str, float]] = None,
                            _userDefined=True) -> _InstrDef:
         """
         Define a new soundfont instrument preset
@@ -586,7 +593,7 @@ class _PresetManager:
             name = config['play.instr']
         return self.instrdefs.get(name)
 
-    def definedPresets(self) -> t.Set[str]:
+    def definedPresets(self) -> set[str]:
         return set(self.instrdefs.keys())
 
     def showPresets(self, pattern="*"):
@@ -669,8 +676,8 @@ class _PresetManager:
         return outpath
 
     def makeRenderer(self,
-                     events: t.List[CsoundEvent] = None,
-                     presetNames:t.List[str]=None,
+                     events: list[CsoundEvent] = None,
+                     presetNames:list[str]=None,
                      sr:int=None,
                      ksmps=None
                      ) -> csoundengine.Renderer:
@@ -731,7 +738,7 @@ class _OfflineRenderer:
         self.sr = sr or config['rec.samplerate']
         self.ksmps = ksmps
         self.outfile = outfile
-        self.events: t.List[CsoundEvent] = []
+        self.events: list[CsoundEvent] = []
 
     def sched(self, event:CsoundEvent) -> None:
         self.events.append(event)
@@ -841,7 +848,7 @@ def _makeIncludeLine(include: str) -> str:
         return f'#include "{include}"'
 
 
-def _genIncludes(includes: t.List[str]) -> str:
+def _genIncludes(includes: list[str]) -> str:
     return "\n".join(_makeIncludeLine(inc) for inc in includes)
 
 
@@ -906,7 +913,7 @@ def _soundfontToChannel(sfpath:str) -> str:
     return f"_sf:{basename}"
 
 
-def availableInstrs(report=True) -> t.Set[str]:
+def availableInstrs(report=True) -> set[str]:
     """
     Returns a set of instr presets already defined
 
@@ -982,7 +989,7 @@ def isEngineActive() -> bool:
     return csoundengine.getEngine(group) is not None
 
 
-def getPlayEngine() -> t.Opt[csoundengine.CsoundEngine]:
+def getPlayEngine() -> Opt[csoundengine.CsoundEngine]:
     engine = csoundengine.getEngine(name=config['play.group'])
     if not engine:
         logger.debug("engine not started")
@@ -994,7 +1001,7 @@ def getPresetManager() -> _PresetManager:
     return _presetManager
 
 
-def getPreset(preset:str) -> t.Opt[_InstrDef]:
+def getPreset(preset:str) -> Opt[_InstrDef]:
     return getPresetManager().getPreset(preset)
 
 
@@ -1035,7 +1042,7 @@ class rendering:
         """
         self.kws = kws
         self.outfile = outfile
-        self.renderer: t.Opt[_OfflineRenderer] = None
+        self.renderer: Opt[_OfflineRenderer] = None
         self.quiet = quiet or config['rec.quiet']
         self.wait = wait
 

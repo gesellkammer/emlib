@@ -2,7 +2,7 @@ from . import core
 import os
 
 import abjad as abj
-import abjadtools as abjtools
+from emlib.music import abjadtools as abjtools
 
 from emlib import lib
 import emlib.typehints as t

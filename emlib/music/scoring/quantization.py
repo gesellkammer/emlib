@@ -2,9 +2,9 @@ from __future__ import annotations
 import music21 as m21
 import abjad as abj
 from abjadext import nauert
-from emlib.music import m21tools
 from emlib.typehints import *
-import abjadtools
+from emlib.music import abjadtools
+from emlib.music import m21tools
 from emlib.music import m21fix
 
 from .core import *

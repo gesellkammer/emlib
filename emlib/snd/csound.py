@@ -12,12 +12,84 @@ import textwrap as _textwrap
 import io
 import tempfile
 import cachetools
-from typing import Union, Optional, Generator, Sequence
+from dataclasses import dataclass
+from typing import Union, Optional as Opt, Generator, Sequence, Dict, Callable
 
 import numpy as np
 
 import emlib.lib as _lib
 
+
+@dataclass
+class AudioBackend:
+    name: str
+    alwaysAvailable: bool
+    supportsSystemSr: bool
+    needsRealtime: bool
+    platforms: list[str]
+    longname: str = ""
+
+    def __post_init__(self):
+        if not self.longname:
+            self.longname = self.name
+
+    def isAvailable(self):
+        return is_backend_available(self.name)
+
+
+_backend_jack = AudioBackend('jack',
+                             alwaysAvailable=False,
+                             supportsSystemSr=True,
+                             needsRealtime=False,
+                             platforms=['linux', 'darwin', 'win32'])
+
+_backend_pacb = AudioBackend('pa_cb',
+                             alwaysAvailable=True,
+                             supportsSystemSr=False,
+                             needsRealtime=False,
+                             longname="portaudio-callback",
+                             platforms=['linux', 'darwin', 'win32'])
+
+_backend_pabl = AudioBackend('pa_bl',
+                             alwaysAvailable=True,
+                             supportsSystemSr=False,
+                             needsRealtime=False,
+                             longname="portaudio-blocking",
+                             platforms=['linux', 'darwin', 'win32'])
+
+_backend_auhal = AudioBackend('auhal',
+                              alwaysAvailable=True,
+                              supportsSystemSr=True,
+                              needsRealtime=False,
+                              platforms=['darwin'])
+
+_backend_pulse = AudioBackend('pulse',
+                              alwaysAvailable=False,
+                              supportsSystemSr=False,
+                              needsRealtime=False,
+                              platforms=['linux'])
+
+_backend_alsa = AudioBackend('alsa',
+                             alwaysAvailable=True,
+                             supportsSystemSr=False,
+                             needsRealtime=True,
+                             platforms=['linux'])
+
+audio_backends: dict[str, AudioBackend] = {
+    'jack' : _backend_jack,
+    'auhal': _backend_auhal,
+    'pa_cb': _backend_pacb,
+    'pa_bl': _backend_pabl,
+    'pulse': _backend_pulse,
+    'alsa' : _backend_alsa
+}
+
+
+_platform_backends: dict[str, list[AudioBackend]] = {
+    'linux': [_backend_jack, _backend_pacb, _backend_alsa, _backend_pabl, _backend_pulse],
+    'darwin': [_backend_jack, _backend_auhal, _backend_pacb],
+    'win32': [_backend_pacb, _backend_pabl]
+}
 
 """
 helper functions to work with csound
@@ -30,15 +102,17 @@ _csoundbin = None
 _OPCODES = None
 
 
-class PlatformNotSupported(Exception):
-    pass
+## Exceptions
+
+class PlatformNotSupported(Exception): pass
+class AudioBackendNotAvailable(Exception): pass
 
 
 def nextpow2(n:int) -> int:
     return int(2 ** _math.ceil(_math.log(n, 2)))
     
 
-def find_csound() -> Optional[str]:
+def find_csound() -> Opt[str]:
     global _csoundbin
     if _csoundbin:
         return _csoundbin
@@ -109,21 +183,12 @@ def csound_subproc(args, piped=True):
     return subprocess.Popen(callargs, stderr=p, stdout=p)
     
 
-def get_default_backend() -> str:
+def get_default_backend() -> AudioBackend:
     """
     Get the default backend for platform. Check if the backend
     is available and running (in the case of Jack)
-
-                Default
-    -------------------------------------------------
-    linux       jack if present, pa_cb otherwise
-    mac         auhal (coreaudio)
-    win32       pa_cb
     """
-    backends = get_audiobackends()
-    if "jack" in backends:
-        return "jack"
-    return backends[0]
+    return get_audiobackends()[0]
 
 
 def run_csd(csdfile:str, 
@@ -163,7 +228,7 @@ def run_csd(csdfile:str,
         if output.startswith("dac"):
             realtime = True
     if realtime and not backend:
-        backend = get_default_backend()
+        backend = get_default_backend().name
     if backend:
         args.append(f"-+rtaudio={backend}")
     if input:
@@ -208,7 +273,7 @@ def join_csd(orc: str, sco="", options:list[str]=None) -> str:
 
 
 def test_csound(dur=8, nchnls=2, backend=None, device="dac", sr=None, verbose=True):
-    backend = backend or get_default_backend()
+    backend = backend or get_default_backend().name
     sr = sr or get_sr(backend)
     printchan = "printk2 kchn" if verbose else ""
     orc = f"""
@@ -398,7 +463,7 @@ def get_audiodevices(backend:str=None):
     pa_bl    x      x    x     x                  PortAudio (blocking)
     """
     if not backend:
-        backend = get_default_backend()
+        backend = get_default_backend().name
     indevices, outdevices = [], []
     proc = csound_subproc(['-+rtaudio=%s' % backend, '--devices'])
     proc.wait()
@@ -419,74 +484,87 @@ def get_audiodevices(backend:str=None):
     return indevices, outdevices
 
 
-def get_sr(backend:str="") -> float:
+def get_sr(backend: Union[str, AudioBackend]) -> float:
     """
     Returns the samplerate reported by the given backend, or
     0 if failed
 
-    If no backend is specified, the default backend is used
-    (returned by get_default_backend)
-
     """
-    failed_sr = 0
-    if not backend:
-        backend = get_default_backend()
-    if backend == 'jack':
-        sr = int(subprocess.getoutput("jack_samplerate"))
-        return sr 
-    elif backend not in _backends_which_support_systemsr:
+    FAILED = 0
+
+    audiobackend = backend if isinstance(backend, AudioBackend) else \
+                   audio_backends[backend]
+
+    if not audiobackend.isAvailable():
+        raise AudioBackendNotAvailable
+
+    if audiobackend.supportsSystemSr:
         return 44100
-    
+
+    if audiobackend.name == 'jack' and _shutil.which('jack_samplerate') is not None:
+        sr = int(subprocess.getoutput("jack_samplerate"))
+        return sr
+
     proc = csound_subproc(f"-odac -+rtaudio={backend} --get-system-sr".split())
     proc.wait()
     srlines = [line for line in proc.stdout.readlines() 
                if line.startswith(b"system sr:")]
     if not srlines:
         logger.error(f"get_sr: Failed to get sr with backend {backend}")
-        return failed_sr
+        return FAILED
     sr = float(srlines[0].split(b":")[1].strip())
     logger.debug(f"get_sr: sample rate query output: {srlines}")
-    return sr if sr > 0 else failed_sr
-    
+    return sr if sr > 0 else FAILED
 
-def is_backend_available(backend):
+
+def _jack_is_available() -> bool:
+    if sys.platform == 'linux' and _shutil.which('jack_control') is not None:
+        status = int(subprocess.getstatusoutput("jack_control status")[0])
+        return status == 0
+    proc = csound_subproc(['+rtaudio=jack', '--get-system-sr'])
+    proc.wait()
+    return b'JACK module enabled' in proc.stderr.read()
+
+
+# cache the result for 10 seconds
+@cachetools.cached(cache=cachetools.TTLCache(1, 10))
+def is_backend_available(backend: str) -> bool:
     if backend == 'jack':
-        if sys.platform == 'linux':
-            status = int(subprocess.getstatusoutput("jack_control status")[0])
-            return status == 0
-        else:
-            proc = csound_subproc(['+rtaudio=jack', '--get-system-sr'])
-            proc.wait()
-            return b'JACK module enabled' in proc.stderr.read()
+        return _jack_is_available()
     else:
         indevices, outdevices = get_audiodevices(backend=backend)
         return bool(indevices or outdevices)
-        
-
-_platform_backends = {
-    'linux': ["jack", "pa_cb", "alsa", "pa_bl", "pulse"],
-    'darwin': ["auhal", "pa_cb", "pa_bl", "auhal"],
-    'win32': ["pa_cb", "pa_bl"]
-}
-
-_backends_always_on = {'pa_cb', 'pa_bl', 'auhal', 'alsa'}
-_backends_which_support_systemsr = {'jack', 'alsa', 'coreaudio'}
-_backends_which_need_realtime = {'alsa', 'pa_cb'}
 
 
 @cachetools.cached(cache=cachetools.TTLCache(1, 10))
-def get_audiobackends():
-    """ 
+def get_audiobackends() -> list[AudioBackend]:
+    """
     Return a list of supported audio backends as they would be passed
     to -+rtaudio
 
-    if checkall is False, only those backends which can be available
-    in csound but might not be present (jack) are checked
+    Only those backends currently available are returned
+    (for example, jack will not be returned in linux if the
+    jack server is not running)
+
     """
     backends = _platform_backends[sys.platform]
-    backends = [b for b in backends
-                if b in _backends_always_on or is_backend_available(b)]
+    backends = [backend for backend in backends if backend.isAvailable()]
     return backends
+
+
+def get_audiobackends_names() -> list[str]:
+    """
+    Similar to get_audiobackends, but returns the names of the
+    backends. The AudioBackend class can be retrieved via
+
+    audio_backends[backend_name]
+
+    Returns:
+        a list with the names of all available backends for the
+        current platform
+    """
+    backends = get_audiobackends()
+    return [backend.name for backend in backends]
 
 
 def _wrap_string(arg):
@@ -499,7 +577,6 @@ def _event_start(event:tuple) -> float:
         return event[1]
     else:
         return event[2]
-
 
 _normalizer = _lib.makereplacer({".":"_", ":":"_", " ":"_"})
 
@@ -699,14 +776,11 @@ class Csd:
         self.write_csd(stream)
         return stream.getvalue()
 
-    def write_csd(self, stream) -> Optional[str]:
+    def write_csd(self, stream) -> None:
         """
-        stream: the stream to write to. Either an open file, a io.StringIO stream or a path 
-        sr: the sample rate
-        ksmps: number of samples per period
-        nchnls: number of channels
-        a4: freq of a4
-        options: any options passed to csound
+        Args:
+            stream: the stream to write to. Either an open file, a io.StringIO stream or a path
+
         """
         if isinstance(stream, str):
             outfile = stream
@@ -1078,12 +1152,13 @@ endin
     return orc
 
 
-def extract_pargs(body:str) -> t.Set[int]:
+def extract_pargs(body: str) -> t.Set[int]:
     regex = r"\bp\d+"
     pargs = re.findall(regex, body)
     nums = [int(parg[1:]) for parg in pargs]
     for line in body.splitlines():
-        if not re.search(r"\bpassign\b", line):
+        if not re.search(r"\bpassign\s+\d+", line):
+        # if not re.search(r"\bpassign\b", line):
             continue
         left, right = line.split("passign")
         numleft = len(left.split(","))
@@ -1113,7 +1188,8 @@ def num_pargs(body:str) -> int:
         raise ValueError(f"pargs {skippedpargs} skipped")
     return len(pargs)
 
-def parg_names(body:str) -> t.Dict[int, str]:
+
+def parg_names(body:str) -> Dict[int, str]:
     """
     Analyze body to determine the names (if any) of the pargs used
 
@@ -1123,18 +1199,19 @@ def parg_names(body:str) -> t.Dict[int, str]:
     argnames = {}
 
     for line in body.splitlines():
-        if re.search(r"\bpassign\b", line):
-            names, firstidx = line.split("passign")
-            firstidx = int(firstidx)
-            names = names.split(",")
+        if re.search(r"\bpassign\s+\d+", line):
+            names_str, first_idx = line.split("passign")
+            first_idx = int(first_idx)
+            names: list[str] = names_str.split(",")
             for i, name in enumerate(names):
-                argnames[i + firstidx] = name
-        words = line.split()
-        if len(words) == 3 and words[1] == "=":
-            w2 = words[2]
-            if w2.startswith("p") and all(ch.isdigit() for ch in w2[1:]):
-                idx = int(w2[1:])
-                argnames[idx] = words[0]
+                argnames[i + first_idx] = name.strip()
+        else:
+            words = line.split()
+            if len(words) == 3 and words[1] == "=":
+                w2 = words[2]
+                if w2.startswith("p") and all(ch.isdigit() for ch in w2[1:]):
+                    idx = int(w2[1:])
+                    argnames[idx] = words[0].strip()
     # remove p1, p2 and p3, if present
     for idx in (1, 2, 3):
         argnames.pop(idx, None)

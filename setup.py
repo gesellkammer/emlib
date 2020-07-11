@@ -7,7 +7,7 @@ import sys
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (0, 4, 3)
+version = (0, 4, 7)
 
 setup(
     name='emlib',
@@ -46,8 +46,7 @@ setup(
         "ctcsound",
         "abjad>=3.1",
         # "abjad-ext-nauert @ https://github.com/Abjad/abjad-ext-nauert/tarball/master",
-        "abjad-ext-nauert",
-        "abjadtools"
+        "abjad-ext-nauert>=3.1",
     ],
     license="BSD",
     zip_safe=False,

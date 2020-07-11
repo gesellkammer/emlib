@@ -26,6 +26,7 @@ import logging
 import sys
 import fnmatch as _fnmatch
 from configdict import ConfigDict
+from emlib.snd import csoundengine
 
 from emlib.snd import sndfiletools
 from emlib.snd.resample import resample as _resample
@@ -301,6 +302,7 @@ class Sample(object):
         self.channels = numchannels(self.samples)  # type: int
         self._asbpf = None  # type: t.Opt[_bpf.BpfInterface]
         self._sdplayers = []
+        self._csoundTable = None
 
     @property
     def nframes(self):
@@ -323,8 +325,33 @@ class Sample(object):
         samples, sr = sndread(filename, start=start, end=end)
         return cls(samples, samplerate=sr)
 
-    def play(self, device=None, loop=False, chan=1):
-        # type: (bool) -> None
+    def _makeCsoundTable(self) -> csoundengine.TableProxy:
+        if self._csoundTable is not None:
+            return self._csoundTable
+        manager = csoundengine.getManager()
+        engine = manager.getEngine()
+        tabnum = engine.makeEmptyTable(len(self.samples)*self.channels,
+                                       numchannels=self.channels, sr=self.samplerate)
+        engine.fillTable(tabnum, self.samples.flatten(), block=True)
+        self._csoundTable = csoundengine.TableProxy(tabnum, freeself=True, manager=manager)
+        return self._csoundTable
+
+    def _playCsound(self, loop=False, chan=1, gain=1., delay=0
+                    ) -> csoundengine.AbstrSynth:
+        """
+        Play the given sample
+        """
+        table = self._makeCsoundTable()
+        assert table.manager is not None
+        synth = table.manager.playSample(table.tabnum, outchan=chan, gain=gain,
+                                         loop=loop, delay=delay)
+        synth.resources.append(table)
+        return synth
+
+    def play(self, loop=False, chan=1, delay=0):
+        return self._playCsound(loop=loop, chan=chan, delay=delay)
+
+    def _playSounddevice(self, loop=False, chan=1, device=None) -> None:
         """
         Play the samples on the default sound device
 
@@ -477,6 +504,9 @@ class Sample(object):
         """
         return Sample(self.samples.copy(), self.samplerate)
 
+    def _changed(self):
+        self._csoundTable = None
+
     def __add__(self, other):
         # type: (t.U[float, 'Sample']) -> 'Sample'
         if isinstance(other, Sample):
@@ -499,6 +529,7 @@ class Sample(object):
             self.samplerate = sr
         else:
             self.samples += other
+        self._changed()
         return self
 
     def __mul__(self, other):
@@ -522,10 +553,12 @@ class Sample(object):
             s0 *= s1
             self.samples = s0
             self.samplerate = sr
+            self._changed()
             return self
         elif callable(other):
             other = _mapn_between(other, len(self.samples), 0, self.duration)
         self.samples *= other
+        self._changed()
         return self
 
     def __len__(self):
@@ -631,6 +664,7 @@ class Sample(object):
         # type: () -> 'Sample'
         """ reverse the sample in-place """
         self.samples[:] = self.samples[-1::-1]
+        self._changed()
         return self
 
     def rmsbpf(self, dt=0.005):

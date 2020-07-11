@@ -9,7 +9,7 @@ def _get_cmaps():
     return plt.colormaps()
 
 
-config = ConfigDict(__name__,
+config = ConfigDict("emlib:snd_plotting",
                     default={'spectrogram_colormap': 'inferno'},
                     validator={'spectrogram_colormap::choices': _get_cmaps})
 

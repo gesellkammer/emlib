@@ -4,11 +4,13 @@ import sys
 import os
 import ctcsound
 import uuid as _uuid
-from typing import Optional as Opt, Dict, List, Union as U 
+from sndfileio import sndinfo
+from typing import Optional as Opt, Union as U, KeysView
 import ctypes as _ctypes
 import atexit as _atexit
 import textwrap as _textwrap
 import logging
+from enum import Enum
 
 from emlib.pitchtools import m2f
 from emlib.conftools import ConfigDict as _ConfigDict
@@ -64,8 +66,9 @@ _('ksmps', 64,
   choices=(16, 32, 64, 128, 256),
   doc="corresponds to csound's ksmps")
 _('linux.backend', 'jack',
-  choices=('jack', 'portaudio', 'pulse', 'alsa'))
-_('fallback_backend', 'portaudio')
+  choices=('jack', 'pa_cb', 'pa_bl', 'pulse', 'alsa'))
+_('fallback_backend', 'pa_cb',
+  choices=('pa_cb', 'pa_bl'))
 _('A4', 442,
   range=(410, 460))
 _('multisine.maxosc', 200)
@@ -82,8 +85,13 @@ _('suppress_output', False,
   doc='Supress csound´s debugging information')
 _('unknown_parameter_fail_silently', True,
   doc='Do not raise an Error if a synth is asked to set an unknown parameter')
+_('define_builtin_instrs', True,
+  doc="Whenever an InstrManager is created, it will have all builtin "
+      "instruments defined")
 
 config.load()
+
+
 
 # Constants
 _NUMTOKENS                = 1000
@@ -91,13 +99,19 @@ _CSOUND_EVENT_MAX_SIZE    = 1999
 _CSOUND_RESERVED_INSTRS   = 20
 _CSOUND_RESERVED_TABLES   = 200
 _CSOUND_HIGHEST_INSTRNUM  = 12000
-_CSOUND_INSTR_TURNOFF     = _CSOUND_RESERVED_INSTRS + 0
-_CSOUND_INSTR_CHNSET      = _CSOUND_RESERVED_INSTRS + 1
-_CSOUND_INSTR_FILLTABLE   = _CSOUND_RESERVED_INSTRS + 2
-_CSOUND_INSTR_FREETABLE   = _CSOUND_RESERVED_INSTRS + 3
-_CSOUND_INSTR_MAKETABLE   = _CSOUND_RESERVED_INSTRS + 4
 _CSOUND_RESPONSES_TABLE   = 1
 
+_CSOUND_INSTR_TURNOFF     = 2
+_CSOUND_INSTR_CHNSET      = 3
+_CSOUND_INSTR_FILLTABLE   = 4
+_CSOUND_INSTR_FREETABLE   = 5
+_CSOUND_INSTR_MAKETABLE   = 6
+_CSOUND_INSTR_PLAYSNDFILE = 7
+_CSOUND_INSTR_UNIQINSTANCE = 8
+_CSOUND_INSTR_SCHEDUNIQ   = 9
+_CSOUND_INSTR_STRSET      = 10
+_CSOUND_INSTR_PLAYGEN1    = 11
+_CSOUND_INSTR_FTSETPARAMS = 12
 
 _MYFLTPTR = _ctypes.POINTER(ctcsound.MYFLT)
 
@@ -170,11 +184,81 @@ instr ${instr_maketable}
     turnoff
 endin
 
+instr ${instr_uniqinstance_int}
+    itoken = p4
+    ip1    = p5
+    iuniq uniqinstance ip1
+    tabw_i iuniq, itoken, gi__responses
+    outvalue "__sync__", itoken
+endin
 
 instr ${instr_freetable}
     ifn = p4
     idelay = p5
     ftfree ifn, 0
+    turnoff
+endin
+
+instr ${instr_playsndfile}
+    Spath  = p4
+    ichan  = p5
+    ipitch = p6
+    idur = filelen(Spath) / ipitch
+    iwsize = ipitch == 1 ? 1 : 4
+    aouts[] diskin2 Spath, ipitch, 0, 0, 0, iwsize
+    inumouts = lenarray(aouts)
+    ichans[] genarray ichan, ichan+inumouts-1
+    aenv linsegr 0, 0.01, 1, 0.01, 0
+    aouts = aouts * aenv
+    out aouts
+    // poly0 inumouts, "outch", ichans, aouts
+    if timeinsts() > idur then
+        turnoff
+    endif
+endin
+
+instr ${instr_play_gen1}
+    itabnum, ichan, ispeed passign 4
+    inumsamples = nsamp(itabnum)
+    kidx = timeinstk() * ksmps * ispeed
+    aouts[] loscilx 1, ispeed, itabnum
+    inumouts = lenarray(aouts)
+    out aouts
+    if kidx >= inumsamples then
+        turnoff
+    endif
+    
+endin
+
+instr ${instr_scheduniq}
+    itoken = p4
+    inumpargs = p5
+    ip6 = uniqinstance(p6)
+    if inumpargs == 3 then
+        schedule ip6, p7, p8
+    elseif inumpargs == 4 then
+        schedule ip6, p7, p8, p9
+    elseif inumpargs == 5 then
+        schedule ip6, p7, p8, p9, p10
+    elseif inumpargs == 6 then
+        schedule ip6, p7, p8, p9, p10
+    elseif inumpargs == 7 then
+        schedule ip6, p7, p8, p9, p10, p11
+    endif
+    tabw_i ip6, itoken, gi__responses
+    turnoff
+endin
+
+instr ${instr_strset}
+    Sstr = p4
+    idx  = p5
+    strset idx, Sstr
+    turnoff
+endin
+
+instr ${instr_ftsetparams}
+    itabnum, isr, inumchannels passign 4
+    ftsetparams itabnum, isr, inumchannels
     turnoff
 endin
 
@@ -187,7 +271,13 @@ endin
         instr_freetable=_CSOUND_INSTR_FREETABLE,
         instr_maketable=_CSOUND_INSTR_MAKETABLE,
         numtokens=_NUMTOKENS,
-        responses_table=_CSOUND_RESPONSES_TABLE
+        responses_table=_CSOUND_RESPONSES_TABLE,
+        instr_playsndfile=_CSOUND_INSTR_PLAYSNDFILE,
+        instr_uniqinstance_int=_CSOUND_INSTR_UNIQINSTANCE,
+        instr_scheduniq=_CSOUND_INSTR_SCHEDUNIQ,
+        instr_strset = _CSOUND_INSTR_STRSET,
+        instr_play_gen1 = _CSOUND_INSTR_PLAYGEN1,
+        instr_ftsetparams = _CSOUND_INSTR_FTSETPARAMS
     )
 
 
@@ -196,13 +286,49 @@ endin
 _SynthDef = _namedtuple("_SynthDef", "qname instrnum")
 
 
+@dataclass
+class TableProxy:
+    tabnum: int
+    sr: int = 0
+    nchnls: int = 1
+    path: str = ""
+    manager: Opt[_InstrManager] = None
+    freeself: bool = False
+    _array: Opt[np.ndarray] = None
+
+    def __post_init__(self):
+        self.path = os.path.abspath(os.path.expanduser(self.path))
+
+    def getData(self) -> np.ndarray:
+        if self.manager is None:
+            raise NoEngineError
+        if self._array is None:
+            self._array = self.manager.getEngine().getCsound().table(self.tabnum)
+        return self._array
+
+    def play(self, gain=1.0, chan=1, speed=1.0, delay=0.) -> AbstrSynth:
+        if not self.manager:
+            raise NoEngineError(f"Manager/Engine for group {self.group} not found")
+        return self.manager.playSample(self.tabnum, outchan=chan, gain=gain,
+                                       speed=speed, delay=delay)
+
+    def __del__(self):
+        if not self.freeself:
+            return
+        engine = self.manager.getEngine()
+        if engine and engine.started:
+            engine.freeTable(self.tabnum)
+
+
 # ~~~~~~~~~ Exceptions ~~~~~~~~~
 
-class NoEngine(Exception): pass
+class NoEngineError(Exception): pass
 
 class InstrumentNotRegistered(Exception): pass
 
 class CsoundError(Exception): pass
+
+class CsoundNotStartedError(Exception): pass
 
 class RenderError(Exception): pass
 
@@ -340,7 +466,7 @@ class CsoundEngine:
             raise KeyError(f"engine {name} already exists")
         cfg = config
         backend = backend if backend is not None else cfg[f'{sys.platform}.backend']
-        backends = csound.get_audiobackends()
+        backends = csound.get_audiobackends_names()
         if backend not in backends:
             # should we fallback?
             fallback_backend = cfg['fallback_backend']
@@ -394,7 +520,7 @@ class CsoundEngine:
             self._sendAddr = None
 
         self._performanceThread: Opt[ctcsound.CsoundPerformanceThread] = None
-        self._csound = None            # the csound object
+        self._csound: Opt[ctcsound.Csound] = None            # the csound object
         self._fracnumdigits = 4        # number of fractional digits used for unique instances
         self._exited = False           # are we still running?
         self._csdstr = _ORC_TEMPLATE   # the template to create new engines
@@ -402,6 +528,10 @@ class CsoundEngine:
         self._instrRegistry = {}       # instrument definitions are registered here
         self._outvalueCallbacks = {}   # a dict of callbacks, reacting to outvalue opcodes
         self._initDone = False         # have we set our callback, etc, yet?
+        # Maps used for strSet / strGet
+        self._indexToStr: dict[int:str] = {}
+        self._strToIndex: dict[str:int] = {}
+        self._strLastIndex = 20
 
 
         # global code added to this engine
@@ -433,7 +563,7 @@ class CsoundEngine:
         self._responseCallbacks = {}
 
         # a dict mapping tableindex to fractional instr number
-        self._assignedTables: Dict[int, float] = {}
+        self._assignedTables: dict[int, float] = {}
         _engines[name] = self
 
     def __repr__(self):
@@ -489,6 +619,7 @@ class CsoundEngine:
         cs = ctcsound.Csound()
         orc = self._csdstr.format(sr=self.sr, ksmps=self.ksmps, nchnls=self.nchnls,
                                   backend=self.backend, a4=self.a4, globalcode=self.globalcode)
+        # print(orc)
         bufferSize = 128
         options = ["-d", "-odac", f"-b{bufferSize}",
                    "-+rtaudio=%s" % self.backend]
@@ -557,13 +688,13 @@ class CsoundEngine:
             return
 
         if callable(funcOrFuncs):
-            val = ctcsound.cast(valptr, _MYFLTPTR).contents.value
+            val = _ctypes.cast(valptr, _MYFLTPTR).contents.value
             funcOrFuncs(channelName, val)
             return
         funcs = funcOrFuncs
         unregistered = set()
         for i, func in enumerate(funcs):
-            val = ctcsound.cast(valptr, _MYFLTPTR).contents.value
+            val = _ctypes.cast(valptr, _MYFLTPTR).contents.value
             ret = func(channelName, val)
             if ret == "unregister":
                 unregistered.add(i)
@@ -669,7 +800,7 @@ class CsoundEngine:
         return out
 
     def sched(self, instrnum:int, delay:float=0, dur:float=-1,
-              args:List[float]=None) -> float:
+              args:list[float]=None) -> float:
         """
         Schedule an instrument
 
@@ -753,7 +884,13 @@ class CsoundEngine:
             self._performanceThread.flushMessageQueue()
         elif len(data) < 1900:
             pargs = [tabnum, 0, size, -len(data)]
-            pargs.extend(data)
+            if isinstance(data, np.ndarray):
+                datalist = data.tolist()
+            elif isinstance(data, list):
+                datalist = data
+            else:
+                raise TypeError("data should be a list of floats or a numpa array")
+            pargs.extend(datalist)
             self._performanceThread.scoreEvent(0, "f", pargs)
             self._performanceThread.flushMessageQueue()
         else:
@@ -766,8 +903,21 @@ class CsoundEngine:
             self._performanceThread.flushMessageQueue()
         return int(tabnum)
 
+    def setTableParams(self, tabnum:int, sr:int, numchannels:int=1) -> None:
+        pargs = [_CSOUND_INSTR_FTSETPARAMS, 0, -1, tabnum, sr, numchannels]
+        self._performanceThread.scoreEvent(0, "i", pargs)
+
+    def makeEmptyTable(self, size, numchannels=1, sr=0, instrnum=-1) -> int:
+        tabnum = self.assignTable(instrnum=instrnum)
+        pargs = [tabnum, 0, size, -2, 0]
+        self._performanceThread.scoreEvent(0, "f", pargs)
+        self._performanceThread.flushMessageQueue()
+        if numchannels > 1 or sr > 0:
+            self.setTableParams(tabnum, numchannels=numchannels, sr=sr)
+        return tabnum
+
     def getTable(self, idx):
-        return Table(idx=idx, group=self.name)
+        return ParamTable(idx=idx, group=self.name)
 
     def _registerSync(self, token:int) -> Queue:
         q = Queue()
@@ -783,7 +933,7 @@ class CsoundEngine:
         The event is passed a token as p4 and can set a return value by:
 
             itoken = p4
-            tabw kreturn, itoken, gi__responses
+            tabw kreturnValue, itoken, gi__responses
             outvalue "__sync__", itoken
 
         Args:
@@ -808,8 +958,18 @@ class CsoundEngine:
             self._performanceThread.scoreEvent(0, "i", pargs)
             return q.get(block=True, timeout=timeout)
 
+    def _inputMessageNotify(self, token:int, inputMessage:str, callback=None, timeout=1):
+        self._setupCallbacks()
+        if callback:
+            self._responseCallbacks[token] = callback
+            self._performanceThread.inputMessage(inputMessage)
+        else:
+            q = self._registerSync(token)
+            self._performanceThread.inputMessage(inputMessage)
+            q.get(block=True, timeout=timeout)
+
     def _makeTableNotify(self, data=None, size=0, tabnum=0, callback=None,
-                         timeout=1, fillmethod='array') -> int:
+                         timeout=1, fillmethod='pointer') -> int:
         """
         Create a table with data (or an empty table of the given size).
         Let csound generate a table index if needed
@@ -850,14 +1010,7 @@ class CsoundEngine:
         empty = 1
         pargs = [_CSOUND_INSTR_MAKETABLE, 0, 0.01, token, tabnum, size, empty]
         tabnum = self._eventNotify(token, "i", pargs)
-
-        if fillmethod == 'array':
-            tabarray = self._csound.table(int(tabnum))
-            tabarray[:] = data
-        elif fillmethod == 'score':
-            self._fillTableViaScore(data, tabnum=tabnum, block=True)
-        else:
-            raise ValueError(f"fillmethod {fillmethod} not supported")
+        self.fillTable(data, tabnum, method=fillmethod, block=True)
         return int(tabnum)
 
     def setChannel(self, channel:str, value:float) -> None:
@@ -883,10 +1036,23 @@ class CsoundEngine:
         """
         return self._csound.getChannel(channel)
 
-    def fillTable(self, data, tabnum:int, method='pointer', block=False) -> None:
+    def fillTable(self, tabnum:int, data, method='pointer', block=False) -> None:
+        """
+        Args:
+            data: the data to put into the table
+            tabnum: the table number
+            method: the method used, one of 'pointer', 'score' or 'api'
+            block: this is only used with methods "score" and "api"
+
+        Returns:
+        """
         if method == 'pointer':
-            numpyptr = self._csound.table(tabnum)
-            numpyptr[:] = data
+            numpyptr: np.array = self._csound.table(tabnum)
+            l = len(numpyptr)
+            if l < len(data):
+                numpyptr[:] = data[:l]
+            else:
+                numpyptr[:] = data
         elif method == 'score':
             return self._fillTableViaScore(data, tabnum=tabnum, block=block)
         elif method == 'api':
@@ -962,10 +1128,69 @@ class CsoundEngine:
         """
         if tabnum is None:
             tabnum = self.assignTable()
-        s = f'f {tabnum}, 0, 0, -1, "{path}", 0, 0, {chan}'
-        s = s.encode('ascii')
+        s = f'f {tabnum} 0 0 -1 "{path}" 0 0 {chan}'
+        # s = s.encode('ascii')
         self._performanceThread.inputMessage(s)
         return tabnum
+
+    def getUniqueInstrInstance(self, instr: U[int, str], callback=None) -> float:
+        if isinstance(instr, int):
+            token = self._getToken()
+            pargs = [_CSOUND_INSTR_UNIQINSTANCE, 0, 0.01, token, instr]
+            if not callback:
+                uniqinstr = self._eventNotify(token, "i", pargs)
+                return uniqinstr
+            else:
+                self._eventNotify(token, "i", pargs, callback=callback)
+
+    def playSample(self, tabnum:int, delay=0, chan=0, speed=1) -> float:
+        return self.sched(_CSOUND_INSTR_PLAYGEN1, delay=delay, dur=-1,
+                          args=[tabnum, chan, speed])
+
+
+    def playSoundFromDisc(self, path:str, delay=0., chan=0, speed=1., unique=False
+                          ) -> float:
+        """
+        Play a soundfile from disc.
+
+        Args:
+            path: the path to the soundfile
+            delay: time offset to start playing
+            chan: first channel to output to
+            speed: playback speed (2.0 will sound an octave higher)
+            unique: if True, a unique p1 is generated, which enables
+                to turnoff that instance via unsched.
+
+        Returns:
+            the instrument number of the scheduled event
+        """
+        if not unique:
+            p1 = _CSOUND_INSTR_PLAYSNDFILE
+        else:
+            p1 = self.getUniqueInstrInstance(_CSOUND_INSTR_PLAYSNDFILE)
+        msg = f"i {p1} {delay} -1 \"{path}\" {chan} {speed}"
+        self._performanceThread.inputMessage(msg)
+        return p1
+
+    def strSet(self, s:str) -> int:
+        stringIndex = self._strToIndex.get(s)
+        if stringIndex is None:
+            stringIndex = self._getStrIndex()
+            if not self.started:
+                raise CsoundNotStartedError()
+            msg = f'i {_CSOUND_INSTR_STRSET} 0 -1 "{s}"'
+            self._performanceThread.inputMessage(msg)
+            self._strToIndex[stringIndex] = s
+            self._indexToStr[s] = stringIndex
+        return stringIndex
+
+    def strGet(self, index:int) -> Opt[str]:
+        return self._indexToStr.get(index)
+
+    def _getStrIndex(self) -> int:
+        out = self._strLastIndex
+        self._strLastIndex += 1
+        return out
 
     def unassignTable(self, tableindex) -> None:
         """
@@ -973,14 +1198,13 @@ class CsoundEngine:
         again. It assumes that the table was deallocated already
         and the index can be assigned again.
         """
-        print("unassignTable", tableindex)
         instrnum = self._assignedTables.pop(tableindex, None)
         if instrnum is not None:
             logger.debug(f"Unassigning table {tableindex} for instr {instrnum}")
             self._tablePool.add(tableindex)
 
     def freeTable(self, tableindex, delay=0) -> None:
-        logger.debug(f"freeing table {tableindex}")
+        logger.info(f"Freeing table {tableindex}")
         self.unassignTable(tableindex)
         pargs = [_CSOUND_INSTR_FREETABLE, delay, 0.01, tableindex]
         self._performanceThread.scoreEvent(0, "i", pargs)
@@ -1041,8 +1265,8 @@ def _isUUID(s: str) -> bool:
     return True
 
 
-_engines : Dict[str, CsoundEngine]  = {}
-_managers: Dict[str, _InstrManager] = {}
+_engines : dict[str, CsoundEngine]  = {}
+_managers: dict[str, _InstrManager] = {}
 
 
 @_atexit.register
@@ -1053,7 +1277,7 @@ def _cleanup() -> None:
         stopEngine(name)
 
 
-def activeEngines():
+def activeEngines() -> set[str]:
     """
     Returns a list with the names of the active engines
     """
@@ -1085,8 +1309,15 @@ def stopEngine(name="default") -> None:
 
 class AbstrSynth:
 
-    def __init__(self, instance: str):
-        self.instance: str = instance
+    def __init__(self, group: str, autostop: bool=False):
+        self.group: str = group
+        self.autostop : bool = autostop
+        self.resources: list = []
+
+    def __del__(self):
+        if self.autostop:
+            self.stop(stopParent=False)
+
     
     def stop(self, delay=0, stopParent=False):
         pass
@@ -1131,20 +1362,20 @@ class AbstrSynth:
         pass
 
 
-class Table:
+class ParamTable:
     def __init__(self,
                  idx: int,
                  group:str='default',
-                 mapping:Dict[str, int]=None,
+                 mapping:dict[str, int]=None,
                  instrName:str=None,
                  associatedSynth:AbstrSynth=None):
         """
-        A Table is the abstract representation of a csound table. It is
-        mainly used as a multivalue communication channel between a running
-        instrument and the outside world. Tables are used to communicate with
-        a specific instance of an instrument, channels or globals should be used
-        to address global state.
-        Each instrument can define the need of a table attached at creation time,
+        A ParamTable is a csound table used as a multivalue communication channel
+        between a running instrument and the outside world. ParamTables are used
+        to communicate with a specific instance of an instrument.
+        Channels or globals should be used to address global state.
+
+        Each instrument can define the need of a param table attached at creation time,
         together with initial/default values for all slots. It is also possible
         to assign names to each slot
 
@@ -1152,7 +1383,7 @@ class Table:
         attribute (a numpy array pointing to the table memory), or via
         table[idx] or table[key]
 
-        A Table does not currently check if the underlying csound table
+        A ParamTable does not currently check if the underlying csound table
         exists.
 
         Args:
@@ -1264,7 +1495,7 @@ class Synth(AbstrSynth):
     when a CsoundInstr is scheduled
     """
     def __init__(self,
-                 instance:str,
+                 group:str,
                  synthid:float,
                  starttime:float,
                  dur:float,
@@ -1272,11 +1503,11 @@ class Synth(AbstrSynth):
                  pargs=None,
                  synthgroup:SynthGroup=None,
                  autostop=False,
-                 table:Table=None
+                 table:ParamTable=None
                  ) -> None:
         """
         Args:
-            instance: engine/manager name of this synth
+            group: engine/manager name of this synth
             synthid: the synth id inside csound (a fractional instrument number)
             starttime: when was this synth started
             dur: duration of the note (can be -1 for infinite)
@@ -1288,14 +1519,13 @@ class Synth(AbstrSynth):
                 scope or is deleted, the underlying note is unscheduled
             table: an associated Table (if needed)
         """
-        AbstrSynth.__init__(self, instance=instance)
-        self.autostop: bool = autostop
+        AbstrSynth.__init__(self, group=group, autostop=autostop)
         self.synthid: float = synthid
         self.instrName: str = instrname
         self.startTime: float = starttime
         self.dur: float = dur
-        self.pargs: List[float] = pargs
-        self.table: Opt[Table] = table
+        self.pargs: list[float] = pargs
+        self.table: Opt[ParamTable] = table
         self.synthGroup = synthgroup
         self._playing: bool = True
 
@@ -1306,8 +1536,10 @@ class Synth(AbstrSynth):
         return f"Synth(id={self.synthid})"
 
     def isPlaying(self) -> bool:
-        return (self._playing and
-                self.startTime < time.time() < self.startTime+self.dur)
+        now = time.time()
+        if self.dur > 0:
+            return self._playing and self.startTime < now < self.startTime+self.dur
+        return self._playing and self.startTime < now
 
     def getNamedArgs(self) -> Opt[dict[str, float]]:
         if self.table is None:
@@ -1315,7 +1547,7 @@ class Synth(AbstrSynth):
         return self.table.asDict()
 
     def getManager(self) -> _InstrManager:
-        return getManager(self.instance)
+        return getManager(self.group)
 
     def stop(self, delay=0, stopParent=False) -> None:
         if self.synthGroup is not None and stopParent:
@@ -1326,7 +1558,7 @@ class Synth(AbstrSynth):
             self._playing = False
             try:
                 self.getManager().unsched(self.synthid, delay=delay)
-            except NoEngine:
+            except NoEngineError:
                 pass
 
     def set(self, *args, **kws):
@@ -1364,9 +1596,6 @@ class Synth(AbstrSynth):
         if self.table:
             return self.table.get(slot, default)
 
-    def __del__(self):
-        if self.autostop:
-            self.stop(stopParent=False)
 
 
 class SynthGroup(AbstrSynth):
@@ -1375,14 +1604,13 @@ class SynthGroup(AbstrSynth):
     to work together (in additive synthesis, for example)
     """
 
-    def __init__(self, synths: List[AbstrSynth], autostop=False) -> None:
-        AbstrSynth.__init__(self, instance=synths[0].instance)
+    def __init__(self, synths: list[AbstrSynth], autostop=False) -> None:
+        AbstrSynth.__init__(self, group=synths[0].group, autostop=autostop)
         groupref = weakref.ref(self)
         for synth in synths:
             synth.synthgroup = groupref
-        self.synths: List[AbstrSynth] = synths
-        self.autostop = autostop
-    
+        self.synths: list[AbstrSynth] = synths
+
     def stop(self, delay=0, stopParent=False) -> None:
         for s in self.synths:
             s.stop(stopParent=False)
@@ -1406,10 +1634,6 @@ class SynthGroup(AbstrSynth):
             lines.append("    " + repr(synth))
         return "\n".join(lines)
 
-    def __del__(self):
-        if self.autostop:
-            self.stop()
-
     def __len__(self) -> int:
         return len(self.synths)
 
@@ -1423,7 +1647,7 @@ class SynthGroup(AbstrSynth):
         for synth in self.synths:
             synth.set(*args, **kws)
 
-    def get(self, idx: U[int, str], default=None) -> List[float]:
+    def get(self, idx: U[int, str], default=None) -> list[float]:
         return [synth.get(idx, default=default) for synth in self.synths]
 
 
@@ -1436,8 +1660,8 @@ class CsoundInstr:
                  name:str,
                  body: str,
                  init: str = None,
-                 tableinit: List[float] = None,
-                 tablemap: Dict[str, int] = None,
+                 tableinit: list[float] = None,
+                 tablemap: dict[str, int] = None,
                  numchans: int = 1,
                  group="default",
                  preschedCallback=None,
@@ -1484,12 +1708,16 @@ class CsoundInstr:
         self._check = config['check_pargs']
         self._preschedCallback = preschedCallback
         if tableinit is None and freetable:
-            raise ValueError("Table can't be freed because it was not defined")
+            freetable = False
         self.mustFreeTable = freetable
 
     def __repr__(self):
         header = f"CsoundInstr({self.name}, group={self.group})"
-        sections = [header]
+        sections = ["", header]
+        pargs = self.getPargs()
+        if pargs:
+            pargsStr = ", ".join(f"p{i}: {pname}" for i, pname in sorted(pargs.items()))
+            sections.append(pargsStr)
         if self.init:
             sections.append("> init")
             sections.append(str(self.init))
@@ -1505,22 +1733,11 @@ class CsoundInstr:
             return None
         return getManager(self.group)
     
-    def getPargs(self):
+    def getPargs(self) -> dict[int, str]:
         """
         Return the name of the pargs defined in the source of this Instr.
-        Args start at p4, since p1, p2 and p3 are always necessary
         """
-        allpargs = csound.parg_names(self.body)
-        pargs = []
-        if not allpargs:
-            return pargs
-        minidx = min(allpargs.keys())
-        minidx = min(4, minidx)
-        maxidx = max(allpargs.keys())
-        for idx in range(minidx, maxidx+1):
-            parg = allpargs.get(idx)
-            pargs.append(parg.strip())
-        return pargs
+        return csound.parg_names(self.body)
 
     def play(self, dur=-1, args: list[float]=None, priority:int=1, delay=0.0,
              tabargs: dict[str, float]=None, whenfinished=None
@@ -1612,7 +1829,7 @@ class CsoundInstr:
             logger.error(msg)
         return ok
 
-    def rec(self, dur, outfile:str=None, args:List[float]=None, sr=44100, ksmps=64, 
+    def rec(self, dur, outfile:str=None, args:list[float]=None, sr=44100, ksmps=64, 
             samplefmt='float', nchnls:int=None, block=True, a4=None) -> str:
         """
         Args:
@@ -1636,7 +1853,7 @@ class CsoundInstr:
                               ksmps=ksmps, samplefmt=samplefmt, nchnls=nchnls,
                               block=block, a4=a4)
 
-    def recEvents(self, events: List[List[float]], outfile:str=None,
+    def recEvents(self, events: list[list[float]], outfile:str=None,
                   sr=44100, ksmps=64, samplefmt='float', nchnls:int=None,
                   block=True, a4=None
                   ) -> str:
@@ -1771,21 +1988,29 @@ def _initTable(instr:CsoundInstr,
 class _InstrManager:
     """
     An InstrManager controls an engine. It has an exclusive associated
-    CsoundEngine
+    CsoundEngine.
+
+    The user does not normally create an instance of this class directly.
+    It is returned by getManager
     """
     
     def __init__(self, name="default") -> None:
         self.name: str = name
-        self.instrDefs: Dict[str, CsoundInstr] = {}
+        self.instrDefs: dict[str, CsoundInstr] = {}
 
         self._bucketsize: int = 1000
         self._numbuckets: int = 10
-        self._buckets = [{} for _ in range(self._numbuckets)]  # type: List[Dict[str, int]]
-        self._synthdefs = {}                                   # type: Dict[str, Dict[int, _SynthDef]]
-        self._synths = {}                                      # type: Dict[float, Synth]
+        self._buckets = [{} for _ in range(self._numbuckets)]  # type: list[dict[str, int]]
+        self._synthdefs = {}                                   # type: dict[str, dict[int, _SynthDef]]
+        self._synths = {}                                      # type: dict[float, Synth]
         self._isDeallocCallbackSet = False
         self._whenfinished = {}
         self._initCodes = []
+        self._tabnumToTable: dict[int:TableProxy] = {}
+        self._pathToTable: dict[str:TableProxy] = {}
+
+        if config['define_builtin_instrs']:
+            self.defBuiltinInstrs()
 
     def _deallocSynth(self, synthid, delay=0):
         synth = self._synths.pop(synthid, None)
@@ -1861,7 +2086,7 @@ class _InstrManager:
                  tableinit: list[float] = None,
                  tablemap: dict[str, int] = None,
                  numchans: int = 1,
-                 freetable=False
+                 freetable=True
                  ) -> CsoundInstr:
         """
 
@@ -2016,7 +2241,7 @@ class _InstrManager:
         if instr.tableinit is not None:
             # the instruments has an associated table
             tableidx = engine.makeInstrTable(instr, overrides=tabargs, wait=True)
-            table = Table(group=self.name, idx=tableidx, mapping=instr.tablemap)
+            table = ParamTable(group=self.name, idx=tableidx, mapping=instr.tablemap)
         else:
             tableidx = 0
             table = None
@@ -2037,7 +2262,7 @@ class _InstrManager:
         self._synths[synthid] = synth
         return synth
 
-    def activeSynths(self, sortby="start") -> List[Synth]:
+    def activeSynths(self, sortby="start") -> list[Synth]:
         """
         Returns a list of playing synths
 
@@ -2045,10 +2270,10 @@ class _InstrManager:
         """
         synths = [synth for synth in self._synths.values() if synth.isPlaying()]
         if sortby == "start":
-            synths.sort(key=lambda synth: synth.starttime)
+            synths.sort(key=lambda synth: synth.startTime)
         return synths
 
-    def scheduledSynths(self) -> List[Synth]:
+    def scheduledSynths(self) -> list[Synth]:
         """
         Returns all scheduled synths (both active and future)
         """
@@ -2113,7 +2338,7 @@ class _InstrManager:
             self.getEngine().unschedFuture()
             self._synths.clear()
 
-    def findSynthsByName(self, instrname:str) -> List[Synth]:
+    def findSynthsByName(self, instrname:str) -> list[Synth]:
         """
         Return a list of active Synths created from the given instr
         """
@@ -2135,6 +2360,74 @@ class _InstrManager:
             print(f"code #{i}: initCode")
             engine.evalCode(initcode)
 
+    def readSoundfile(self, path:str, chan=0, free=False) -> TableProxy:
+        """
+        Read a soundfile, store its metadata in a TableDef
+
+        Args:
+            path: the path to a soundfile
+            chan: the channel to read, or 0 to read all channels into a
+                (possibly) stereo or multichannel table
+            free: free the table when the returned TableDef is itself deallocated
+
+        Returns:
+            a TableDef, holding information like
+            .tabnum: the table number
+            .path: the path you just passed
+            .nchnls: the number of channels in the soundfile
+            .sr: the sample rate of the soundfile
+
+        """
+        table = self._pathToTable.get(path)
+        if table:
+            return table
+        engine = self.getEngine()
+        tabnum = engine.readSoundfile(path=path, chan=chan)
+        info = sndinfo(path)
+        table = TableProxy(tabnum=tabnum,
+                           path=path,
+                           sr=info.samplerate,
+                           nchnls=info.channels,
+                           manager=self,
+                           freeself=free)
+
+        self._registerTable(table)
+        return table
+
+    def _registerTable(self, tabproxy: TableProxy) -> None:
+        self._tabnumToTable[tabproxy.tabnum] = tabproxy
+        if tabproxy.path:
+            self._pathToTable[tabproxy.path] = tabproxy
+
+    def playSample(self, sample:U[int, TableProxy, str], outchan=1, gain=1.,
+                   speed=1., loop=False, delay=0.) -> Synth:
+        """
+        Play a sample
+
+        Args:
+            sample: a path to a sample, a TableDef, or a table number
+            outchan: the channel to play the sample to. In the case of multichannel
+                samples, this is the first channel
+            gain: gain factor
+            speed: speed of playback
+            loop: True/False or -1 to loop as defined in the file itself (not all
+                file formats define loop points)
+            delay: time to wait before playback starts
+
+        Returns:
+            A Synth
+
+        """
+        if isinstance(sample, int):
+            tabnum = sample
+        elif isinstance(sample, TableProxy):
+            tabnum = sample.tabnum
+        else:
+            table = self.readSoundfile(sample)
+            tabnum = table.tabnum
+        return self.sched('.playgen1', delay=delay,
+                          pargs=[tabnum, outchan, gain, speed, int(loop)])
+
     def makeRenderer(self, sr=44100, nchnls=1, ksmps=64, a4=442.) -> Renderer:
         """
         Create a Renderer (to render offline) with the instruments defined
@@ -2148,6 +2441,10 @@ class _InstrManager:
         for instrname, instrdef in self.instrDefs.items():
             rendered.defInstr(instrname, instrdef.body)
         return rendered
+
+    def defBuiltinInstrs(self):
+        for csoundInstr in builtinInstr:
+            self.registerInstr(csoundInstr)
 
 
 @dataclass
@@ -2203,8 +2500,8 @@ class Renderer:
         self._instrdefs: dict[str, CsoundInstr] = {}
 
         # a list of i events, starting with p1
-        self.events: List[List[float]] = []
-        self.unscheduledEvents: List[List[float]] = []
+        self.events: list[list[float]] = []
+        self.unscheduledEvents: list[list[float]] = []
 
     def commitInstrument(self, instrname, priority=1):
         """
@@ -2362,6 +2659,7 @@ class Renderer:
         return stream.getvalue()
 
 
+
 def _qualifiedName(name:str, priority:int) -> str:
     return f"{name}:{priority}"
 
@@ -2384,7 +2682,7 @@ def _instrWrapBody(body:str, instrnum:int, notify=True, notifymode="atstop") -> 
                 
                 if (k__release == 1) && (k__notified == 0) then
                     k__notified = 1
-                    event "i", "_notifyDealloc", 0, -1, p1
+                    schedulek("_notifyDealloc", 0, -1, p1)
                 endif
         
                 {body}
@@ -2409,7 +2707,7 @@ def getManager(name="default") -> _InstrManager:
     if not engine:
         logger.error(f"engine {name} not created. First create an engine via "
                      f"CsoundEngine(...)")
-        raise NoEngine(f"Engine {name} not active")
+        raise NoEngineError(f"Engine {name} not active")
     manager = _managers.get(name)
     if not manager:
         manager = _InstrManager(name)
@@ -2462,61 +2760,83 @@ def availableInstrs(group='default'):
 #                   Examples
 # ---------------------------------------------
 
-def InstrSineGliss(name='builtin.sinegliss', group='default') -> CsoundInstr:
-    body = """
-        iAmp, iFreqStart, iFreqEnd passign 5
-        imidi0 = ftom:i(iFreqStart)
-        imidi1 = ftom:i(iFreqEnd)
-        kmidi linseg imidi0, p3, imidi1
+builtinInstr = [
+    CsoundInstr('.sinegliss', body="""
+        ioutchan, iAmp, iPitchStart, iPitchEnd passign 5
+        kmidi linseg iPitchStart, p3, iPitchEnd
         kfreq = mtof:k(kmidi)
         aenv linsegr 0, 0.01, 1, 0.05, 0
         a0 oscili iAmp, kfreq
         a0 *= aenv
-        outs a0, a0
-    """
-    return defInstr(body=body, name=name, group=group)
-
-
-def InstrSine(name='builtin.sine', group='default') -> CsoundInstr:
-    body = """
-        iChan, iAmp, iFreq passign 5
+        outch ioutchan, a0
+        """),
+    CsoundInstr('.sine', body="""
+        iAmp, iFreq, iChan passign 5
         kenv linsegr 0, 0.04, 1, 0.08, 0
         a0 oscil iAmp, iFreq
         a0 *= kenv
         outch iChan, a0
-    """
-    return defInstr(body=body, name=name, group=group)
-
-
-def InstrPlayBufMono(name='builtin.playbuf', group='default') -> CsoundInstr:
-    body = """
-        iTabnum, iChan, iGain, iLoop passign 5
-        ; if loop, use iDur, otherwise, play buf and then exit
-        iLensmps ftlen iTabnum
-        iSnddur = iLensmps / ftsr(iTabnum)
+        """),
+    CsoundInstr('.playgen1', body=r"""
+        ;    1  2  3  4  5  6  7  8  9 
+        pset 0, 0, 0, 0, 0, 0, 1, 1, 0
+        itabnum = p5
+        ichan   = p6
+        igain   = p7
+        ispeed  = p8
+        iloop   = p9
+        ; iloop: 0=no loop, 1=loop
+        inumouts = ftchnls(itabnum)
+        if inumouts == 0 then
+            ; not a gen1 table, fail
+            throwerror "init", sprintf("Table %d was not generated via gen1", itabnum)
+        endif
+        inumsamples = nsamp(itabnum)
+        kidx init 0
+        if inumouts == 1 then
+            a1 loscil3 igain, ispeed, itabnum, 1, iloop
+            outch ichan, a1
+        elseif inumouts == 2 then
+            a1, a2 loscil igain, ispeed, itabnum, 1, iloop
+            outch ichan, a1, ichan+1, a2
+        else
+            ; 4: cubic interpolation
+            aouts[] loscilx igain, ispeed, itabnum, 4, 0, iloop
+            ichans[] genarray ichan, ichan+inumouts-1
+            poly0 inumouts, "outch", ichans, aouts
+        endif    
+        kidx += ksmps * ispeed
+        if iloop == 0 && kidx >= inumsamples then
+            turnoff
+        endif 
+        """),
+    CsoundInstr('.playbuf', body="""
+        pset 0, 0, 0, 0, 0, 1, 1, 0
+        itabnum, ioutchan, igain, iloop passign 5
+        inumsamps ftlen itabnum
+        idur = inumsamps / ftsr(itabnum)
         
-        if (iLoop == 1) then
+        if (iloop == 1) then
             iPitch = 1
             iCrossfade = 0.050
-            aSig flooper2 iGain, iPitch, 0, iSnddur, iCrossfade, iTabnum
+            aSig flooper2 igain, iPitch, 0, idur, iCrossfade, itabnum
         else
-            iReadfreq = sr / iLensmps; frequency of reading the buffer
-            aSig poscil3 iGain, iReadfreq, iTabnum
+            iReadfreq = sr / inumsamps; frequency of reading the buffer
+            aSig poscil3 igain, iReadfreq, itabnum
             iatt = 1/kr
             irel = 3*iatt
-            aEnv adsr 0, iatt, 1, iSnddur - iatt, 1, irel, 0
+            aEnv linsegr 0, iatt, 1, idur-iatt*2, 1, iatt, 0
             aSig *= aEnv
-            kt timeinsts
-            if kt > iSnddur then
+            if timeinsts() > idur then
                 turnoff
             endif
         endif
-        outch iChan, aSig
-    """
-    return defInstr(body=body, name=name, group=group)
+        outch ioutchan, aSig
+        """)
+    ]
 
 
-def InstrSines(numsines, group='default', sineinterp=True) -> CsoundInstr:
+def defInstrSines(numsines, group='default', sineinterp=True) -> CsoundInstr:
     """
     i = InstrSines(4)
     i.play(chan, gain, freq1, amp1, freq2, amp2, ...)
