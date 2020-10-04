@@ -42,11 +42,14 @@ class Music21Score(core.AbstractScore):
         if ext == '.ly':
             m21tools.saveLily(self.score, outfile)
         elif ext == '.pdf':
-            return self.score.write('pdf', outfile)
+            # return self.score.write('pdf', outfile)
+            xmlfile = base + ".xml"
+            self.score.write('musicxml.pdf', xmlfile)
+            assert os.path.exists(outfile)
         elif ext == '.xml':
             return self.score.write('xml', outfile)
         else:
-            raise ValueError(f"format {ext} not supported. Possible formats: .ly, .pdf")
+            raise ValueError(f"format {ext} not supported. Possible formats: .ly, .pdf, .xml")
 
     def musicxml(self):
         return m21tools.getXml(self.score)

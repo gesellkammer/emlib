@@ -93,6 +93,15 @@ def _plot_matplotlib(samples, samplerate):
 def _plot_samples_matplotlib2(samples, samplerate, profile):
     # todo: copiar plot de librosa
     import matplotlib.pyplot as plt
+    if profile == 'auto':
+        dur = len(samples)/samplerate
+        if dur > 60*8:
+            # more than 5 minutes
+            profile = 'low'
+        elif dur > 60*2:
+            profile = 'medium'
+        else:
+            profile = 'high'
     if profile == 'low':
         maxpoints = 10000
         maxsr = 500

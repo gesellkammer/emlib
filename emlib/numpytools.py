@@ -44,21 +44,17 @@ def smooth(a, kind="running", strength=0.05):
     """
     assert len(a) > 3
     if kind == "running":
-        if strength is None:
-            N = len(a)
-        else:
-            N = min(len(a) * 0.5 * strength, 3)
+        N = len(a) if strength is None else min(len(a) * 0.5 * strength, 3)
         K = np.ones(N, dtype=float) / N
         a_smooth = np.convolve(a, K, mode='same')
     else:
-        raise NotImplementedError
+        raise ValueError(f"{kind} is not a valid kind. Valid options: 'running' ")
     return a_smooth
 
 
 def overlapping_frames(y, frame_length, hop_length):
     """
-    Slice a time series into overlapping frames. Mainly
-    used for dsp
+    Slice a time series into overlapping frames.
 
     y: np.ndarray [shape=(n,)]
         Time series to frame, Must be one-dimensional
@@ -169,3 +165,25 @@ def padarray(arr, numelements, padwith=0):
         return np.pad(arr, [(0, numelements), (0, 0)], mode='constant', constant_values=padwith)
     else:
         raise ValueError("Only 1D or 2D arrays supported")
+
+
+def linlin(xs:np.ndarray, x0:float, x1:float, y0:float, y1: float) -> np.ndarray:
+    """
+    Map xs from range x0-x1 to y0-y1
+
+    Args:
+        xs: the array of values between x0 and x1
+        x0: the min. value of xs
+        x1: the max. value of xs
+        y0: the min. value of the remapped array
+        y1: the max. value of the remapped array
+
+    Returns:
+        the remapped values
+    """
+    # (xs - x0) / (x1-x0) * (y1-y0) + y0
+    xs = xs - x0
+    xs /= x1 - x0
+    xs *= y1 - y0
+    xs += y0
+    return xs

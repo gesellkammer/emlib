@@ -11,25 +11,20 @@ from .core import *
 
 
 quantizationSearchTrees = {
+    'weigh': nauert.WeightedSearchTree(),
     'simple': nauert.UnweightedSearchTree(
         definition={
             2: {
                 2: {
                     2: None,
-                    # 3: None,
                 },
                 3: None,
-                # 5: None,
-                # 7: None,
             },
             3: {
                 2: None,
-                # 3: None,
-                # 5: None,
             },
             5: {
                 2: None,
-                # 3: None,
             },
             7: None,
             # 7: {
@@ -38,7 +33,8 @@ quantizationSearchTrees = {
             # 11: None,
             # 13: None,
         },
-    )
+    ),
+    'default': nauert.UnweightedSearchTree()
 }
 
 
@@ -187,7 +183,7 @@ def _makeMusic21Voice(notes: Seq[Note], grid="simple") -> m21.stream.Part:
 
 
 def makeMusic21Voice(notes: Seq[Note], grid="simple", divsPerSemitone=4,
-                     showcents=False) -> m21.stream.Part:
+                     showcents=False, centsFontSize:int=8) -> m21.stream.Part:
     """
     Create a music21.Voice with the given notes
 
@@ -212,17 +208,21 @@ def makeMusic21Voice(notes: Seq[Note], grid="simple", divsPerSemitone=4,
         pitch, centsdev = m21tools.makePitch(midinote, divsPerSemitone=divsPerSemitone)
         note.pitch = pitch
         if showcents and not tied:
-            annotation = centsshown(centsdev, divsPerSemitone=divsPerSemitone)
+            centsAnnotation = centsshown(centsdev, divsPerSemitone=divsPerSemitone)
             # we put a space to fix a bug in conversion to lilypond, where if a "syllable"
             # is missing, all subsequent syllables shift to the left and alignment is broken
             # FIX: a better way would be not to use lyrics but text annotations
-            note.lyric = annotation or " "
+            if centsAnnotation:
+                m21tools.addTextExpression(note, text=centsAnnotation, placement='below', fontSize=centsFontSize)
+
+            # note.lyric = centsAnnotation or " "
         tied = note.tie is not None and note.tie.type in ('start', 'continue')
     return m21part
 
 
 def quantizeVoice(events: Seq[Event], grid="simple", divsPerSemitone=4,
-                  showcents=False, showgliss=True, verify=True
+                  showcents=False, showgliss=True, centsFontSize:int=8,
+                  verify=True
                   ) -> m21.stream.Stream:
     """
     This is the center of this module: translate a series of non-overlapping
@@ -235,6 +235,7 @@ def quantizeVoice(events: Seq[Event], grid="simple", divsPerSemitone=4,
         divsPerSemitone: the number of divisions per semitone (4 = 1/8 tones)
         showcents: show the cents deviation to the chromatic pitch under the note
         showgliss: generate glissando lines when indicated by the given Events
+        centsFontSize: font size for cents annotation (if showcents is True)
         verify: verify the quantization
 
     Returns: 
@@ -255,7 +256,7 @@ def quantizeVoice(events: Seq[Event], grid="simple", divsPerSemitone=4,
         assert all(note.editorial.origEvent is not None for note in part.getElementsByClass('Note'))
 
     m21fix.fixStream(part)
-    _mappedPartApplyPitches(part, divsPerSemitone, showcents=showcents, inPlace=True)
+    _mappedPartApplyPitches(part, divsPerSemitone, showcents=showcents, inPlace=True, centsFontSize=centsFontSize)
     _mappedPartAnnotate(part, inPlace=True)
     if showgliss:
         _mappedPartApplyGliss(part, inPlace=True)
@@ -313,11 +314,8 @@ def _partMakeIndex(part: m21.stream.Stream, mapping: Dict[int, Event]
     See quantizeVoice
     
     Args:
-
         part: the part as returned by quantizeAsAbjadRhythm / abjadToMusic21
-        mapping:  
-        
-    Returns:
+        mapping: a dict mapping a note index to its original event
     """
     for note in part.flat.getElementsByClass('Note'):
         # at this moment, the mapped part consists only of notes, ordered
@@ -343,14 +341,15 @@ def _mappedPartAnnotate(part: m21.stream.Stream, inPlace=False) -> m21.stream.St
             continue
         if event.annots:
             for annot in event.annots:
-                m21tools.addTextExpression(note, text=annot.text, placement=annot.placement)
+                m21tools.addTextExpression(note, text=annot.text, placement=annot.placement, fontSize=annot.fontSize)
         if event.dynamic:
             m21tools.addDynamic(note, event.dynamic)
     return part
 
 
 def _mappedPartApplyPitches(part: m21.stream.Stream, divsPerSemitone=4,
-                            showcents=False, inPlace=False
+                            showcents=False, inPlace=False,
+                            forceAccidental=False, centsFontSize=6
                             ) -> m21.stream.Stream:
     """
     Args:
@@ -369,6 +368,7 @@ def _mappedPartApplyPitches(part: m21.stream.Stream, divsPerSemitone=4,
     tiedFromBefore = False
     EMPTY_ANNOTATION = " "
     m21note: m21.note.Note
+    midinoteForDiatonicStep: dict[int, float] = {}
     for m21note in partflat.getElementsByClass(m21.note.Note):
         event = _origEvent(m21note)
         if not event:
@@ -377,17 +377,19 @@ def _mappedPartApplyPitches(part: m21.stream.Stream, divsPerSemitone=4,
             midinote = event.pitch
             pitch, centsdev = m21tools.makePitch(midinote, divsPerSemitone=divsPerSemitone)
             m21note.pitch = pitch
+            diatonic = m21note.pitch.diatonicNoteNum
             if tiedFromBefore:
                 m21note.pitch.accidental.displayStatus = False
+            if forceAccidental or not hasSameAccidental(event, midinoteForDiatonicStep.get(diatonic, 0), divsPerSemitone):
+                m21note.pitch.accidental.displayStatus = True
             if showcents and not tiedFromBefore:
-                annotation = centsshown(centsdev, divsPerSemitone=divsPerSemitone)
-
-                # we put a space to fix a bug in conversion to lilypond, where if a "syllable"
-                # is missing, all subsequent syllables shift to the left and alignment is broken
-                # TODO: better use text annotations instead of lyrics
-                m21note.lyric = annotation if annotations is not None else EMPTY_ANNOTATION
+                centsAnnotation = centsshown(centsdev, divsPerSemitone=divsPerSemitone)
+                if centsAnnotation:
+                    m21tools.addTextExpression(m21note, text=centsAnnotation, placement='below', fontSize=centsFontSize)
+                # m21note.lyric = annotation if annotations is not None else EMPTY_ANNOTATION
             if event.hidden:
                 m21tools.hideNotehead(m21note)
+            midinoteForDiatonicStep[diatonic] = event.pitch
         elif isinstance(event, Chord):
             chord, centsdevs = m21tools.makeChord(event.pitches, duration=m21note.duration,
                                                   showcents=showcents and not tiedFromBefore)
@@ -396,6 +398,11 @@ def _mappedPartApplyPitches(part: m21.stream.Stream, divsPerSemitone=4,
             if tiedFromBefore:
                 for pitch in chord.pitches:
                     pitch.accidental.displayStatus = False
+            for m21note in chord:
+                diatonic = m21note.pitch.diatonicNoteNum
+                if forceAccidental or not hasSameAccidental(m21note.pitch.midi, midinoteForDiatonicStep.get(diatonic, 0)):
+                    m21note.pitch.accidental.displayStatus = True
+                midinoteForDiatonicStep[diatonic] = m21note.pitch.midi
             if event.hidden:
                 m21tools.hideNotehead(chord)
             m21note.getContextByClass('Measure').replace(m21note, chord)
@@ -458,7 +465,7 @@ def _mappedPartApplyGliss(part: m21.stream.Stream, hideTied=True,
 
 
 def m21FromEvents(events: list[Event], split=False, showCents=False,
-                  showGliss=False, divsPerSemitone=4
+                  showGliss=False, divsPerSemitone=4, centsFontSize:int=None
                   ) -> m21.stream.Stream:
     """
     Creates a m21 stream from the events. If split is False, one Voice is created
@@ -470,6 +477,7 @@ def m21FromEvents(events: list[Event], split=False, showCents=False,
         showCents: show cents near the note
         showGliss: if True, show a glissando line when needed
         divsPerSemitone: divisions of the semitone
+        centsFontSize: font size used to show cents annotations
 
     Returns:
         a music21 Stream, containing a Voice or Score containing multiple
@@ -483,4 +491,5 @@ def m21FromEvents(events: list[Event], split=False, showCents=False,
     return quantizeVoice(events,
                          divsPerSemitone=divsPerSemitone,
                          showcents=showCents,
-                         showgliss=showGliss)
+                         showgliss=showGliss,
+                         centsFontSize=centsFontSize)

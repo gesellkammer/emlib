@@ -1,42 +1,19 @@
-from __future__ import absolute_import as _absimport, division as _division, print_function
+from __future__ import annotations
 import csv as _csv
 import os as _os
 import numpy
 from fractions import Fraction as _Fraction
 from collections import namedtuple as _namedtuple
 import re as _re
-from numbers import Number as _Number
 from .containers import RecordList
-from typing import Sequence as Seq, List, Optional as Opt, Union
+from typing import Sequence as Seq, List
+import dataclasses
+from .lib import could_be_number, asnumber
 
 
-def _could_be_number(s):
-    # type: (str) -> bool
-    try:
-        n = eval(s)
-        return isinstance(n, _Number)
-    except TypeError:
-        return False
-
-
-def _as_number_if_possible(s, accept_fractions=True):
-    # type: (str, bool) -> Union[int, float, _Fraction, None]
-    """try to convert 's' to a number if it is possible, return None otherwise"""
-    if accept_fractions:
-        if "/" in s:
-            try:
-                n = _Fraction("/".join(n.strip() for n in s.split("/")))
-                return n
-            except ValueError:
-                return None
-    try:
-        return int(s)
-    except ValueError:
-        try:
-            return float(s)
-        except ValueError:
-            return None
-    return None
+def _as_number_if_possible(s, fallback=None, accept_fractions=True, accept_expon=False):
+    n = asnumber(s, accept_fractions=accept_fractions, accept_expon=accept_expon)
+    return n if n is not None else fallback
 
 
 def replace_non_alfa(s):
@@ -54,12 +31,12 @@ def _normalize_column_name(name):
     if name and name[0] in '0123456789':
         name = 'n' + name
     name = name.strip().rstrip('_')
+    name = name.replace(" ", "")
     return name if name else 'untitled'
 
 
-def _treat_duplicates(columns):
-    # type: (Seq[str]) -> List[str]
-    names = {}      # type: dict[str, int]
+def _treat_duplicates(columns: Seq[str]) -> list[str]:
+    names: dict[str, int] = {}
     new_names = []
     for column in columns:
         if column not in names:
@@ -74,8 +51,7 @@ def _treat_duplicates(columns):
     return new_names
 
 
-def readcsv_numpy(csvfile):
-    # type: (str) -> numpy.ndarray
+def readcsv_numpy(csvfile: str) -> numpy.ndarray:
     """
     Read CSV into a numpy array
     """
@@ -97,9 +73,10 @@ class _Rows(list):
         list.append(self, namedtup)
 
 
-def readcsv(csvfile, columns=None, asnumber=True, prefer_fractions=False, 
-            rowname=None, dialect='excel'):
-    # type: (str, Opt[List[str]], bool, bool, Opt[str], str) -> RecordList
+def readcsv(csvfile, columns:list[str]=None, asnumber=True,
+            accept_exponential_numbers=False,
+            typeconversions=None,
+            prefer_fractions=False, rowname='Row', dialect='excel'):
     """
     read a CSV file into a namedtuple
 
@@ -109,6 +86,7 @@ def readcsv(csvfile, columns=None, asnumber=True, prefer_fractions=False,
              a list header
     rowname: override the row name specified in the CSV file (if any)
     asnumber: convert strings to numbers if they can be converted
+    typeconversions: if given, a dict of the form {column:type}
     prefer_fractions: If True, interpret expressions like 3/4 as Fractions,
                       otherwise, as str. 
     """
@@ -116,13 +94,7 @@ def readcsv(csvfile, columns=None, asnumber=True, prefer_fractions=False,
     mode = "U"
     f = open(csvfile, mode)
     r = _csv.reader(f, dialect=dialect)
-    try:
-        firstrow = next(r)
-    except:
-        mode = mode + 'U'
-        f = open(csvfile, mode + 'U')
-        r = _csv.reader(f, dialect=dialect)
-        firstrow = next(r)
+    firstrow = next(r)
     attributes = {}
     if firstrow[0].startswith('#'):
         # the first row contains attributes
@@ -138,7 +110,7 @@ def readcsv(csvfile, columns=None, asnumber=True, prefer_fractions=False,
     if columns is not None:
         assert isinstance(columns, (tuple, list))
     else:
-        if not any(_could_be_number(x) for x in firstrow) or firstrow[0].startswith('#'):
+        if not any(could_be_number(x) for x in firstrow) or firstrow[0].startswith('#'):
             columns = firstrow
         else:
             print("Can't assume column names. Pass the column names as arguments")
@@ -151,8 +123,17 @@ def readcsv(csvfile, columns=None, asnumber=True, prefer_fractions=False,
     rows = _Rows()
     for row in r:
         if asnumber:
-            row = [_as_number_if_possible(cell, accept_fractions=prefer_fractions)
+            row = [_as_number_if_possible(cell, fallback=cell, accept_fractions=prefer_fractions,
+                                          accept_expon=accept_exponential_numbers)
                    for cell in row]
+        elif typeconversions:
+            row = []
+            for i, cell in enumerate(row):
+                func = typeconversions.get(i)
+                if func:
+                    cell = func(cell)
+                row.append(cell)
+
         if len(row) == numcolumns:
             rows.append(Row(*row))
         else:
@@ -160,6 +141,30 @@ def readcsv(csvfile, columns=None, asnumber=True, prefer_fractions=False,
             row = row[:numcolumns]
             rows.append(Row(*row))
     return RecordList(rows)
+
+
+def write_records_as_csv(records: list, outfile: str) -> None:
+    """
+    Write the records as a csv file
+
+    Args:
+        records: a list of dataclass objects or namedtuples (anything with a '_fields' attribute)
+        outfile: the path to save the csv file
+    """
+    r0 = records[0]
+    if dataclasses.is_dataclass(r0):
+        column_names = [field.name for field in dataclasses.fields(r0)]
+        records = [dataclasses.astuple(rec) for rec in records]
+    elif hasattr(r0, "_fields"):
+        column_names = r0._fields
+    else:
+        raise TypeError("records should be a namedtuple or a dataclass")
+    f = open(outfile, 'w', newline='', encoding='utf-8')
+    w = _csv.writer(f)
+    w.writerow(column_names)
+    for record in records:
+        w.writerow(record)
+    f.close()
 
 
 def writecsv(namedtuples, outfile, column_names=None, write_row_name=False):
@@ -191,19 +196,3 @@ def writecsv(namedtuples, outfile, column_names=None, write_row_name=False):
     for row in namedtuples:
         w.writerow(row)
     f.close()
-
-
-def _to_number(x, accept_fractions=True):
-    if _could_be_number(x):
-        if '.' in x or x in ('nan', 'inf', '-inf'):
-            return float(x)
-        else:
-            try:
-                return int(x)
-            except:
-                try:
-                    return _Fraction(x)
-                except:
-                    return x
-    else:
-        return x

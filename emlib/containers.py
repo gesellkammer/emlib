@@ -1,9 +1,11 @@
+from __future__ import annotations
 from collections import namedtuple as _namedtuple
+import dataclasses
 from keyword import iskeyword as _iskeyword
 from collections import OrderedDict as _OrderedDict
 import itertools
 import tabulate
-from emlib import typehints as t
+from typing import Union, Sequence as Seq
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -16,11 +18,10 @@ class RecordList(list):
     A list of namedtuples or records 
     """
 
-    def __init__(self, data, fields=None, itemname=None, convert=True):
-        # type: (t.List[t.Tup], t.U[str, t.Seq[str]], str, bool) -> None
+    def __init__(self, data:list, fields:Union[str, Seq[str]]=None, itemname:str=None, convert=True):
         """
         
-        data     : A seq of namedtuples
+        data     : A seq of namedtuples or dataclass objects
                    A seq. of tuples or lists is also possible. In that case,
                    fields must be given
         fields   : a string as passed to namedtuple
@@ -39,10 +40,11 @@ class RecordList(list):
         )])
         """
 
+        if not data and not fields:
+            raise ValueError("data is empty, fields must be given")
+
         def _is_list_of_namedtuples(data) -> bool:
-            return (
-                isinstance(data, list) and len(data) > 0 and hasattr(data[0], "_fields")
-            )
+            return isinstance(data, list) and len(data) > 0 and hasattr(data[0], "_fields")
 
         if itemname:
             self.item_name = itemname
@@ -58,10 +60,9 @@ class RecordList(list):
             fieldstup = data[0]._fields
         else:
             if not fields:
-                raise ValueError(
-                    "A seq. of namedtuples must be given or a seq. of tuples. "
-                    "For the latter, 'fields' must be specified."
-                )
+                raise ValueError("A seq. of namedtuples must be given or a seq. of tuples. "
+                                 "For the latter, 'fields' must be specified."
+                                 f"(got {type(data[0])}")
             fieldstup = fields.split() if isinstance(fields, str) else tuple(fields)
             fieldstup = _validate_fields(fieldstup)
 
@@ -102,20 +103,20 @@ class RecordList(list):
             showindex=showindex,
         )
 
-    def __getitem__(self, val) -> t.U[t.NamedTuple, "RecordList"]:
+    def __getitem__(self, val) -> Union[tuple, RecordList]:
         if isinstance(val, int):
             return list.__getitem__(self, val)
         else:
             recs = list.__getitem__(self, val)
-            return self.__class__(recs)
+            return RecordList(recs)
 
-    def reversed(self) -> "RecordList":
+    def reversed(self) -> RecordList:
         """
         return a reversed copy of self
         """
-        return self.__class__(reversed(self), itemname=self.item_name)
+        return RecordList(list(reversed(self)), itemname=self.item_name)
 
-    def copy(self) -> "RecordList":
+    def copy(self) -> RecordList:
         """
         return a copy of self
         """
@@ -125,7 +126,7 @@ class RecordList(list):
     #  columns
     # ######################################################
 
-    def get_column(self, column: t.U[int, str]) -> t.List:
+    def get_column(self, column: Union[int, str]) -> list:
         """
         Return a column by name or index as a list of values. 
         
@@ -142,21 +143,20 @@ class RecordList(list):
             raise TypeError("column should be a label (str), or an index (int)")
         return [item[index] for item in self]
 
-    def add_column(self, name, data, itemname=None, missing=None):
-        # type: (str, t.Iter, str, t.Any) -> RecordList
-        """ 
+    def add_column(self, name:str, data, itemname:str=None, missing=None) -> RecordList:
+        """
         return a new RecordList with the added data as a column
 
         If len(data) < len(self), pad data with missing 
         """
         itemname = itemname or self.item_name
-        columns = self.columns + (name,)
+        columns = tuple(self.columns) + (name,)
         padded = itertools.chain(data, itertools.repeat(missing))
         newdata = [row + (x,) for row, x in zip(self, padded)]
         r = RecordList(newdata, columns, itemname)
         return r
 
-    def remove_column(self, colname: str) -> "RecordList":
+    def remove_column(self, colname: str) -> RecordList:
         if colname not in self.columns:
             return self
         return self.get_columns([col for col in self.columns if col != colname])
@@ -165,7 +165,7 @@ class RecordList(list):
     # operations with other RecordLists
     #######################################################
 
-    def merge_with(self, other: "RecordList") -> "RecordList":
+    def merge_with(self, other: RecordList) -> RecordList:
         """
         A new list is returned with a union of the fields of self and other
         If there are fields in common, other prevails (similar to dict.update)
@@ -186,7 +186,7 @@ class RecordList(list):
                 coldata.append(self.get_column(col))
         return RecordList(list(zip(*coldata)), columns)
 
-    def get_columns(self, columns: t.List[str]) -> "RecordList":
+    def get_columns(self, columns: list[str]) -> RecordList:
         """
         Returns a new RecordList with the selected columns
         """
@@ -207,19 +207,19 @@ class RecordList(list):
         self.sort(key=lambda item: getattr(item, column))
 
     @classmethod
-    def from_csv(cls, csvfile):
+    def from_csv(cls, csvfile:str) -> RecordList:
         from .csvtools import readcsv
 
         rows = readcsv(csvfile)
         return cls(rows)
 
-    def to_csv(self, outfile):
+    def to_csv(self, outfile:str) -> None:
         from .csvtools import writecsv
 
         writecsv(self, outfile, column_names=self.columns)
 
     @classmethod
-    def from_dataframe(cls, dataframe, itemname="row"):
+    def from_dataframe(cls, dataframe, itemname="row") -> RecordList:
         """
         create a RecordList from a pandas.DataFrame
         """
@@ -243,7 +243,7 @@ class RecordList(list):
             raise ImportError("pandas is needed to export to pandas.DataFrame!")
 
 
-def _validate_fields(field_names: t.List[str]) -> t.List[str]:
+def _validate_fields(field_names: list[str]) -> list[str]:
     """
     field_names: a list of strings to be used as attributes.
     

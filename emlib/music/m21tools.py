@@ -15,7 +15,7 @@ from emlib.music import m21fix
 def _splitchord(chord: m21.chord.Chord, 
                 partabove: m21.stream.Part, 
                 partbelow: m21.stream.Part, 
-                split=60) -> t.Tup[t.List[m21.note.Note], t.List[m21.note.Note]]:
+                split=60) -> tuple[list[m21.note.Note], list[m21.note.Note]]:
     above, below = [], []
     for i in range(len(chord)):
         note = chord[i]
@@ -53,7 +53,7 @@ def _asmidi(x) -> float:
     raise TypeError(f"Expected a midinote as number of notename, but got {x} ({type(x)})")
 
 
-def logicalTies(stream:m21.stream.Stream) -> t.List[t.List[m21.note.NotRest]]:
+def logicalTies(stream:m21.stream.Stream) -> list[list[m21.note.NotRest]]:
     out = []
     current = []
     events = list(stream.getElementsByClass(m21.note.NotRest))
@@ -73,7 +73,7 @@ def logicalTies(stream:m21.stream.Stream) -> t.List[t.List[m21.note.NotRest]]:
     return out
     
 
-def splitChords(chords: t.Seq[m21.chord.Chord], split: int=60, force=False) -> m21.stream.Score:
+def splitChords(chords: t.Seq[m21.chord.Chord], split=60, force=False) -> m21.stream.Score:
     """
     split a seq. of music21 Chords in two staffs
     """
@@ -109,7 +109,7 @@ def isTiedToPrevious(note:m21.note.Note) -> bool:
     return tie is not None and tie.type in ('start', 'continued')
 
 
-def getAttacks(stream: m21.stream.Stream) -> t.List[m21.note.NotRest]:
+def getAttacks(stream: m21.stream.Stream) -> list[m21.note.NotRest]:
     ties = logicalTies(stream)
     attacks = []
     for tie in logicalTies(stream):
@@ -310,7 +310,7 @@ def m21Notename(pitch: t.U[str, float]) -> str:
     return notename
 
 
-def makePitch(pitch: t.U[str, float], divsPerSemitone=4) -> t.Tup[m21.pitch.Pitch, int]:
+def makePitch(pitch: t.U[str, float], divsPerSemitone=4) -> tuple[m21.pitch.Pitch, int]:
     assert(isinstance(pitch, (str, int, float)))
     midinote = n2m(pitch) if isinstance(pitch, str) else pitch
     rounding_factor = 1/divsPerSemitone
@@ -357,7 +357,7 @@ def _centsshown(centsdev, divsPerSemitone=4) -> str:
 
 
 def makeNote(pitch: t.U[str, float], divsPerSemitone=4, showcents=False, **options
-             ) -> t.Tup[m21.note.Note, int]:
+             ) -> tuple[m21.note.Note, int]:
     """
     Given a pitch as a (fractional) midinote or a notename, create a
     m21 Note with a max. 1/8 tone resolution.
@@ -374,6 +374,7 @@ def makeNote(pitch: t.U[str, float], divsPerSemitone=4, showcents=False, **optio
     Returns:
         tuple (m21.Note, cents deviation from the returned note)
     """
+    print("------------ makeNote --------------")
     assert isinstance(pitch, (str, int, float))
     pitch, centsdev = makePitch(pitch=pitch, divsPerSemitone=divsPerSemitone)
     note = m21.note.Note(60, **options)
@@ -386,7 +387,7 @@ def makeNote(pitch: t.U[str, float], divsPerSemitone=4, showcents=False, **optio
 
 
 def makeChord(pitches: t.Seq[float], divsPerSemitone=4, showcents=False, **options
-              ) -> t.Tup[m21.chord.Chord, t.List[int]]:
+              ) -> tuple[m21.chord.Chord, list[int]]:
     """
     Create a m21 Chord with the given pitches, adjusting the accidentals to divsPerSemitone
     (up to 1/8 tone). If showcents is True, the cents deviations to the written pitch
@@ -694,8 +695,13 @@ def saveLily(m21stream, outfile: str) -> str:
     """
     Save to lilypond via musicxml2ly. Returns the saved path
 
-    :param m21stream: the stream to save
-    :param outfile: the name of the outfile
+    Args:
+
+        m21stream: (m21.Stream) the stream to save
+        outfile: (str) the name of the outfile
+
+    Returns:
+        (str) the saved path
     """
     from emlib.music import lilytools
     xmlpath = str(m21stream.write('xml'))
@@ -718,6 +724,9 @@ def renderViaLily(m21obj:m21.Music21Object, fmt:str=None, outfile:str=None, show
         outfile: if given, the name of the lilypond file generated. Otherwise
             a temporary file is created
         show: if True, show the resulting file
+
+    Returns:
+        the path of the saved file (pdf or png)
     """
     if outfile is None and fmt is None:
         fmt = 'png'
@@ -794,3 +803,19 @@ def showImage(m21obj, fmt='xml.png'):
     from emlib.music.core import tools
     tools.pngShow(imgpath)
 
+
+
+def writePdf(m21stream, outfile, fmt='musicxml.pdf') -> None:
+    """
+    Write the stream to a pdf
+
+    Args:
+        m21stream: a stream (preferably a Score)
+        outfile: the .pdf to write to
+        fmt: the format used ('musicxml.pdf' to use MuseScore, 'lily.pdf' to use lilypond)
+    """
+    base, ext = os.path.splitext(outfile)
+    assert ext == '.pdf'
+    xmlfile = base + '.xml'
+    m21stream.write(fmt, xmlfile)
+    assert os.path.exists(outfile)

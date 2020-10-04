@@ -23,6 +23,9 @@ def _getSolutions(problem):
         out.append(values)
     return out
 
+class NoSolutionError(Exception):
+    pass
+
 
 def solveSlotsPerGroup(numGroups, numSlots, fixed=None, callback=None):
     """
@@ -278,6 +281,9 @@ def solveSection(possSlotsPerGroup, sectionSecs, tempo, minGroupDur,
                                   maxIndexJump=maxIndexJump,
                                   slotDurs=slotDurs)
         allsolutions.extend(solutions)
+    if not allsolutions:
+        raise NoSolutionError("No solution!")
+
     if rater:
         allsolutions = [rater(sol) for sol in allsolutions]
         allsolutions.sort(reverse=True, key=lambda sol: sol.score)

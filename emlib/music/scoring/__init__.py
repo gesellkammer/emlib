@@ -1,2 +1,2 @@
 from .core import *
-# from . import quantization
+from .quantization import quantizeVoice

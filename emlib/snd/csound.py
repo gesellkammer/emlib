@@ -13,7 +13,7 @@ import io
 import tempfile
 import cachetools
 from dataclasses import dataclass
-from typing import Union, Optional as Opt, Generator, Sequence, Dict, Callable
+from typing import Union, Optional as Opt, Generator, Sequence
 
 import numpy as np
 
@@ -27,6 +27,8 @@ class AudioBackend:
     supportsSystemSr: bool
     needsRealtime: bool
     platforms: list[str]
+    dac: str = "dac"  
+    adc: str = "adc"
     longname: str = ""
 
     def __post_init__(self):
@@ -41,7 +43,9 @@ _backend_jack = AudioBackend('jack',
                              alwaysAvailable=False,
                              supportsSystemSr=True,
                              needsRealtime=False,
-                             platforms=['linux', 'darwin', 'win32'])
+                             platforms=['linux', 'darwin', 'win32'],
+                             dac="dac:system:playback_",
+                             adc="adc:system:capture_")
 
 _backend_pacb = AudioBackend('pa_cb',
                              alwaysAvailable=True,
@@ -61,12 +65,14 @@ _backend_auhal = AudioBackend('auhal',
                               alwaysAvailable=True,
                               supportsSystemSr=True,
                               needsRealtime=False,
+                              longname="coreaudio",
                               platforms=['darwin'])
 
 _backend_pulse = AudioBackend('pulse',
                               alwaysAvailable=False,
                               supportsSystemSr=False,
                               needsRealtime=False,
+                              longname="pulseaudio",
                               platforms=['linux'])
 
 _backend_alsa = AudioBackend('alsa',
@@ -102,7 +108,7 @@ _csoundbin = None
 _OPCODES = None
 
 
-## Exceptions
+# --- Exceptions ---
 
 class PlatformNotSupported(Exception): pass
 class AudioBackendNotAvailable(Exception): pass
@@ -151,7 +157,7 @@ def get_version() -> tuple[int, int, int]:
         raise IOError("Could not read csounds output")
     for line in lines:
         if line.startswith("Csound version"):
-            matches = re.findall("(\d+\.\d+(\.\d+)?)", line)
+            matches = re.findall(r"(\d+\.\d+(\.\d+)?)", line)
             if matches:
                 version = matches[0]
                 if isinstance(version, tuple):
@@ -192,13 +198,13 @@ def get_default_backend() -> AudioBackend:
 
 
 def run_csd(csdfile:str, 
-            output="", 
-            input="", 
-            backend="",
-            supressdisplay=False,
-            comment:str=None,
-            piped=False,
-            extra:list[str]=None) -> subprocess.Popen:
+            output = "", 
+            input = "", 
+            backend = "",
+            supressdisplay = False,
+            comment:str = None,
+            piped = False,
+            extra:list[str] = None) -> subprocess.Popen:
     """
     Args:
         csdfile: the path to a .csd file
@@ -243,7 +249,7 @@ def run_csd(csdfile:str,
     return csound_subproc(args, piped=piped)
     
 
-def join_csd(orc: str, sco="", options:list[str]=None) -> str: 
+def join_csd(orc: str, sco="", options:list[str] = None) -> str: 
     """
     Join an orc and a score (both as a string) and return a consolidated
     csd structure (as string)
@@ -436,7 +442,6 @@ def matrix_as_gen23(outfile, m, dt, t0=0, header=True):
             f.write("\n")
 
 
-
 _Dev = namedtuple("Dev", "index label name")
 
 
@@ -492,8 +497,8 @@ def get_sr(backend: Union[str, AudioBackend]) -> float:
     """
     FAILED = 0
 
-    audiobackend = backend if isinstance(backend, AudioBackend) else \
-                   audio_backends[backend]
+    audiobackend = (backend if isinstance(backend, AudioBackend) else 
+                    audio_backends[backend])
 
     if not audiobackend.isAvailable():
         raise AudioBackendNotAvailable
@@ -526,8 +531,8 @@ def _jack_is_available() -> bool:
     return b'JACK module enabled' in proc.stderr.read()
 
 
-# cache the result for 10 seconds
-@cachetools.cached(cache=cachetools.TTLCache(1, 10))
+# cache the result for 30 seconds
+@cachetools.cached(cache=cachetools.TTLCache(1, 30))
 def is_backend_available(backend: str) -> bool:
     if backend == 'jack':
         return _jack_is_available()
@@ -536,7 +541,7 @@ def is_backend_available(backend: str) -> bool:
         return bool(indevices or outdevices)
 
 
-@cachetools.cached(cache=cachetools.TTLCache(1, 10))
+@cachetools.cached(cache=cachetools.TTLCache(1, 30))
 def get_audiobackends() -> list[AudioBackend]:
     """
     Return a list of supported audio backends as they would be passed
@@ -1189,7 +1194,7 @@ def num_pargs(body:str) -> int:
     return len(pargs)
 
 
-def parg_names(body:str) -> Dict[int, str]:
+def parg_names(body:str) -> dict[int, str]:
     """
     Analyze body to determine the names (if any) of the pargs used
 

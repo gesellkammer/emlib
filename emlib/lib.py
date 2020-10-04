@@ -6,7 +6,9 @@ import random as _random
 import math
 from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
-
+import re as _re
+import dataclasses
+import logging
 
 import numpy as np
 from functools import reduce
@@ -15,13 +17,28 @@ import emlib.typehints as t
 
 T = t.typing.T
 
-
 # phi, in float (double) form and as Rational number with a precission of 2000
 # iterations in the fibonacci row (fib[2000] / fib[2001])
 PHI = 0.6180339887498949
 
 
+logger = logging.getLogger("embib.lib")
+
 EPS = _sys.float_info.epsilon            # used for calculation of derivatives
+
+# Types
+
+
+class Seconds(float):
+    """ A float which prints itself as time MM:SS.mmm"""
+    def __str__(self):
+        return sec2str(self)
+
+    def __rept__(self):
+        return sec2str(self)
+
+    def __format__(self, spec):
+        return sec2str(self)
 
 
 # ------------------------------------------------------------
@@ -46,7 +63,7 @@ def intersection(u1, u2, v1, v2):
     x0 = u1 if u1 > v1 else v1
     x1 = u2 if u2 < v2 else v2
     return (x0, x1) if x0 < x1 else None
-    
+
 
 def frange(start, stop=None, step=None):
     # type: (float, float, float) -> t.Iter[float]
@@ -63,8 +80,7 @@ def frange(start, stop=None, step=None):
         yield start + step*i
 
 
-def linspace(start, stop, numitems):
-    # type: (float, float, int) -> t.Iter[float]
+def linspace(start:float, stop:float, numitems:int) -> list[float]:
     """
     Similar to numpy.linspace
     """
@@ -72,16 +88,14 @@ def linspace(start, stop, numitems):
     return [start + dx*i for i in range(numitems)]
 
 
-def linlin(x, x0, x1, y0, y1):
-    return (x - x0) * (y1 - y0) + y0
+def linlin(x: T, x0:T, x1:T, y0:T, y1:T) -> T:
+    """
+    Convert x from range x0-x1 to range y0-y1
+    """
+    return (x - x0) * (y1 - y0) / (x1-x0) + y0
 
 
-def linlinx(x, x0, x1, y0, y1):
-    return (np.asarray(x) - x0) * ( (y1 - y0)/(x1 - x0) ) + y0
-
-
-def clip(x, minvalue, maxvalue):
-    # type: (float, float, float) -> float
+def clip(x:float, minvalue:float, maxvalue:float) -> float:
     """
     clip the value of x between minvalue and maxvalue
     """
@@ -90,6 +104,7 @@ def clip(x, minvalue, maxvalue):
     elif x < maxvalue:
         return x
     return maxvalue
+
 
 
 def lcm(*numbers):
@@ -103,14 +118,13 @@ def lcm(*numbers):
 
     def lcm2(a, b):
         return (a*b) // gcd(a, b)
-    
+
     return reduce(lcm2, numbers, 1)
 
 
-def mindenom(floats, limit=int(1e10)):
-    # type: (t.Iter[float], int) -> int
-    """ 
-    find the min denominator to express floats 
+def mindenom(floats:t.Iter[float], limit=int(1e10)) -> int:
+    """
+    find the min denominator to express floats
     as fractions of a common denom.
 
     In [68]: mindenom((0.1, 0.3, 0.8))
@@ -119,76 +133,62 @@ def mindenom(floats, limit=int(1e10)):
     In [69]: mindenom((0.1, 0.3, 0.85))
     Out[69]: 20
     """
-    from fractions import Fraction
     fracs = [Fraction(f).limit_denominator(limit) for f in floats]
     mincommon = lcm(*[f.denominator for f in fracs])
     return mincommon
 
 
-def convertbase(num, n):
-    # type: (int, int) -> str
+def convert_base_10_to_any_base(x:int, base:int) -> str:
     """
-    Change a number in base 10 to a base-n number.
-    Up to base-36 is supported without special notation.
+    Converts given number x, from base 10 to base b
+
+    Args:
+        x: the number in base 10
+        base: base to convert
     """
-    num_rep = {
-        10:'a',
-        11:'b',
-        12:'c',
-        13:'d',
-        14:'e',
-        15:'f',
-        16:'g',
-        17:'h',
-        18:'i',
-        19:'j',
-        20:'k',
-        21:'l',
-        22:'m',
-        23:'n',
-        24:'o',
-        25:'p',
-        26:'q',
-        27:'r',
-        28:'s',
-        29:'t',
-        30:'u',
-        31:'v',
-        32:'w',
-        33:'x',
-        34:'y',
-        35:'z'
-    }
-    digits = []
-    current = num
-    while current != 0:
-        remainder = current % n
-        if remainder < 10:
-            digit = str(remainder)
-        elif remainder < 36:
-            digit = num_rep[remainder]
-        else:
-            digit = '(' + str(remainder) + ')' 
-        digits.append(digit)   
-        # new_num_string = remainder_string + new_num_string
-        current = int(current / n)
-
-    return "".join(reversed(digits))
+    assert(x >= 0)
+    assert(1< base < 37)
+    r = ''
+    import string
+    while x > 0:
+        r = string.printable[x % base] + r
+        x //= base
+    return r
 
 
-def euclidian_distance(values, weights=None):
+def convert_any_base_to_base_10(s:str, base:int) -> int:
+    """
+    Converts given number s, from base b to base 10
+
+    Args:
+        s: string representation of number
+        base: base of given number
+    """
+    assert(1 < base < 37)
+    return int(s, base)
+
+
+def convert_base(s:str, frombase:int, tobase:int) -> str:
+    """
+    Converts s from base a to base b
+    """
+    x = convert_any_base_to_base_10(s, frombase)
+    return convert_base_10_to_any_base(x, tobase)
+
+
+def euclidian_distance(values: t.Seq[float], weights: t.Seq[float]=None) -> float:
     if weights:
         s = sum(value**2 * weight for value, weight in zip(values, weights))
         return math.sqrt(s)
+    return math.sqrt(sum(value**2 for value in values))
 
 
 # ------------------------------------------------------------
-#     CHUNKS 
+#     CHUNKS
 # ------------------------------------------------------------
 
 
-def _parse_range(start, stop=None, step=None):
-    # type: (int, int, int) -> t.Tup[int, int, int]
+def _parse_range(start, stop:int=None, step:int=None) -> tuple[int, int, int]:
     if stop is None:
         stop = int(start)
         start = 0
@@ -197,7 +197,7 @@ def _parse_range(start, stop=None, step=None):
     return start, stop, step
 
 
-def chunks(start, stop=None, step=None):
+def chunks(start:int, stop:int=None, step:int=None) -> t.Iter[tuple[int, int]]:
     """
     Returns a generator of tuples (offset, chunksize)
 
@@ -224,11 +224,10 @@ def chunks(start, stop=None, step=None):
 # ------------------------------------------------------------
 
 
-def nearest_element(item, seq):
-    # type: (float, t.Seq[float]) -> float
+def nearest_element(item: float, seq: list[float]) -> float:
     """
     Find the nearest element (the element, not the index) in seq
-    
+
     NB: seq **MUST BE SORTED**, and this is not checked
 
     NB: seq can also be a numpy array, in which case searchsorted
@@ -267,8 +266,7 @@ def nearest_element(item, seq):
     return element_l
 
 
-def nearest_unsorted(x, seq):
-    # type: (float, t.Seq[float]) -> float
+def nearest_unsorted(x:float, seq:list[float]) -> float:
     """
     seq is a numerical sequence. it can be unsorted
     x is a number or a seq of numbers
@@ -303,8 +301,7 @@ def nearest_index(item, seq):
     return il
 
 
-def fuzzymatch(pattern, strings):
-    # type: (str, t.List[str]) -> t.List[t.Tup[float, str]]
+def fuzzymatch(pattern:str, strings:list[str]) -> list[tuple[float, str]]:
     """
     return a subseq. of strings sorted by best score.
     Only strings representing possible matches are returned
@@ -337,8 +334,7 @@ def fuzzymatch(pattern, strings):
 # ------------------------------------------------------------
 
 
-def sort_natural(l, key=None):
-    # type: (t.Seq, t.U[int, t.Opt[t.Callable]]) -> list
+def sort_natural(l: list, key=None) -> list:
     """
     sort a sequence 'l' of strings naturally, so that
     'item1' and 'item2' are before 'item10'
@@ -371,14 +367,13 @@ def sort_natural(l, key=None):
 
     def alphanum_key(key):
         return [convert(c) for c in re.split('([0-9]+)', key)]
-    
+
     if key:
         return sorted(l, key=lambda x: alphanum_key(key(x)))
     return sorted(l, key=alphanum_key)
 
 
-def sort_natural_dict(d, recursive=True):
-    # type: (dict, bool) -> t.OrderedDict
+def sort_natural_dict(d: dict, recursive=True) -> dict:
     """
     sort dict d naturally and recursively
     """
@@ -396,8 +391,7 @@ def sort_natural_dict(d, recursive=True):
     return dict(sorted_rows)
 
 
-def issorted(seq, key=None):
-    # type: (list, t.Callable) -> bool
+def issorted(seq:lst, key=None) -> bool:
     """
     returns True if seq is sorted
     """
@@ -416,7 +410,7 @@ def issorted(seq, key=None):
             lastx = x
         return True
 
-def firstval(*values, default=None, sentinel=None):
+def firstval(*values:T, default:T=None, sentinel=None) -> T:
     """
     Get the first value in values which is not sentinel
 
@@ -437,8 +431,7 @@ def firstval(*values, default=None, sentinel=None):
     return default
 
 
-def zipsort(a, b, key=None, reverse=False):
-    # type: (t.Seq, t.Seq, t.Opt[t.Callable]) -> t.Seq
+def zipsort(a:t.Seq, b:t.Seq, key=None, reverse=False) -> list:
     """
     Sort a and keep b in sync
 
@@ -459,15 +452,66 @@ def zipsort(a, b, key=None, reverse=False):
     return list(zip(*zipped))
 
 
-def duplicates(seq, mincount=2):
-    # type: (t.Iter, int) -> list
+def duplicates(seq:t.Seq, mincount=2) -> list:
     """
     Find all elements in seq which are present at least `mincount` times
     """
     from collections import Counter
     counter = Counter(seq).items()
     return [item for item, count in counter if count > mincount]
-    
+
+def remove_duplicates(seq: list) -> list:
+    """
+    Remove all duplicates in seq while keeping its order
+    If order is not important, use list(set(seq))
+
+    Args:
+        seq: a list of elements (elements must be hashable)
+
+    Returns:
+        a new list with all the unique elements of seq in its
+        original order
+        NB: list(set(...)) does not keep order
+    """
+    # Original implementation:
+    # seen = set()
+    # seen_add = seen.add
+    # return [x for x in seq if not (x in seen or seen_add(x))]
+
+    # In python >= 3.7 we use the fact that dicts keep order:
+    return list(dict.fromkeys(seq))
+
+def fractional_slice(seq: t.Seq, step:float, start=0, end=-1) -> list:
+    """
+    Given a list of elements, take a slice similar to seq[start:end:step],
+    but allows step to be a fraction
+
+    Example:
+
+    >>> fractional_slice(range(10), 1.5)
+    >>> [0, 2, 3, 5, 6, 8]
+
+    Args:
+        seq: the sequence of elements
+        step: the step size
+        start: start index
+        end: end index
+
+    Returns:
+        the resulting list
+
+    """
+    if step < 1:
+        raise ValueError("step should be >= 1 (for now)")
+
+    accum = 0
+    out = [seq[start]]
+    for elem in seq[start+1:end]:
+        accum += 1
+        if accum >= step:
+            out.append(elem)
+            accum -= step
+    return out
 
 # ------------------------------------------------------------
 #
@@ -476,19 +520,19 @@ def duplicates(seq, mincount=2):
 # ------------------------------------------------------------
 
 
-def derivative(func):
-    # type: (t.Callable) -> t.Callable
+def derivative(func: t.Callable[T], h=0) -> t.Callable[T]:
     """
     Return a function which is the derivative of the given func
     calculated via complex step finite difference
-    
+
     To find the derivative at x, do
 
     derivative(func)(x)
 
     VIA: https://codewords.recurse.com/issues/four/hack-the-derivative
     """
-    h = _sys.float_info.min
+    if h <= 0:
+        h = _sys.float_info.min
     return lambda x: (func(x+h*1.0j)).imag / h
 
 
@@ -585,6 +629,26 @@ def roundres(x, resolution=1.0):
     return round(x / resolution) * resolution
 
 
+def modulo_shortest_distance(x, origin, mod):
+    """
+    Return the shortest distance to x from origin around a circle
+    of modulo `mod`. A positive value means move clockwise,
+    negative value means anticlockwise. Use abs to calculate the
+    absolute distance
+
+    Example: calculate the interval between two pitches, independently
+    of octaves
+
+    interval = modulo_shortest_distance(n2m("D5"), n2m("B4"), 12)
+    -> 3
+    """
+    xclock = (x - origin) % mod
+    xanti  = (origin - x) % mod
+    if xclock < xanti:
+        return xclock
+    return -xanti
+
+
 # ------------------------------------------------------------
 #
 #    IO and file-management
@@ -595,7 +659,7 @@ def roundres(x, resolution=1.0):
 def find_file(path, file):
     # type: (str, str) -> t.Opt[str]
     """
-    Look for file recursively starting at path. 
+    Look for file recursively starting at path.
 
     If file is found in path or any subdir, the complete path is returned
     ( /this/is/a/path/filename )
@@ -665,6 +729,29 @@ def sec2str(seconds):
     return fmt.format(**locals())
 
 
+def parse_time(t:str) -> float:
+    """
+    Given a time in the format HH:MM:SS.mmm or any sub-form of it
+    (SS.mmm, MM:SS, etc), return the time in seconds. This is the
+    inverse of sec2str
+
+    Args:
+        t: the time as string
+
+    Returns:
+        seconds
+    """
+    parts = t.split(":")
+    if len(parts) == 1:
+        # only seconds
+        return float(parts[0])
+    elif len(parts) == 2:
+        return float(parts[1]) + float(parts[0])*60
+    elif len(parts) == 3:
+        return float(parts[2]) + float(parts[1])*60 + float(parts[0])*3600
+    else:
+        raise ValueError("Format not understood")
+
 def ljust(s: str, width: int, fillchar=" ") -> str:
     """
     Like str.ljust, but makes sure that the output is always the given width,
@@ -687,12 +774,12 @@ def ljust(s: str, width: int, fillchar=" ") -> str:
 def namedtuple_addcolumn(namedtuples, seq, column_name, classname=""):  # type: ignore
     # type: (t.List[t.NamedTuple], t.List, str, str) -> t.List
     """
-    
+
     namedtuples: a list of namedtuples
     seq: the new column
     column_name: name of the column
     classname: nane of the new namedtuple
-    
+
     Returns a list of namedtuples with the added column
     """
     t0 = namedtuples[0]
@@ -736,7 +823,7 @@ def namedtuple_extend(name, orig, columns):
     name: new name for the type
     orig: an instance of the original namedtuple or the constructor itself
     columns : the columns to add
-   
+
     >>> from collections import namedtuple
     >>> Point = namedtuple("Point", "x y")
     >>> p = Point(10, 20)
@@ -797,7 +884,7 @@ def unzip(seq):
     return list(zip(*seq))
 
 
-def asnumber(obj, accept_fractions=True):
+def asnumber(obj, accept_fractions=True, accept_expon=False):
     """
     Return obj as number, or None of it cannot be converted
     to a number
@@ -815,14 +902,18 @@ def asnumber(obj, accept_fractions=True):
         return obj
     elif isinstance(obj, str):
         if accept_fractions and "/" in obj:
-            from fractions import Fraction
             return Fraction(obj)
         try:
-            n = eval(obj)
-            if hasattr(n, '__float__'):
-                return n
+            asint = int(obj)
+            return asint
+        except ValueError:
+            pass
+        if not accept_expon and _re.search(r"[eE][+-]", obj):
             return None
-        except:
+        try:
+            asfloat = float(obj)
+            return asfloat
+        except ValueError:
             return None
     else:
         return None
@@ -830,7 +921,7 @@ def asnumber(obj, accept_fractions=True):
 
 def astype(type_, obj, construct=None):
     """
-    Return obj as type. If obj is already type, obj itself is returned
+    Return obj as type. If obj is already of said type, obj itself is returned
     Otherwise, obj is converted to type. If a special contructor is needed,
     it can be given as `construct`
 
@@ -919,16 +1010,14 @@ def moses(pred, seq):
     return trueitems, falseitems
 
 
-def allequal(xs):
+def allequal(xs) -> bool:
     """
     Return True if all elements in xs are equal
     """
-    # type: (Iter) -> bool
     return len(set(xs)) == 1
 
 
-def makereplacer(conditions):
-    # type: (Dict) -> Callable
+def makereplacer(conditions:dict) -> Callable:
     """
     Create a function to replace many subtrings at once
 
@@ -947,17 +1036,16 @@ def makereplacer(conditions):
     rep = {re.escape(k): v for k, v in conditions.items()}
     pattern = re.compile("|".join(rep.keys()))
     return lambda txt: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
-    
 
-def dumpobj(obj):
+
+def dumpobj(obj) -> list:
     """
     return all 'public' attributes of this object
     """
     return [(item, getattr(obj, item)) for item in dir(obj) if not item.startswith('__')]
 
 
-def json_minify(json, strip_space=True):
-    # type: (str, bool) -> str
+def json_minify(json:str, strip_space=True) -> str:
     """
     strip comments and remove space from string
 
@@ -1005,8 +1093,7 @@ def json_minify(json, strip_space=True):
     return ''.join(new_str)
 
 
-def can_be_pickled(obj):
-    # type: (t.Any) -> bool
+def can_be_pickled(obj) -> bool:
     """
     test if obj can be pickled
     """
@@ -1023,7 +1110,7 @@ def snap_to_grid(x:t.Rat, tick:t.Rat, offset:t.Rat=0, nearest=True) -> t.Rat:
     Given a grid defined by offset + tick * N, find the nearest element
     of that grid to a given x
 
-    NB: the result will have the same type as x, so if x is float, 
+    NB: the result will have the same type as x, so if x is float,
         then the result will be float, if it is a Fraction, then the
         result will be a fraction
     """
@@ -1063,7 +1150,7 @@ def _snap_array_nearest(X, tick, offset=0, out=None):
         out /= tick
         out = np.round(out, out=out)
         out *= tick
-        out += offset 
+        out += offset
     else:
         out /= tick
         out = np.round(out, out=out)
@@ -1080,7 +1167,7 @@ def _snap_array_floor(X, tick, offset=0, out=None):
         out /= tick
         out = np.floor(out, out=out)
         out *= tick
-        out += offset 
+        out += offset
     else:
         out /= tick
         out = np.floor(out, out=out)
@@ -1093,7 +1180,7 @@ def snap_to_grids(x, ticks, offsets=None, mode='nearest'):
     """
     A regular grid is defined as x = offset + tick*n, where n is an integer
     from -inf to inf.
-    
+
     x: a number or a seq. of numbers
     ticks: a seq. of ticks, each tick defines a grid
     offsets: a seq. of offsets, or None to set offset to 0 for each grid
@@ -1144,8 +1231,7 @@ def snap_to_grids(x, ticks, offsets=None, mode='nearest'):
     return quants[0]
 
 
-def distribute_in_zones(x, split_points, side="left"):
-    # type: (float, t.List[float], str) -> int
+def distribute_in_zones(x:float, split_points:list[float], side="left") -> int:
     """
     Returns the index of a "zone" where to place x. A zone is a numeric range
     defined by an inclusive lower boundary and a non-inclusive higher boundary
@@ -1194,14 +1280,16 @@ def _distribute_in_zones_right(x, split_points):
     return imin
 
 
-def rotate2d(point, degrees, origin=(0,0)):
-    # type: (t.Tup[float, float], float, t.Tup[float, float]) -> t.Tup[float, float]
+def rotate2d(point:tuple[float, float],
+             degrees:float,
+             origin=(0,0)) -> tuple[float, float]:
     """
     A rotation function that rotates a point around an origin
 
-    point:   the point to rotate as a tuple (x, y)
-    degrees: the angle to rotate (counterclockwise)
-    origin:  the point acting as pivot to the rotation
+    Args:
+        point:   the point to rotate as a tuple (x, y)
+        degrees: the angle to rotate (counterclockwise)
+        origin:  the point acting as pivot to the rotation
     """
     x = point[0] - origin[0]
     yorz = point[1] - origin[1]
@@ -1393,9 +1481,9 @@ def seq_transform(seq, transforms, slize=None, maxiterations=20):
     return seq, i < maxiterations
 
 
-def seqcontains(seq, subseq):
+def seqcontains(seq, subseq) -> t.Opt[tuple[int, int]]:
     """
-    returns False if subseq is not contained in seq
+    returns None if subseq is not contained in seq
     returns the (start, end) indices if seq contains subseq, so that
     >>> seq, subseq = range(10), [3, 4, 5]
     >>> indices = seqcontains(seq, subseq)
@@ -1407,7 +1495,27 @@ def seqcontains(seq, subseq):
                 break
         else:
             return i, i+len(subseq)
-    return False
+    return None
+
+
+def pick_regularly(seq, numitems:int, start=0, end=0) -> list:
+    """
+    Given a sequence, pick `numitems` from it at regular intervals
+    The first and the last items are always included. The behaviour
+    is similar to numpy's linspace
+
+    Args:
+        seq: a sequence of items
+        numitems: the number of items to pick from seq
+        start: if given, the index to start picking from
+        end: if given, the index to stop
+
+    Returns:
+        a list of the picked items
+    """
+    if end == 0:
+        end = len(seq) - 1
+    return [seq[round(i)] for i in np.linspace(start, end, numitems)]
 
 
 def deepupdate(orig, updatewith):
@@ -1450,7 +1558,7 @@ def fig2data(fig):
 
 def pixels_to_cm(pixels, dpi=300):
     # type: (int, int) -> float
-    """ 
+    """
     convert a distance in pixels to cm
 
     pixels -> number of pixels
@@ -1511,13 +1619,13 @@ def returns_tuple(names, recname=None):
     # type: (t.U[str, t.List[str]], str) -> t.Callable
     """
     Decorator
-    
+
     Modifies the function to return a namedtuple with the given names.
 
-    names: 
+    names:
         as passed to namedtuple, either a space-divided string,
         or a sequence of strings
-    recname: 
+    recname:
         a name to be given to the result as a whole. If nothing is
         given, the name of the decorated function is used.
 
@@ -1549,7 +1657,7 @@ def returns_tuples(names, recname):
     """
     from decorator import decorator
     from .containers import RecordList
-    
+
     @decorator
     def wrapper(func, *args, **kws):
         result = func(*args, **kws)
@@ -1588,7 +1696,7 @@ def singleton(cls):
     assert m is l
     """
     instances = {}
-    
+
     def get_instance():
         if cls not in instances:
             instances[cls] = cls()
@@ -1622,20 +1730,6 @@ def runonce(func):
     wrapper.has_run = False
     return wrapper
 
-
-def cascade(*values):
-    """
-    Get the first value in values which is not None
-
-    For delayed execution (similar to a if b else c) a value can be a 
-    callable which should return the value in question
-
-    Example:
-
-    default = firstNotNone(a, config['a'], lambda: lengthycomputation())
-    """
-    raise DeprecationWarning("Use firstval")
-    return firstval(*values)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1706,7 +1800,7 @@ def open_with_standard_app(path, force_wait=False):
     This opens the default application in the background
     and returns immediately
 
-    Returns a subprocess.Popen object. You can wait on this process 
+    Returns a subprocess.Popen object. You can wait on this process
     by calling .wait on it. It can happen that the standard app is a server
     like application, where it is not possible to wait on it (like
     emacsclient or sublimetext). For those cases use force_wait=True,
@@ -1718,6 +1812,7 @@ def open_with_standard_app(path, force_wait=False):
     if platform == 'linux':
         subprocess.call(["xdg-open", path])
     elif platform == "win32":
+        # this function exists only in windows
         _os.startfile(path)
     elif platform == "darwin":
         subprocess.call(["open", path])
@@ -1751,7 +1846,7 @@ def inside_jupyter():
     Are we running inside a jupyter notebook?
     """
     return session_type() == 'jupyter'
-    
+
 
 @runonce
 def session_type():
@@ -1791,21 +1886,54 @@ def ipython_qt_eventloop_started():
         return False
 
 
-def print_table(table, headers=()):
-    try:
-        import tabulate
-        if inside_jupyter():
-            from IPython.display import HTML, display
-            display(HTML(tabulate.tabulate(table, headers=headers, tablefmt='html')))
+def print_table(rows, headers=(), tablefmt=None, showindex=True) -> None:
+    """
+    Print rows as table
+    
+    Args:
+        rows: a list of namedtuples or dataclass objects, all of the same kind 
+        headers: override the headers defined in rows
+        tablefmt: if None, a suitable default for the current situation will be used 
+            (depending on if we are running inside jupyter or in a terminal, etc)
+            Otherwise it is passed to tabulate.tabulate
+        showindex: if True, add a column with the index of each row
+
+    Returns:
+
+    """
+    if not rows:
+        raise ValueError("rows is empty")
+
+    row0 = rows[0]
+    if dataclasses.is_dataclass(row0):
+        if not headers:
+            headers = [field.name for field in dataclasses.fields(row0)]
+        rows = [dataclasses.astuple(row) for row in rows]
+    elif isinstance(row0, tuple):
+        if not hasattr(row0, '_fields') and not headers:
+            headers = [f"col{i}" for i in range(len(row0))]
+            logger.warning("The tuples passed don't seem to be namedtuples and no headers provided."
+                           "Using fallback headers")
+        if not headers:
+            headers = row0._fields
+    else:
+        raise TypeError(f"rows should be a list of namedtuples or dataclass objects"
+                        f", got {type(row0)}")
+
+    import tabulate
+    if inside_jupyter():
+        from IPython.display import HTML, display
+        if tablefmt is None:
+            tablefmt = 'html'
+        if tablefmt == 'html':
+            html = tabulate.tabulate(rows, headers=headers, disable_numparse=True,
+                                     tablefmt='html', showindex=showindex)
+            display(HTML(html))
         else:
-            print(tabulate.tabulate(table, headers=headers))
-    except ImportError:
-        _print_table(table)
-
-
-def _print_table(table):
-    for row in table:
-        print("\t".join(map(str, row)))
+            print(tabulate.tabulate(rows, headers=headers, disable_numparse=True, tablefmt=tablefmt,
+                                    showindex=showindex))
+    else:
+        print(tabulate.tabulate(rows, headers=headers, showindex=showindex, tablefmt=tablefmt))
 
 
 def quarters_to_timesig(quarters:float, snap=True, mindiv=64) -> t.Tup[int, int]:
@@ -1855,7 +1983,7 @@ class temporary_sigint_handler:
         print("sigint detected!")
 
     with teporary_sigint_handler(handler):
-        # Do something here
+        # Do something here, handler will be called if SIGINT (ctrl-c) is received
     """
 
     def __init__(self, handler):
@@ -1890,6 +2018,35 @@ def strip_lines(text: str) -> str:
     return "\n".join(lines[startidx:len(lines)-endidx])
 
 
+def findparam(evalparam, val:float, paraminit:float, maxerror=0.001) -> float:
+    """
+    Optimize one parameter to arrive to a desired value.
+
+    Example:
+        # find the exponent of a bpf were its value at 1/7 is 1.25 (within the given relative error)
+        expon = findparam(evalparam=lambda param: bpf.expon(0, 1, 1, 6, exp=param)(1/7), val=1.25, paraminit=2)
+        val = bpf.expon(0, 1, 1, 6, exp=expon)(1/7)
+        print(val)
+
+    Args:
+        evalparam: a function returning a value which will be compared to `val`
+        val: the desired value to arrive to
+        paraminit: the initial value of param
+        maxerror: the max. relative error (0.001 is 0.1%)
+    """
+    param = paraminit
+    while True:
+        print(param)
+        valnow = evalparam(param)
+        relerror = abs(valnow - val) / valonn
+        if relerror < maxerror:
+            return expon
+        if valnow > val:
+            param = param * (1+relerror)
+        else:
+            param = param * (1-relerror)
+
+
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #                             END
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
@@ -1897,4 +2054,3 @@ def strip_lines(text: str) -> str:
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
-

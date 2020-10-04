@@ -5,7 +5,7 @@ Routines ending with suffix _np accept np arrays
 
 
 if peach is present, it is used for purely numeric conversions
-(see github.com/gesellkammer/peach) 
+(see github.com/gesellkammer/peach)
 """
 
 from __future__ import annotations
@@ -121,8 +121,7 @@ _notes3 = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
 _enharmonics = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", "C"]
 
 
-def m2n(midinote):
-    # type: (float) -> str
+def m2n(midinote: float, quantized_shortcuts=True) -> str:
     i = int(midinote)
     micro = midinote - i
     octave = int(midinote / 12.0) - 1
@@ -134,16 +133,16 @@ def m2n(midinote):
         if ps in (1, 3, 6, 8, 10):
             return str(octave) + _notes3[ps + 1] + "-"
         return str(octave) + _notes3[ps] + "+"
-    elif cents == 25:
-        return str(octave) + _notes3[ps] + "*"
-    elif cents == 75:
+    elif cents == 25 and quantized_shortcuts:
+        return str(octave) + _notes3[ps] + ">"
+    elif cents == 75 and quantized_shortcuts:
         ps += 1
         if ps > 11:
             octave += 1
         if ps in (1, 3, 6, 8, 10):
-            return str(octave)+ _enharmonics[ps] + "~"
+            return str(octave)+ _enharmonics[ps] + "<"
         else:
-            return str(octave) + _notes3[ps] + "~"
+            return str(octave) + _notes3[ps] + "<"
     elif cents > 50:
         cents = 100 - cents
         ps += 1
@@ -162,8 +161,8 @@ def m2n(midinote):
 
 _notes2 = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
 
-_r1 = _re.compile(r"(?P<pch>[A-Ha-h][b|#]?)(?P<oct>[-]?[\d]+)(?P<micro>[+|-][\d]*)?")
-_r2 = _re.compile(r"(?P<oct>[-]?\d+)(?P<pch>[A-Ha-h][b|#]?)(?P<micro>[-|+|\*|~]\d*)?")
+_r1 = _re.compile(r"(?P<pch>[A-Ha-h][b|#]?)(?P<oct>[-]?[\d]+)(?P<micro>[-+><↓↑][\d]*)?")
+_r2 = _re.compile(r"(?P<oct>[-]?\d+)(?P<pch>[A-Ha-h][b|#]?)(?P<micro>[-+><↓↑]\d*)?")
 
 
 def n2m(note: str) -> float:
@@ -176,6 +175,9 @@ def n2m(note: str) -> float:
     * = 1/8 note sharp
     ~ = 1/8 note flat
     """
+    if not isinstance(note, str):
+        raise TypeError(f"expected a str, got {note} of type {type(note)}")
+
     if note[0].isalpha():
         m = _r1.search(note)
     else:
@@ -205,9 +207,9 @@ def n2m(note: str) -> float:
         micro = 0.5
     elif microstr == "-":
         micro = -0.5
-    elif microstr == "*":
+    elif microstr == ">" or microstr == "↑":
         micro = 0.25
-    elif microstr == "~":
+    elif microstr == "<" or microstr == "↓":
         micro = -0.25
     else:
         micro = int(microstr) / 100.0
@@ -238,8 +240,8 @@ def n2f(note: str) -> float:
 
 
 def db2amp(db: float) -> float:
-    """ 
-    convert dB to amplitude (0, 1) 
+    """
+    convert dB to amplitude (0, 1)
 
     db: a value in dB
     """
@@ -276,12 +278,12 @@ def logfreqs(notemin=0, notemax=139, notedelta=1.0):
     Examples:
 
     1) generate a list of frequencies of all audible semitones
-    
+
     >>> logfreqs(0, 139, notedelta=1)
 
     2) Generate a list of frequencies of instrumental 1/4 tones
 
-    >>> logfreqs(n2m("A0"), n2m("C8"), 0.5) 
+    >>> logfreqs(n2m("A0"), n2m("C8"), 0.5)
     """
     from emlib import pitchnp
 
@@ -297,19 +299,19 @@ def pianofreqs(start="A0", stop="C8") -> List[float]:
         stop: the ending note
 
     Returns:
-        a list of frequencies 
+        a list of frequencies
     """
     m0 = n2m(start)
     m1 = n2m(stop)
     midinotes = range(m0, m1+1)
     freqs = [m2f(m) for m in midinotes]
     return freqs
-    
+
 
 def ratio2interval(ratio: float) -> float:
     """
     Given two frequencies f1 and f2, calculate the interval between them
-    
+
     f1 = n2f("C4")
     f2 = n2f("D4")
     interval = ratio2interval(f2/f1)   # --> 2 (semitones)
@@ -345,7 +347,8 @@ _centsrepr = {
     '+': 50,
     '-': -50,
     '*': 25,
-    '~': -25
+    '>': 25,
+    '<': -25,
 }
 
 def split_notename(notename: str) -> Tuple[int, str, int, int]:
@@ -413,8 +416,8 @@ def split_cents(notename: str) -> "tuple[str, int]":
     return str(octave) + letter + alterchar, cents
 
 
-def normalize_notename(notename: str) -> str:
-    return m2n(n2m(notename))
+def normalize_notename(notename: str, quantized_shortcuts=True) -> str:
+    return m2n(n2m(notename), quantized_shortcuts=quantized_shortcuts)
 
 
 def str2midi(s: str):

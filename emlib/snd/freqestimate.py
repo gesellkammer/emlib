@@ -7,6 +7,7 @@ import sys
 import numpy as np
 from scipy.signal import blackmanharris, fftconvolve
 from typing import Tuple as Tup, Callable
+import bpf4
 
 
 def parabolic(f:np.ndarray, x:int) -> Tup[float, float]:
@@ -97,7 +98,7 @@ def freq_from_autocorr(sig:np.ndarray, sr:int) -> float:
     # Calculate autocorrelation (same thing as convolution, but with 
     # one input reversed in time), and throw away the negative lags
     corr = fftconvolve(sig, sig[::-1], mode='full')
-    corr = corr[len(corr)/2:]
+    corr = corr[int(len(corr)/2):]
     
     # Find the first low point
     d = np.diff(corr)
@@ -133,6 +134,27 @@ def freq_from_HPS(sig, sr, maxharms=5):
         print('Pass %d: %f Hz' % (x, freq))
         c *= a
     return freq
+
+
+def frequency_bpf(sig:np.ndarray, sr:int, lowestfreq=100, steptime=0.01, method='autocorrelation'):
+    windowsize = int(1/lowestfreq * sr)
+    stepsize = int(steptime * sr)
+    maxidx = len(sig) - windowsize
+    maxn = int(maxidx / stepsize)
+    func = {
+        'autocorrelation': freq_from_autocorr,
+        'fft': freq_from_fft,
+        'hps': freq_from_HPS
+    }[method]
+    freqs = []
+    times = []
+    for n in range(maxn):
+        idx = n * stepsize
+        arr = sig[idx: idx+windowsize]
+        freq = func(arr, sr)
+        freqs.append(freq)
+        times.append(idx/sr)
+    return bpf4.core.Linear(times, freqs)
 
 
 if __name__ == '__main__':

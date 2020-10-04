@@ -4,49 +4,54 @@ import dataclasses
 from fractions import Fraction as F
 import uuid
 
-import emlib.typehints as t
+from emlib.typehints import Opt, U, Seq, Iter
 from emlib import lib, iterlib
+from emlib.pitchtools import n2m
 
+
+Pitch_t  = U[int, float, str]
+Number_t = U[F, int, float]
 
 
 @dataclasses.dataclass
 class Annotation:
     text: str
     placement: str = 'above'
+    fontSize: int = None
 
 
-def makeId():
+def makeId() -> uuid.UUID:
     return uuid.uuid4()
 
 
 class Event:
-    def __init__(self, dur:F=None, offset:F=None, annot:str="", db:float=0, dynamic:str=None,
+    def __init__(self, dur:Number_t=None, offset:Number_t=None, annot:str="", db:float=0, dynamic:str=None,
                  articulation:str="", gliss:bool=False, instr:str=None, group:str="",
                  hidden=False):
         """
-
-        :param dur: duration of the event. Can be None.
-        :param offset: start time. Can be None
-        :param annot: an event can have many annotations. If given at construction time, this
-                      will be the first annotations. See addAnnotation
-        :param db: dynamic as decibel
-        :param dynamic: a dynamic as str ('pp', 'ppp', etc)
-        :param articulation: an articulation 'stacatto', 'tenuto', etc
-        :param gliss: is this the start of a gliss? A gliss can be internal, from pitch to endpitch,
+        
+        Args:
+            dur: duration of the event. Can be None.
+            offset: start time. Can be None
+            annot: an event can have many annotations. If given at construction time, this
+                   will be the first annotations. See addAnnotation
+            db: dynamic as decibel
+            dynamic: a dynamic as str ('pp', 'ppp', etc)
+            articulation: an articulation 'stacatto', 'tenuto', etc
+            gliss: is this the start of a gliss? A gliss can be internal, from pitch to endpitch,
                       or external, from this event to another event. For an internal gliss.,
                       endpitch should be unset
-        :param instr: which instrument should play this event (used for playback)
-        :param group: if given, a string used to identify events that belong together. If unser,
+            instr: which instrument should play this event (used for playback)
+            group: if given, a string used to identify events that belong together. If unset,
                       it is interpreted as not belonging to any group
         """
         # to avoid confusion, optional attributes (dur, offset) will always have a default
-        # value set. If they were not given one, we preserve this in the _* variable,
-        # which can be accessed via .hasDur, .hasOffset, etc.
-        self._dur = dur
-        self._offset = offset
-        self.dur: F = F(dur) if dur is not None else F(1)
-        self.offset: F = F(offset) if offset is not None else F(0)
-        self.annots: t.List[Annotation] = None
+        # value set. Call hasDur or hasOffset to check if the values were given
+        self._hasDur = dur is not None
+        self._dur: F = F(dur) if dur is not None else F(1)
+        self._hasOffset = offset is not None
+        self._offset: F = F(offset) if offset is not None else F(0)
+        self.annots: Opt[list[Annotation]] = None
         self.dynamic: str = dynamic
         self.db = db if db is not None else 0
         self.articulation = articulation
@@ -58,20 +63,37 @@ class Event:
             self.addAnnotation(annot)
 
     @property
+    def offset(self) -> F:
+        return self._offset
+
+    @offset.setter
+    def offset(self, value: Opt[F]) -> None:
+        self._offset = F(value) if value is not None else F(0)
+        self._hasOffset = value is not None
+
+    @property
+    def dur(self) -> F:
+        return self._dur
+
+    @dur.setter
+    def dur(self, value: Opt[F]) -> None:
+        self._dur = F(value) if value is not None else F(0)
+        self._hasDur = value is not None
+
+    @property
     def end(self):
         return self.offset + self.dur
 
     def hasDur(self):
-        return self._dur is not None
+        return self._hasDur
 
     def hasOffset(self):
-        return self._offset is not None
+        return self._hasOffset
 
-    def getAnnotation(self) -> t.Opt[str]:
+    def getAnnotation(self) -> Opt[str]:
         """
         Returns the annotation of this event, or, if the event has multiple
         annotations, these are joined together as one text
-        :return:
         """
         if self.annots:
             return ":".join(annot.text for annot in self.annots)
@@ -84,14 +106,15 @@ class Event:
     def getPitches(self) -> list[float]:
         raise NotImplementedError()
 
-    def clone(self, **kws):
+    def clone(self, **kws) -> Event:
         out = copy.deepcopy(self)
         for key, value in kws.items():
             setattr(out, key, value)
         return out
 
-    def addAnnotation(self, annot, placement='above'):
-        annot = annot if isinstance(annot, Annotation) else Annotation(annot, placement=placement)
+    def addAnnotation(self, annot: U[str, Annotation], placement='above', fontSize:int=None) -> None:
+        annot = annot if isinstance(annot, Annotation) \
+            else Annotation(annot, placement=placement, fontSize=fontSize)
         if self.annots is None:
             self.annots = [annot]
         else:
@@ -104,31 +127,45 @@ class Event:
     def isSilence(self):
         return False
 
+    def show(self, **kws):
+        return Track([self]).show(**kws)
+
 
 class Note(Event):
-    def __init__(self, pitch:float, dur:F=None, endpitch:float=0, offset:F=None, **kws):
-        super().__init__(dur=dur, offset=offset, **kws)
-        assert isinstance(pitch, (int, float))
-        self.pitch = pitch
-        self.endpitch = endpitch
+    def __init__(self, pitch:Pitch_t, dur:F=None, endpitch:Pitch_t=0,
+                 offset:F=None, annot:str=None, **kws):
+        """
+        
+        Args:
+            pitch: the pitch of this Note. 0=silence 
+            dur: the duration of this Note. 
+            endpitch: the end pitch if this is a gliss.
+            offset: the start time of the Note
+            annot: a text annotation for this note
+            **kws: any other keyword passed to Event (db, dynamic, articulation)
+        """
+        super().__init__(dur=dur, offset=offset, annot=annot, **kws)
+        assert isinstance(pitch, (int, float, str))
+        self.pitch = _asmidi(pitch)
+        self.endpitch = _asmidi(endpitch)
         if self.endpitch != 0 and self.pitch != self.endpitch:
             self.gliss = True
 
     @classmethod
-    def silence(cls, dur:F, offset:F=0):
+    def silence(cls, dur:F, offset:F=None) -> Note:
         return Note(pitch=0, dur=dur, offset=offset)
 
-    def getPitches(self):
+    def getPitches(self) -> list[float]:
         pitches = [self.pitch]
         if self.endpitch:
             pitches.append(self.endpitch)
         return pitches
 
-    def isGlissInternal(self):
+    def isGlissInternal(self) -> bool:
         """ Is this gliss between pitch and endpitch? """
         return self.gliss and self.endpitch and self.pitch != self.endpitch
 
-    def isGlissExternal(self):
+    def isGlissExternal(self) -> bool:
         """ Is this gliss between this event and the next? """
         return self.gliss and (self.endpitch == 0 or self.pitch == self.endpitch)
 
@@ -154,9 +191,21 @@ class Note(Event):
         return hash((self.pitch, self.dur, self.endpitch, self.offset))
 
 
+def _asmidi(x: U[Pitch_t,Note]) -> float:
+    if isinstance(x, str):
+        return n2m(x)
+    elif isinstance(x, int):
+        x = float(x)
+    elif isinstance(x, Note):
+        return x.pitch
+    if not (0 <= x < 128):
+        raise ValueError(f"x should be a midi note, got {x}")
+    return x
+
+
 class Chord(Event):
-    def __init__(self, pitches:t.List[float], dur:F=None, offset:F=None,
-                 endpitches:t.List[float]=None, **kws):
+    def __init__(self, pitches:list[float], dur:Number_t=None, offset:Number_t=None,
+                 endpitches:list[float]=None, **kws):
         super().__init__(dur=dur, offset=offset, **kws)
         assert all(isinstance(p, (float, int)) for p in pitches)
         self.pitches = pitches
@@ -201,7 +250,7 @@ class Chord(Event):
 
 
 class Track(list):
-    def __init__(self, events: t.Iter[Event]=None, label:str=None, groupid:str=None):
+    def __init__(self, events: Iter[Event]=None, label:str=None, groupid:str=None):
         """
         A Track is a list of non-simultaneous events (a Part)
 
@@ -221,24 +270,81 @@ class Track(list):
     def __getitem__(self, item) -> Event:
         return super().__getitem__(item)
 
-    def __iter__(self) -> t.Iter[Event]:
+    def __iter__(self) -> Iter[Event]:
         return super().__iter__()
 
-    def split(self) -> t.List['Track']:
+    def split(self) -> list['Track']:
         return splitEvents(self, groupid=self.groupid)
 
     def needsSplit(self) -> bool:
         return needsSplit(self)
 
+    def show(self, **kws):
+        score = makeScore([self], **kws)
+        return score.show()
 
-def _nextInGrid(x: t.U[float, F], ticks: t.List[F]):
+
+def stackEventsInplace(events: list[Event], start=0, overrideOffset=False) -> None:
+    """
+    This function stacks events together by placing an event at the end of the
+    previous event whenever an event does not define its own offset
+
+    Args:
+        events: a list of events or a Track
+        start: the start time, will override the offset of the first event
+        overrideOffset: if True, offsets are overriden even if they are defined
+
+    Returns:
+        a list of stacked events
+    """
+    now = events[0].offset if events[0].hasOffset() else start
+    assert now is not None and now>=0
+    for ev in events:
+        if not ev.hasDur():
+            ev.dur = ev.dur  # set duration explicitely
+
+        if not ev.hasOffset() or overrideOffset:
+            ev.offset = now
+        now += ev.dur
+    for ev1, ev2 in iterlib.pairwise(events):
+        assert ev1.offset<ev2.offset
+
+
+def stackEvents(events: list[Event], start=0., overrideOffset=False) -> list[Event]:
+    """
+    This function stacks events together by placing an event at the end of the
+    previous event whenever an event does not define its own offset
+
+    Args:
+        events: a list of events
+        start: the start time, will override the offset of the first event
+        overrideOffset: if True, offsets are overriden even if they are defined
+
+    Returns:
+        a list of stacked events
+    """
+    now = events[0].offset if events[0].hasOffset() else start
+    assert now is not None and now >= 0
+    out = []
+    for ev in events:
+        assert ev.hasDur()
+        if not ev.hasDur() or not ev.hasOffset() or overrideOffset:
+            ev = ev.clone(offset=now, dur=ev.dur)
+        now += ev.dur
+        out.append(ev)
+    for ev1, ev2 in iterlib.pairwise(out):
+        assert ev1.offset < ev2.offset
+    return out
+
+
+def _nextInGrid(x: U[float, F], ticks: list[F]):
     return lib.snap_to_grids(x + F(1, 9999999), ticks, mode='ceil')
 
 
 def snapTime(note: Event,
-             divisors: t.List[int],
+             divisors: list[int],
              mindur=F(1, 16),
-             durdivisors: t.List[Note]=None) -> Event:
+             durdivisors: list[Note]=None) -> Event:
     """
     Quantize note's start and end to snap to a grid defined by divisors and durdivisors
 
@@ -266,14 +372,17 @@ def snapTime(note: Event,
     return note.clone(offset=start, dur=end-start)
 
 
-def fixOverlap(events: t.Seq[Event]) -> t.Seq[Event]:
+def fixOverlap(events: Seq[Event]) -> Seq[Event]:
     """
     Fix overlap between events. If two events overlap,
     the first event is cut, preserving the offset of the
     second event
 
-    :param events: the events to fix
-    :return: the fixed events
+    Args:
+        events: the events to fix
+
+    Returns:
+        the fixed events
     """
     if len(events) < 2:
         return events
@@ -287,18 +396,20 @@ def fixOverlap(events: t.Seq[Event]) -> t.Seq[Event]:
     return out
 
 
-def fillSilences(events: t.Seq[Event], mingap=1/64) -> t.List[Event]:
+def fillSilences(events: Seq[Event], mingap=1/64) -> list[Event]:
     """
     Return a list of Notes with silences filled by Notes with pitch set
     to `silentPitch`
 
-    :param events: the notes to fill
-    :param mingap: min. gap between two notes. If any notes differ by less
+    Args:
+        events: the notes to fill
+        mingap: min. gap between two notes. If any notes differ by less
                    than this, the first note absorvs the gap
-    :return: a list of new Notes
+    Returns:
+        a list of new Notes
     """
     assert all(isinstance(ev, Event) for ev in events)
-    out: t.List[Event] = []
+    out: list[Event] = []
     if events[0].offset > 0:
         out.append(Note.silence(offset=F(0), dur=events[0].offset))
     for ev0, ev1 in iterlib.pairwise(events):
@@ -319,14 +430,12 @@ def fillSilences(events: t.Seq[Event], mingap=1/64) -> t.List[Event]:
     return out
 
 
-def _makeGroups(events:t.Seq[Event]) -> t.List[t.U[Event, t.List[Event]]]:
+def _makeGroups(events:Seq[Event]) -> list[U[Event, list[Event]]]:
     """
     Given a seq. of events, elements which are grouped together are wrapped
     in a list, whereas elements which don't belong to any group are
-    appened as is
+    appended as is
 
-    :param events:
-    :return:
     """
     out = []
     for groupid, elementsiter in iterlib.groupby(events, key=lambda event:event.group):
@@ -339,7 +448,7 @@ def _makeGroups(events:t.Seq[Event]) -> t.List[t.U[Event, t.List[Event]]]:
     return out
 
 
-def needsSplit(events: t.Seq[Event], threshold=1) -> bool:
+def needsSplit(events: Seq[Event], threshold=1) -> bool:
     G, F, G15a = 0, 0, 0
     allpitches = sum((ev.getPitches() for ev in events), [])
     for pitch in allpitches:
@@ -353,7 +462,7 @@ def needsSplit(events: t.Seq[Event], threshold=1) -> bool:
     return numExceeded > 1
 
 
-def splitEvents(events: t.Seq[Event], groupid=None) -> t.List[Track]:
+def splitEvents(events: Seq[Event], groupid=None) -> list[Track]:
     """
     Assuming that events are not simultenous, split the events into
     different tracks if the range makes it necessary
@@ -404,13 +513,13 @@ def splitEvents(events: t.Seq[Event], groupid=None) -> t.List[Track]:
     return tracks
 
 
-def packInTracks(events: t.Seq[Event], maxrange=36) -> t.List[Track]:
+def packInTracks(events: Seq[Event], maxrange=36) -> list[Track]:
     """
     Pack a list of possibly simultaneous events into tracks, where the events
     within one track are NOT simulatenous. Events belonging to the same group
     are kept in the same track.
 
-    Returns a list of Tracks (a Track is a list of Notes)
+    Returns a list of Tracks (a Track is a list of Events)
     """
     from emlib.music import packing
     items = []
@@ -431,7 +540,7 @@ def packInTracks(events: t.Seq[Event], maxrange=36) -> t.List[Track]:
 
     tracks = packing.pack_in_tracks(items, maxrange=maxrange)
 
-    def unwrapPackingTrack(track: packing.Track) -> t.List[Note]:
+    def unwrapPackingTrack(track: packing.Track) -> list[Note]:
         out = []
         for item in track:
             obj = item.obj
@@ -453,9 +562,12 @@ def centsshown(centsdev, divsPerSemitone=4) -> str:
     anything. Otherwise, the deviation is always the deviation
     from the chromatic pitch
 
-    :param centsdev: the deviation from the chromatic pitch
-    :param divsPerSemitone: divisions per semitone
-    :return: the string to be shown alongside the notated pitch
+    Args:
+        centsdev: the deviation from the chromatic pitch
+        divsPerSemitone: divisions per semitone
+
+    Returns:
+        the string to be shown alongside the notated pitch
     """
     # cents can be also negative (see self.cents)
     divsPerSemitone = divsPerSemitone
@@ -474,7 +586,7 @@ def centsshown(centsdev, divsPerSemitone=4) -> str:
 class AbstractScore:
 
     def __init__(self, score, pageSize:str='a4', orientation='portrait', staffSize=12,
-                 eventTracks: t.List[Track]=None, includeBranch=True) -> None:
+                 eventTracks: list[Track]=None, includeBranch=True) -> None:
         """
         Args:
             score: the internal representation of the score according to the backend
@@ -495,25 +607,29 @@ class AbstractScore:
     def save(self, outfile) -> None: ...
     def play(self, instr=None):
         tracks = self.eventTracks
-        events: t.List[Event] = []
+        events: list[Event] = []
         for track in tracks:
             events.extend(track)
         from .play import playNotes
         playNotes(events, defaultinstr=instr)
 
 
-def makeScore(tracks: t.List[Track], pageSize='a4',
-              orientation='portrait', staffSize=12,
-              includeBranch=True, backend='music21'
+def makeScore(tracks: list[Track],
+              pageSize='a4',
+              orientation='portrait',
+              staffSize=12,
+              includeBranch=True,
+              backend='music21',
+              stackTracks=True
               ) -> AbstractScore:
     """
     Make a score from the list of tracks. Returns either
-    an AbsScore or a Music21Score depending on backend
+    an AbjScore or a Music21Score depending on backend
 
     Args:
 
         tracks:
-            a list of Tracks, as returned by packInTracks(events)
+            a list of Tracks, as returned for example by packInTracks(events)
         pageSize:
             a string like 'a4', 'a3', etc.
         orientation:
@@ -524,24 +640,22 @@ def makeScore(tracks: t.List[Track], pageSize='a4',
             the backend to use (abjad only at the moment)
         includeBranch:
             add branck to the score
+        stackTracks: if True, stackEvents is called on each track (see stackEvents)
 
-    Example:
-
-        notes = [node2note(node) for node in nodes]
-        tracks = packInTracks(notes)
-        score = makescore(tracks)
-        score.save("myscore.pdf")
     """
     from . import quantization
     assert all(isinstance(track, Track) for track in tracks), str(tracks)
+    if stackTracks:
+        tracks = [Track(stackEvents(track)) for track in tracks]
 
     if backend == 'abjad':
         from . import abjscore
         from emlib.music import abjadtools
         voices = [quantization.makeAbjadVoice(track) for track in tracks]
         score = abjadtools.voicesToScore(voices)
-        return abjscore.AbjScore(score, eventTracks=tracks, pageSize=pageSize, orientation=orientation,
-                                 staffSize=staffSize, includeBranch=includeBranch)
+        return abjscore.AbjScore(score, eventTracks=tracks, pageSize=pageSize,
+                                 orientation=orientation, staffSize=staffSize,
+                                 includeBranch=includeBranch)
     elif backend == 'music21':
         from emlib.music import m21tools
         from . import music21score
@@ -549,14 +663,7 @@ def makeScore(tracks: t.List[Track], pageSize='a4',
         m21score = m21tools.stackParts(voices)
         return music21score.Music21Score(m21score, tracks=tracks, pageSize=pageSize)
     else:
-        raise ValueError(f"Backend {backend} not supported. Possible backends are: abjad, music21")
-
-
-def quantizeVoice(events: t.Seq[Event], grid="simple", divsPerSemitone=4, showcents=False):
-    from . import quantization
-    voice = quantization.quantizeVoice(events=events, grid=grid, showcents=showcents,
-                                       divsPerSemitone=divsPerSemitone)
-    return voice
+        raise ValueError(f"Backend {backend} not supported. Possible backends: abjad, music21")
 
 
 def midinotesNeedSplit(midinotes, splitpoint=60, margin=4) -> bool:
@@ -567,7 +674,7 @@ def midinotesNeedSplit(midinotes, splitpoint=60, margin=4) -> bool:
     return bool(numabove and numbelow)
 
 
-def clefNameFromMidinotes(midis: t.List[float]) -> str:
+def clefNameFromMidinotes(midis: list[float]) -> str:
     """
     Given a list of midinotes, return the best clef to
     fit these notes
@@ -584,3 +691,14 @@ def clefNameFromMidinotes(midis: t.List[float]) -> str:
         return "bass"
     else:
         return "bass8vb"
+
+
+def roundMidinote(a: float, divsPerSemitone=4) -> float:
+    rounding_factor = 1/divsPerSemitone
+    return round(a/rounding_factor)*rounding_factor
+
+
+def hasSameAccidental(a: U[Pitch_t, Note], b:U[Pitch_t, Note], divsPerSemitone=4) -> bool:
+    apitch = _asmidi(a)
+    bpitch = _asmidi(b)
+    return roundMidinote(apitch, divsPerSemitone) == roundMidinote(bpitch, divsPerSemitone)

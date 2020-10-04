@@ -63,9 +63,9 @@ def random_range(length):
     s = _np.arange(length)
     _np.random.shuffle(s)
     return s
-    
 
-def distance_from_sorted(seq, offset=0):
+
+def distance_from_sorted(seq, offset=0) -> int:
     """
     Distance between seq and a sorted seq. of the same length
     """
@@ -78,13 +78,13 @@ def distance_from_sorted(seq, offset=0):
     return dist
 
 
-_cached_random_distances = [0,   0,  1,  2,  4,  8, 11, 15, 21, 26, 
-                            33, 39, 47, 56, 64, 74, 84, 96, 107, 119, 
-                            132, 146, 160, 175, 191, 208, 225, 242, 
-                            260, 280, 300, 320, 340, 363, 385, 407, 431, 456, 
-                            480, 506, 532, 560, 587, 615, 645, 674, 705, 734, 
-                            769, 799, 834, 866, 900, 937, 970, 1007, 1043, 1082, 
-                            1120, 1159, 1198, 1240, 1280, 1323, 1366, 1408, 1450, 1495, 
+_cached_random_distances = [0,   0,  1,  2,  4,  8, 11, 15, 21, 26,
+                            33, 39, 47, 56, 64, 74, 84, 96, 107, 119,
+                            132, 146, 160, 175, 191, 208, 225, 242,
+                            260, 280, 300, 320, 340, 363, 385, 407, 431, 456,
+                            480, 506, 532, 560, 587, 615, 645, 674, 705, 734,
+                            769, 799, 834, 866, 900, 937, 970, 1007, 1043, 1082,
+                            1120, 1159, 1198, 1240, 1280, 1323, 1366, 1408, 1450, 1495,
                             1540, 1584, 1634, 1679, 1728, 1775, 1823, 1874, 1925, 1975,
                             2029, 2077, 2135, 2185, 2241, 2296, 2352, 2405, 2460, 2524,
                             2579, 2641, 2698, 2756, 2821, 2882, 2945, 3007, 3072, 3131,
@@ -242,7 +242,7 @@ def unsort2(xs, entropy=1, margin=0, error=0.01, numiter=100):
             bestsol = sol
     assert bestsol is not None
     return bestsol
-    
+
 
 def _unsort(xs, entropy=1, margin=0):
     """
@@ -337,8 +337,8 @@ def permutation_further_than(xs, min_distance, rand=True, return_distance=False)
     min_distance is an indication of entropy, where:
 
     if min_distance == 0: the seq should be xs
-    if min_distance == 1 (maximum distance): the elements are ordered 
-                                             as far away from the originals 
+    if min_distance == 1 (maximum distance): the elements are ordered
+                                             as far away from the originals
                                              as poss.
     """
     acceptable_difference = _max_distance(xs) / len(xs) * 0.5

@@ -1,10 +1,12 @@
 """
 Utilities to edit sound-files in chunks
 """
+from __future__ import annotations
 import tempfile
 import os
 from math import sqrt
 from collections import namedtuple as _namedtuple
+from dataclasses import dataclass
 import pysndfile
 import numpy as np
 import bpf4 as bpf
@@ -19,28 +21,35 @@ import logging
 logger = logging.Logger("emlib.sndfiletools")
 
 
-Chunk = _namedtuple("Chunk", "data position")
-Samples = _namedtuple("Samples", "samples samplerate")
-# SndInfo = _namedtuple("SndInfo", "samplerate numchannels numframes encoding duration")
+@dataclass
+class Chunk:
+    data: np.ndarray
+    position: int
 
 
-class SndInfo(t.NamedTuple):
+@dataclass
+class Samples:
+    samples: np.ndarray
+    samplerate: int
+
+
+@dataclass
+class SndInfo:
     samplerate: int
     numchannels: int
     numframes: int
     encoding: str
-    duration: float
 
-
-def mkSndInfo(samplerate, numchannels, numframes, encoding):
-    return SndInfo(samplerate, numchannels, numframes, encoding, duration=numframes/samplerate)
+    @property
+    def duration(self) -> float:
+        return self.numframes/self.samplerate
 
 
 _Bpf = bpf.BpfInterface
+_FloatFunc = t.Callable[[float], float]
 
 
-def chunks(start, stop=None, step=None):
-    # type: (int, t.Opt[int], t.Opt[int]) -> t.Iter[t.Tup[int, int]]
+def chunks(start:int, stop:int=None, step:int=None) -> t.Iter[tuple[int, int]]:
     """
     Like xrange, but returns a tuplet (position, distance form last position)
 
@@ -68,8 +77,8 @@ def add_suffix(filename:str, suffix:str) -> str:
     return ''.join((name, suffix, ext))
 
 
-def fade_array(samples, srate, fadetime, mode='inout', shape='linear', margin=0):
-    # type: (np.ndarray, int, float, str, str) -> np.ndarray
+def fade_array(samples:np.ndarray, srate:int, fadetime:float,
+               mode='inout', shape='linear') -> np.ndarray:
     """
     fade samples in place
 
@@ -111,25 +120,29 @@ def fade_array(samples, srate, fadetime, mode='inout', shape='linear', margin=0)
             samples[-margin:] = 0
 
 
-def fade_sndfile(sndfile, outfile, fadetime, mode, shape):
-    # type: (str, str, float, str, t.U[str, t.Callable[[float], float]]) -> str
+def fade_sndfile(sndfile:str, outfile:str, fadetime:float, mode:str, shape) -> str:
     """
     Generate a new file `outfile` with the faded sndfile
-    
-    :param sndfile: infile 
-    :param outfile: outfile. Use None to generate a name based on the infile
-    :param fadetime: the fade time, in seconds
-    :param mode: one of 'in', 'out', 'inout'
-    :param func: a string describing the shape (one of 'linear', 'expon(x)', halfcos)
+
+    Args:
+        sndfile: infile
+        outfile: outfile. Use None to generate a name based on the infile
+        fadetime: the fade time, in seconds
+        mode: one of 'in', 'out', 'inout'
+        shape: a string describing the shape (one of 'linear', 'expon(x)', halfcos)
                  or a callable (t) -> gain, defined between 0 - 1
-    :return: the path of the generated outfile
+
+    Returns:
+        the path of the generated outfile
     """
     samples = read_sndfile(sndfile)
-    fade_array(samples, samples.sr, fadetime=fadetime, mode=mode, shape=shape, margin=32)
+    fade_array(samples.samples, samples.samplerate,
+               fadetime=fadetime, mode=mode, shape=shape)
     if outfile is None:
-        base, ext = os.path.splitext(outfile)
-        outfile = "{base}-fade{ext}".format(**locals())
-    clone_to_write(sndfile, outfile).write_samples(samples)
+        base, ext = os.path.splitext(sndfile)
+        outfile = f"{base}-fade{ext}"
+
+    clone_to_write(sndfile, outfile).write_frames(samples)
     return outfile
 
 
@@ -138,8 +151,7 @@ def array_numchannels(A: np.ndarray) -> int:
     return 1 if len(A.shape) == 1 else A.shape[1]
     
 
-def is_samplesource(source):
-    # type: (Any) -> bool
+def is_samplesource(source) -> bool:
     """
     a sample source is defined by (samples, sr)
     """
@@ -149,8 +161,7 @@ def is_samplesource(source):
             isinstance(source[1], int))
 
 
-def is_sndfile(filename):
-    # type: (str) -> bool
+def is_sndfile(filename: str) -> bool:
     """
     determine if filename can be interpreted as a soundfile
     """
@@ -158,21 +169,30 @@ def is_sndfile(filename):
     return ext.lower() in (".wav", ".aif", ".aiff", ".flac", ".wv")
 
 
-def copy_fragment(path, begin, end, outfile=None, suffix='-CROP'):
-    # type: (str, float, float, t.Opt[str], str) -> None
+def copy_fragment(path:str, begin:float, end:float,
+                  outfile:str=None, suffix='-CROP') -> str:
     """
     Read the data between begin and end (in seconds) and write it to outfile
 
-    end: the endtime in seconds. Use None or -1 to refer to the end of the file
-    suffix: is used only if outfile is None
+    Args:
+        path: the file to copy from
+        begin: the start time
+        end: end time
+        outfile: path of the saved fragment. If None, it will be constructed
+            with suffix
+        suffix: the suffix to add to path if no outfile is given
+
+    Returns:
+        the outfile
+
     """
     if outfile is None:
         outfile = add_suffix(path, suffix)
     if end is None or end == -1:
-        end = get_duration(path)
+        end = get_info(path).duration
 
     process(path, outfile, callback=None, timerange=(begin, end))
-
+    return outfile
 
 def process(sourcefile, outfile, callback, timerange=None, bufsize=4096):
     # type: (str, str, t.Callable[[np.ndarray, int, int], np.ndarray], t.Opt[t.Tup[float, float]], int) -> None
@@ -202,16 +222,12 @@ def process(sourcefile, outfile, callback, timerange=None, bufsize=4096):
         ofile.write_frames(data2)
 
 
-def gain(filename, factor, outfile=None):
-    # type: (str, t.U[float, t.Callable[[float], float]], t.Opt[str]) -> str
+def gain(filename:str, factor:t.U[float, _FloatFunc], outfile:str) -> None:
     """
     Change the volume of a audiofile.
 
     factor: a number between 0-1 or a callable (\t -> gain_at_t)
     """
-    if outfile is None:
-        outfile = add_suffix(filename, '-G')
-
     if callable(factor):
         return _dynamic_gain(filename, factor, outfile)
 
@@ -219,11 +235,9 @@ def gain(filename, factor, outfile=None):
         data *= factor
         return data
     process(filename, outfile, callback)
-    return outfile
 
 
-def as_sndfile(snd):
-    # type: (t.U[str, pysndfile.PySndfile]) -> pysndfile.PySndfile
+def as_sndfile(snd: t.U[str, pysndfile.PySndfile]) -> pysndfile.PySndfile:
     if isinstance(snd, pysndfile.PySndfile):
         return snd
     if not isinstance(snd, str):
@@ -231,8 +245,7 @@ def as_sndfile(snd):
     return pysndfile.PySndfile(snd)
 
 
-def encoding_from_dtype(dtype, filetype):
-    # type: (type, str) -> str
+def encoding_from_dtype(dtype:str, filetype:str) -> str:
     if dtype in (np.float64, np.float32):
         encoding = 'float32'
     elif dtype in (np.int16,):
@@ -246,8 +259,7 @@ def encoding_from_dtype(dtype, filetype):
     return encoding
 
 
-def _dynamic_gain(sndfile, curve, outfile='inplace'):
-    # type: (str, _Bpf, str) -> None
+def _dynamic_gain(sndfile: str, curve, outfile='inplace') -> None:
     if outfile == 'inplace':
         inplace = True
         outfile = tempfile.mktemp()
@@ -265,8 +277,7 @@ def _dynamic_gain(sndfile, curve, outfile='inplace'):
         os.rename(outfile, sndfile)
 
 
-def _mkramp(desc, numsamples):
-    # type: (str, int) -> np.ndarray
+def _mkramp(desc:str, numsamples:int) -> np.ndarray:
     """
     desc: A string descriptor of a function. Possible descriptors are:
           - "linear"
@@ -304,8 +315,9 @@ def mix(sources, offsets=None):
     return out
 
 
-def read_chunks(sndfile, chunksize:int=None, chunkdur:float=None, start=0.0, end=0.0) -> t.Iter[t.Tup[np.ndarray, int]]:
-    # type: (str, int, float, float) -> t.Iter[t.Tup[np.ndarray, int]]
+def read_chunks(sndfile:str, chunksize:int=None,
+                chunkdur:float=None, start=0.0, end=0.0
+                ) -> t.Iter[tuple[np.ndarray, int]]:
     """
     read chunks of data from sndfile. each chunk has a
     duration of `chunksize` in seconds but can have less
@@ -323,6 +335,8 @@ def read_chunks(sndfile, chunksize:int=None, chunkdur:float=None, start=0.0, end
     s = as_sndfile(sndfile)
     srate = s.samplerate()
     start_frame = int(start * srate)
+    if start_frame > 0:
+        s.seek(start_frame)
     if chunksize is None and chunkdur is None:
         chunksize = 4096
     chunksize = chunksize if chunksize is not None else int(chunkdur * srate)
@@ -335,8 +349,7 @@ def read_chunks(sndfile, chunksize:int=None, chunkdur:float=None, start=0.0, end
         yield (data, pos)
 
 
-def equal_power(pan):
-    # type: (float) -> t.Tup[float, float]
+def equal_power(pan:float) -> tuple[float, float]:
     """
     pan is a float from 0 to 1
 
@@ -347,14 +360,14 @@ def equal_power(pan):
     return sqrt(1-pan), sqrt(pan)
 
 
-def get_info(filename) -> SndInfo:
-    # type: (str) -> t.Tup[int, int, int]
+def get_info(filename:str) -> SndInfo:
     """
-    return a tuplet with
+    return a SndInfo
     (sample_rate, channels, size_in_samples)
     """
     snd = pysndfile.PySndfile(filename)
-    return mkSndInfo(snd.samplerate(), snd.channels(), snd.frames(), snd.encoding_str())
+    return SndInfo(snd.samplerate(), snd.channels(), snd.frames(),
+                   snd.encoding_str())
 
 
 def _process(sndfile, func, *args):
@@ -450,30 +463,34 @@ def maximum_peak(filename, start=None, end=None):
     return maximum_peak
 
 
-def rms(arr):
-    # type: (np.ndarray) -> float
+def rms(arr: np.ndarray) -> float:
     """
     arr: a numpy array
     """
-    return ((abs(arr) ** 2) / len(arr)).sum()
+    arr = np.abs(arr)
+    arr **= 2
+    return sqrt(np.sum(arr) / len(arr))
 
 
-def find_first_sound(sndfile, threshold=-120, resolution=0.01):
-    # type: (str, float) -> float
+def find_first_sound(sndfile:str, threshold=-120, resolution=0.01, start=0.
+                     ) -> float:
     """
     Find the time when the first sound appears in the soundfile
     (or, what is the same, the length of any initial silence at the
     beginning of the soundfile)
-    
-    sndfile: The path to the soundfile 
-    threshold: The volume threshold defining silence, in dB
-    resolution: the time resolution, in seconds
+
+    Args:
+        sndfile: The path to the soundfile
+        threshold: The volume threshold defining silence, in dB
+        resolution: the time resolution, in seconds
+        start: where to start searching (in seconds)
 
     Returns: time of the first sound (in seconds)
     """
     f = as_sndfile(sndfile)
     minamp = db2amp(threshold)
-    for chunk, pos in read_chunks(f, chunkdur=resolution):
+    pos = 0
+    for chunk, pos in read_chunks(f, chunkdur=resolution, start=start):
         if rms(chunk) > minamp:
             break
     return pos/f.samplerate()
@@ -568,7 +585,7 @@ def normalize(path, peak=-1.5, outfile=None):
     If outfile is not given, a new file with the suffix "-N" is generated
     based on the input
     
-    :param sndfile: the path to the soundfile 
+    :param path: the path to the soundfile
     :param peak: the peak to normalize to, in dB
     :param outfile: the path to the outfile, or None to just return the samples
     :return: the path of the generated soundfile 
@@ -590,8 +607,7 @@ def normalize(path, peak=-1.5, outfile=None):
     return outfile
 
 
-def clone_to_write(sndfile, outfile):
-    # type: (t.U[pysndfile.Pysndfile, str], str) -> pysndfile.PySndfile
+def clone_to_write(sndfile: str, outfile: str) -> pysndfile.PySndfile:
     """
     Return an sndfile open to write with
     the same format and channels of `sndfile`
@@ -863,8 +879,7 @@ def read_regions(sndfile, times):
     return out, sr
 
 
-def read_sndfile(sndfile, start=0, end=-1):
-    # type: (str, float, float) -> t.Tup[np.ndarray, int]
+def read_sndfile(sndfile:str, start=0., end=-1.) -> Samples:
     """
     Read a soundfile, or a fraction of it
 

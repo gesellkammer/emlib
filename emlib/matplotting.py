@@ -1,3 +1,4 @@
+from __future__ import annotations
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from matplotlib.patches import Rectangle
@@ -28,6 +29,19 @@ defaultprofile = {
 
 
 def makeProfile(default=defaultprofile, **kws):
+    """
+    Create a profile based on a default profile
+
+    A profile is used to determine multiple defaults
+
+    Example:
+
+    makeProfile(
+        label_font="Roboto",
+        background=(10, 10, 10),
+        linewidth=2
+    )
+    """
     out = default.copy()
     for key, value in kws.items():
         if key not in default:
@@ -36,31 +50,39 @@ def makeProfile(default=defaultprofile, **kws):
     return out
 
 
-_colormap = cm.cmap_d['jet']   # type: t.Callable[[float], t.Tuple[float, float, float, float]]
+_colormap = cm.cmap_d['jet']   # type: t.Callable[[float], tuple[float, float, float, float]]
 
 
-def _get(profile: dict, key:str, fallback:dict=defaultprofile, value=None) -> t.Any:
-    if profile is not None:
-        return profile.get(key, fallback.get(key, value))
+def _get(profile: dict, key:str, fallback:dict=defaultprofile, value=None):
+    if profile is not None and key in profile:
+        return profile[key]
     return fallback.get(key, value)
 
 
-def drawLabel(ax: plt.Axes, x: float, y: float, text: str, size=None, alpha=None, profile=None) -> None:
+def drawLabel(ax: plt.Axes, x: float, y: float, text: str, size=None, alpha=None,
+              profile=None) -> None:
     family = _get(profile, 'label_font')
     size = _fallback(size, profile, 'label_size')
     alpha = _fallback(alpha, profile, 'label_alpha')
     plt.text(x, y, text, ha="center", family=family, size=size, alpha=alpha)
 
 
-def drawLine(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float, color: float=None, 
-             linestyle:str = 'solid', alpha: float=None, linewidth:float=None, label: str=None, 
-             profile=None) -> None:
+def drawLine(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float,
+             color: float=None, linestyle:str = 'solid', alpha: float=None,
+             linewidth:float=None, label: str=None, profile=None) -> None:
     """
-    ax: plt.Axes  
+    ax: plt.Axes
         fig, ax = plt.subplots()
-    
-    linestyle - 'solid', 'dashed'
-    label     - if given, a label with the given string is plotted next to the line
+
+    Args:
+        ax: a plt.Axes to draw on
+        x0, y0, x1, y1: the coordinates (x0, y0) - (x1, y1)
+        color: the color of the line as a value 0-1 within the colormap space
+        linestyle: 'solid' / 'dashed'
+        alpha: a float 0-1
+        label: if given, a label is plotted next to the line
+        profile: the profile (created via makeProfile) to use. Leave None to
+            use the default profile
     """
     linewidth = _fallback(linewidth, profile, 'line_width')
     alpha = _fallback(alpha, profile, 'line_alpha')
@@ -85,16 +107,18 @@ def _getcolor(color):
     if isinstance(color, tuple):
         return color
     return _colormap(color)
-    
+
 
 def _unzip(pairs):
     return zip(*pairs)
 
 
-def drawConnectedLines(ax: plt.Axes, pairs: t.List[t.Tuple[float, float]], 
-                       connectEdges=False, color=None, alpha:float=None, 
+def drawConnectedLines(ax: plt.Axes, pairs: list[tuple[float, float]],
+                       connectEdges=False, color=None, alpha:float=None,
                        linewidth:float=None, label:str=None, linestyle:str=None, profile:dict=None) -> None:
     """
+    Draw an open poligon
+
     pairs: a list of (x, y) pairs
     """
     linewidth = _fallback(linewidth, profile, 'line_width')
@@ -115,7 +139,7 @@ def drawConnectedLines(ax: plt.Axes, pairs: t.List[t.Tuple[float, float]],
         autoscaleAxis(ax)
 
 
-def drawRect(ax: plt.Axes, x0:float, y0:float, x1:float, y1:float, 
+def drawRect(ax: plt.Axes, x0:float, y0:float, x1:float, y1:float,
              color=None, alpha:float=None, edgecolor=None, label:str=None,
              profile:dict=None) -> None:
     facecolor = _fallback(color, profile, 'facecolor')
@@ -139,7 +163,7 @@ def _many(value, numitems:int, key:str=None, profile:dict=None) -> list:
     return [value] * numitems
 
 
-def drawRects(ax: plt.Axes, data, facecolor=None, alpha:float=None, edgecolor=None, 
+def drawRects(ax: plt.Axes, data, facecolor=None, alpha:float=None, edgecolor=None,
               linewidth:float=None, profile:dict=None, autolim=True) -> None:
     """
     data: a list of (x0, y0, x1, y1)
@@ -156,48 +180,48 @@ def drawRects(ax: plt.Axes, data, facecolor=None, alpha:float=None, edgecolor=No
     ax.add_collection(coll, autolim=True)
     if autolim:
         ax.autoscale_view()
-    
+
 
 def autoscaleAxis(ax: plt.Axes) -> None:
     ax.relim()
     ax.autoscale_view(True,True,True)
 
 
-def makeAxis(pixels: t.Tuple[int, int]=None) -> plt.Axes:
-    # plt.subplots(figsize=(20, 10)) 
+def makeAxis(pixels: tuple[int, int]=None) -> plt.Axes:
+    # plt.subplots(figsize=(20, 10))
     if pixels is None:
         fig, ax = plt.subplots()
         return ax
-    else:
-        if not isinstance(pixels, tuple):
-            raise TypeError(f"pixels should be of the form (x, y), got {pixels}")
-        dpi = 96
-        xinches = pixels_to_inches(pixels[0], dpi=dpi)
-        yinches = pixels_to_inches(pixels[1], dpi=dpi)
-        fig,ax = plt.subplots(figsize=(xinches, yinches), dpi=dpi)
-        return ax
+
+    if not isinstance(pixels, tuple):
+        raise TypeError(f"pixels should be of the form (x, y), got {pixels}")
+    dpi = 96
+    xinches = pixels_to_inches(pixels[0], dpi=dpi)
+    yinches = pixels_to_inches(pixels[1], dpi=dpi)
+    fig,ax = plt.subplots(figsize=(xinches, yinches), dpi=dpi)
+    return ax
 
 def _fallback(value, profile: dict, key: str):
     return value if value is not None else _get(profile, key)
 
 
-def _fallbackColor(value, profile: dict, key: str) -> t.Tuple[float, float, float]:
+def _fallbackColor(value, profile: dict, key: str) -> tuple[float, float, float]:
     if value is not None:
         return _getcolor(value)
     return _getcolor(_get(profile, key))
 
 
-def drawBracket(ax:plt.Axes, x0:float, y0:float, x1:float, y1:float, 
-                label:str=None, color=None, linewidth:float=None, alpha:float=None, 
+def drawBracket(ax:plt.Axes, x0:float, y0:float, x1:float, y1:float,
+                label:str=None, color=None, linewidth:float=None, alpha:float=None,
                 profile:dict=None) -> None:
     linewidth = _fallback(linewidth, profile, 'linewidth')
     color = _fallback(color, profile, 'edgecolor')
     alpha = _fallback(alpha, profile, 'annotation_alpha')
     data = [(x0, y0), (x0, y1), (x1, y1), (x1, y0)]
     drawConnectedLines(ax, data, color=color, linewidth=linewidth, label=label, alpha=alpha)
-    
 
-def plotDurs(durs: t.List[float], y0=0.0, x0=0.0, height=1.0, labels:t.List[str]=None, color=None, 
+
+def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels:list[str]=None, color=None,
              ax=None, groupLabel:str=None, profile:dict=None, stacked=False) -> plt.Axes:
     if ax is None:
         ax = makeAxis()

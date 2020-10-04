@@ -1,13 +1,12 @@
-# ----------------------------------------------------------------------------
-#
 #   functions to convert between dB and musical dynamics
 #   also makes a representation of the amplitude in terms of musical dynamics
-
+from __future__ import annotations
 from bisect import bisect as _bisect
 import bpf4 as _bpf
 from emlib.pitchtools import db2amp, amp2db
 from emlib import typehints as t
 from emlib import lib
+
 
 _DYNAMICS = ('pppp', 'ppp', 'pp', 'p', 'mp',
              'mf', 'f', 'ff', 'fff', 'ffff')
@@ -15,7 +14,7 @@ _DYNAMICS = ('pppp', 'ppp', 'pp', 'p', 'mp',
 
 class DynamicsCurve(object):
     
-    def __init__(self, bpf, dynamics:t.Seq[str]=None):
+    def __init__(self, bpf, dynamics:t.Seq[str] = None):
         """
         shape: a bpf mapping 0-1 to amplitude(0-1)
         dynamics: a list of possible dynamics, or None to use the default
@@ -29,7 +28,7 @@ class DynamicsCurve(object):
 
     @classmethod
     def fromdescr(cls, shape:float, mindb:-100.0, maxdb=0.0,
-                  dynamics:t.Seq[str]=None) -> 'DynamicsCurve':
+                  dynamics:t.Seq[str] = None) -> DynamicsCurve:
         """
         shape: the shape of the mapping ('linear', 'expon(2)', etc)
         mindb, maxdb: db value of minimum and maximum amplitude
@@ -76,12 +75,10 @@ class DynamicsCurve(object):
             raise ValueError("dynamic %s not known" % dyn)
         return amp
 
-    def dyn2db(self, dyn):
-        # type: (str) -> float
+    def dyn2db(self, dyn:str) -> float:
         return amp2db(self.dyn2amp(dyn))
 
-    def db2dyn(self, db):
-        # type: (float) -> str
+    def db2dyn(self, db:float) -> str:
         """
         """
         return self.amp2dyn(db2amp(db))
@@ -105,7 +102,7 @@ class DynamicsCurve(object):
         # type: (int) -> float
         return self.dyn2amp(self.index2dyn(index))
 
-    def asdbs(self, step=1) -> 't.List[float]':
+    def asdbs(self, step=1) -> list[float]:
         """
         Convert the dynamics defined in this curve to dBs
         """
@@ -120,7 +117,7 @@ def _validate_dynamics(dynamics: t.Seq[str]) -> None:
         "Dynamics not understood"
 
 
-def _create_dynamics_mapping(bpf, dynamics:t.Seq[str]=None):
+def _create_dynamics_mapping(bpf, dynamics:t.Seq[str] = None):
     """
     Calculate the global dynamics table according to the bpf given
 
@@ -164,41 +161,35 @@ def create_shape(shape='expon(3)', mindb=-90, maxdb=0) -> _bpf.BpfInterface:
 _default = DynamicsCurve(create_shape("expon(4.0)", -80, 0))
 
 
-def amp2dyn(amp, nearest=True):
-    # type: (float, bool) -> str
+def amp2dyn(amp:float, nearest=True) -> str:
     return _default.amp2dyn(amp, nearest)
 
 
-def dyn2amp(dyn):
-    # type: (str) -> float
+def dyn2amp(dyn:str) -> float:
     return _default.dyn2amp(dyn)
 
 
-def dyn2db(dyn):
-    # type: (str) -> float
+def dyn2db(dyn:str) -> float:
     return _default.dyn2db(dyn)
 
 
-def db2dyn(db, nearest=True):
-    # type: (float, bool) -> str
+def db2dyn(db:float, nearest=True) -> str:
     amp = db2amp(db)
     return _default.amp2dyn(amp, nearest)
    
 
-def dyn2index(dyn):
-    # type: (str) -> int
+def dyn2index(dyn:str) -> int:
     return _default.dyn2index(dyn)
 
 
-def index2dyn(idx):
-    # type: (int) -> str
+def index2dyn(idx:int) -> str:
     return _default.index2dyn(idx)
 
 
-def set_default_curve(shape, mindb=-90, maxdb=0, possible_dynamics=None):
+def set_default_curve(shape:str, mindb=-90, maxdb=0, possible_dynamics=None) -> None:
     global _default
     _default = DynamicsCurve(shape, mindb, maxdb, possible_dynamics)
 
 
-def get_default_curve():
+def get_default_curve() -> DynamicsCurve:
     return _default

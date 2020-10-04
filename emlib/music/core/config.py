@@ -25,6 +25,7 @@ _defaultconfig = {
     'show.lastBreakpointDur':1/8,
     'show.cents': True,
     'show.centsMethod': 'lyric',
+    'show.centsFontSize': 8,
     'show.split': True,
     'show.gliss': True,
     'show.centSep': ',',
@@ -54,6 +55,7 @@ _defaultconfig = {
     'play.presetsPath': '',
     'play.autosavePresets': True,
     'play.unknownParameterFailSilently': False,
+    'play.defaultAmplitude': 1.0,
     'rec.block': False,
     'rec.gain': 1.0,
     'rec.samplerate': 44100,
@@ -75,6 +77,7 @@ _validator = {
     'show.centsMethod::choices': {'lyric', 'expression'},
     'rec.samplerate::choices': {44100, 48000, 88200, 96000},
     'rec.ksmps::choices': {1, 16, 32, 64, 128, 256},
+    'play.defaultAmplitude::range': (0, 1)
 }
 
 _docs = {
@@ -109,6 +112,9 @@ _docs = {
     'play.numChannels':
         "Default number of channels (channels can be set explicitely when calling"
         " startPlayEngine",
+    'play.defaultAmplitude':
+        "The amplitude of a Note/Chord when an amplitude is needed and the object"
+        "has an undefined amplitude",
     'rec.block':
         "Default value when calling .rec (True=.rec will block until finished,"
         " otherwise recording is done async)",
@@ -123,6 +129,8 @@ _docs = {
         "Default duration of each element of a NoteSeq or ChordSeq when shown",
     'show.label.fontSize':
         "Font size to use for labels",
+    'show.centsFontSize':
+        "Font size used for cents annotations",
     'play.presetsPath': 'The path were presets are saved',
     'play.autosavePresets':
         'Automatically save user defined presets, so they will be available '

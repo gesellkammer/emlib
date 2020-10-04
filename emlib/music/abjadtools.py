@@ -158,7 +158,7 @@ def scoreToLily(score: abj.Score, pageSize: str=None, orientation: str=None,
     Create a LilyPondFile from a score by adding a header and setting score layout
     
     Args:
-
+        score: the abjad score
         pageSize: a3 or a4
         orientation: portrait, landscape
         staffSize: the size of a staff, in points
@@ -557,7 +557,7 @@ def _abjtom21(abjobj, m21stream, level=0, durfactor=4,
                 tie = noteTied(note)
                 if debug:
                     print("\t"*level, "tie: ", tie)
-                if tie == TieTypes.TIEDFORWARD:
+                if tie == TieTypes.TIEDFORWARD or tie == TieTypes.TIEDBOTH:
                     m21note.tie = m21.tie.Tie()
                 append(m21stream, m21note)
         else:

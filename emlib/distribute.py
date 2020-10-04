@@ -1,5 +1,6 @@
-from __future__ import division as _division, absolute_import as _absolute_import, print_function
+from __future__ import annotations
 from collections import namedtuple
+import dataclasses
 from functools import partial
 import numpy as np
 from scipy.optimize.zeros import brentq as _brentq
@@ -9,19 +10,11 @@ import bpf4 as bpf
 from bpf4 import BpfInterface as _Bpf
 
 from .lib import frange as _frange, returns_tuple as _returns_tuple, fib
-from . import combinatorics as _combinatorics
-from . import iterlib as _iterlib
-from . import interpol as _interpol
+from .import combinatorics, iterlib, interpol
 
 from typing import Sequence as Seq, List, Union as _U
 Num = _U[int, float]
 import logging
-
-try:
-    import constraint
-    CONSTRAINT_AVAILABLE = True
-except ImportError:
-    CONSTRAINT_AVAILABLE = False
 
 PHI = 1.61803398874989484820458683436563811772030917
 ERROR = {}
@@ -35,38 +28,7 @@ logger = logging.getLogger("emlib.distribute")
 # ------------------------------------------------------------
 
 
-def _round_seq_preserving_sum(seq):
-    # type: (Seq[float]) -> float
-    """
-    round the elements of seq preserving so that
-
-    sum(seq_rounded) == sum(seq)
-
-    Condition: sum(seq) must return an integer
-    """
-    seq_sum = int(sum(seq) + 0.5)
-    if not abs(seq_sum - sum(seq)) < 0.0001:
-        raise ValueError("sum(seq) must be an integer")
-    seq2 = [int(x+0.5) for x in seq]
-    rst = sum(seq2) - sum(seq)
-    if rst == 0:
-        return seq2
-    elif rst > 0:
-        seq3 = sorted(zip(seq2, list(range(len(seq2)))), reverse=True)
-        for i in range(int(rst)):
-            seq3[i] = (seq3[i][0]-1, seq3[i][1])
-    elif rst < 0:
-        seq3 = sorted(zip(seq2, list(range(len(seq2)))), reverse=True)
-        for i in range(int(abs(rst))):
-            seq3[i] = (seq3[i][0]+1, seq3[i][1])
-    seq4 = sorted(seq3, key=lambda val, i: i)
-    seq5 = zip(*seq4)[0]
-    assert sum(seq5) == seq_sum
-    return seq5
-
-
-def round_seq_preserving_sum(seq, minval=1, maxval=None):
-    # type: (Seq[float], int, int) -> List[int]
+def round_seq_preserving_sum(seq: Seq[float], minval=1, maxval:int=None) -> list[int]:
     """
     Round the elements of seq preserving the sum so that
 
@@ -74,9 +36,11 @@ def round_seq_preserving_sum(seq, minval=1, maxval=None):
 
     given: sum(seq) will be rounded
     """
-    if not CONSTRAINT_AVAILABLE:
-        logger.warning("contraints not available, using ad-hoc implementation")
-        return _round_seq_preserving_sum(seq)
+    try:
+        import constraint
+    except ImportError:
+        logger.error("contraint not available")
+
     seqsum = round(sum(seq))
     if maxval is None:
         maxval = int(min(max(seq) + 1, seqsum))
@@ -126,7 +90,7 @@ def _partition_fib(n, numpartitions, homogeneity=0):
         raise ValueError("Two many partitions. Max n == 60")
     n0 = 10
     n1 = n0 + numpartitions
-    fib_numbers = list(map(_interpol.fib, list(range(n0, n1))))
+    fib_numbers = list(map(interpol.fib, list(range(n0, n1))))
     # fib0 = fib_numbers[0]
     sum_fibs = sum(fib_numbers)
     normalized_fibs = [(x - 0) / sum_fibs * n for x in fib_numbers]
@@ -168,7 +132,7 @@ def partition_expon(n, numpartitions, minval, maxval, homogeneity=1):
     linear_distribution = c
     dx = 0.001
     for exp_now in _frange(1, dx, -dx):
-        c = lambda x: _interpol.interpol_expon(x, 0, 0, numpartitions, n, exp_now)
+        c = lambda x: interpol.interpol_expon(x, 0, 0, numpartitions, n, exp_now)
         minval_now, maxval_now = sorted([c(numpartitions) - c(numpartitions - 1), c(1) - c(0)])
         if maxval_now > maxval or minval_now < minval:
             break
@@ -181,7 +145,7 @@ def partition_expon(n, numpartitions, minval, maxval, homogeneity=1):
         return bpf.asbpf(func, bounds=linear_distribution.bounds())
 
     curve = interpol_bpfs(homogeneity)
-    values = [x1 - x0 for x0, x1 in _iterlib.pairwise(list(map(curve, list(range(numpartitions + 1)))))]
+    values = [x1 - x0 for x0, x1 in iterlib.pairwise(list(map(curve, list(range(numpartitions + 1)))))]
     values.sort(reverse=True)
     return values
 
@@ -253,7 +217,7 @@ def partition_recur(n, partitions, homogeneity, minval, maxval, type='fib'):
         ps = list(partitions[1:])
         ps[0] = max(int(ps[0] * (subn / n) + 0.5), 1)
         collected.append(partition_recur(subn, ps, homogeneity[1:], minval, subn, type))
-    tmp = _iterlib.flatten(collected)
+    tmp = iterlib.flatten(collected)
     assert abs(sum(tmp) - n) < 0.0001
     return collected
 
@@ -450,11 +414,11 @@ def partition_with_curve_rel(n, curve, ratio=0.5, margin=0.1, method='brentq'):
     """
     maxval = curve(bpf.util.maximum(curve))
     minval = curve(bpf.util.minimum(curve))
-    minval2 = _interpol.ilin1(margin, minval, maxval)
-    maxval2 = _interpol.ilin1(1 - margin, minval, maxval)
+    minval2 = interpol.ilin1(margin, minval, maxval)
+    maxval2 = interpol.ilin1(1 - margin, minval, maxval)
     minpartitions = n / maxval2
     maxpartitions = n / minval2
-    npart = int(_interpol.ilin1(ratio, minpartitions, maxpartitions) + 0.5)
+    npart = int(interpol.ilin1(ratio, minpartitions, maxpartitions) + 0.5)
     return partition_with_curve(n, npart, curve, method)
 
 # ------------------------------------------------------------
@@ -517,7 +481,7 @@ def onepulse(x, resolution, entropy=0):
     z2 = [0] * zeros
     bins = interleave(o2, z2)
     if entropy > 0:
-        bins = _combinatorics.unsort(bins, entropy)
+        bins = combinatorics.unsort(bins, entropy)
     return bins
 
 
@@ -668,7 +632,19 @@ def interleave(A, B, weight=0.5):
 # ------------------------------------------------------------
 
 
-def fill(containers, streams):
+@dataclasses.dataclass
+class _FillMatch:
+    size: int
+    container_index: int
+    stream_index: int
+
+@dataclasses.dataclass
+class _FillResult:
+    matches: list[_FillMatch]
+    unfilled_containers: list
+    unsused_streams: list
+
+def fill(containers, streams) -> _FillResult:
     """
     given a list of caintainers, partition the streams to fill the containers
 
@@ -682,28 +658,29 @@ def fill(containers, streams):
     """
     containers_keep_track = containers[:]
     streams_keep_track = streams[:]
-    streams = [(stream, id) for id, stream in enumerate(streams)]
-    containers = [(container, id) for id, container in enumerate(containers)]
+    streams = [(stream, idx) for idx, stream in enumerate(streams)]
+    containers = [(container, idx) for idx, container in enumerate(containers)]
     containers = sorted(containers, reverse=True)  # sort the containers from big to small
     streams = sorted(streams, reverse=True)        # also sort them from big to small
-    out_streams = [[] for i in range(len(streams))]
-    Match = _namedtup("Match", "size container_index stream_index")
-    Out = _namedtup("Out", "matches unfilled_containers unused_streams")
+    out_streams = [[] for _ in range(len(streams))]
     out = []
     for container, container_id in containers:
         if any(stream[0] >= container for stream in streams):
-            best_fit_difference, stream, index_now = sorted((stream[0] - container, stream, i) for i, stream in enumerate(streams) if stream[0] >= container)[0]
+            best_fit_difference, stream, index_now = sorted((stream[0] - container, stream, i)
+                                                            for i, stream in enumerate(streams)
+                                                            if stream[0] >= container)[0]
         else:
-            best_fit_difference, stream, index_now = sorted((abs(stream[0] - container), stream, i) for i, stream in enumerate(streams))[0]
+            best_fit_difference, stream, index_now = sorted((abs(stream[0] - container), stream, i)
+                                                            for i, stream in enumerate(streams))[0]
         size = min(container, stream[0])
         print(container, size, stream)
         out_streams[stream[1]].append(size)
-        out.append(Match(size, container_id, stream[1]))
+        out.append(_FillMatch(size, container_id, stream[1]))
         containers_keep_track[container_id] -= size
         streams_keep_track[stream[1]] -= size
         streams[index_now] = (stream[0] - size, stream[1])
         streams = sorted(streams, reverse=True)
-    return Out(out, containers_keep_track, streams_keep_track)
+    return _FillResult(out, containers_keep_track, streams_keep_track)
 
 
 @_returns_tuple("stream index_in_stream")
@@ -829,7 +806,7 @@ def dohndt(numseats, votes_perparty):
     numvoices = 8
     numchannels = 4
     weightperchannel = bpf.linear(0, 1, 1, 3).map(numchannels)
-    assigned = dohndt_distribution(numvoices-numchannels, weightperchannel)
+    assigned = dohndt(numvoices-numchannels, weightperchannel)
     for i in range(len(assigned)):
         assigned[i] += 1
     """
@@ -837,7 +814,8 @@ def dohndt(numseats, votes_perparty):
     assigned_perparty = [0] * numparties
     indices = list(range(numparties))
     for seat in range(numseats):
-        costs = [(votes/(assigned+1), index) for votes, assigned, index in zip(votes_perparty, assigned_perparty, indices)]
+        costs = [(votes/(assigned+1), index)
+                 for votes, assigned, index in zip(votes_perparty, assigned_perparty, indices)]
         costs.sort(key=lambda cost:cost[0])
         winnerindex = costs[-1][1]
         assigned_perparty[winnerindex] += 1

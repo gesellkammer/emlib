@@ -216,13 +216,15 @@ def m21JupyterHook(enable=True) -> None:
         return
     from IPython.core.getipython import get_ipython
     from IPython.core import display
+    from IPython.display import Image, display
     ip = get_ipython()
     formatter = ip.display_formatter.formatters['image/png']
     if enable:
-        def showm21(stream):
+        def showm21(stream: m21.stream.Stream):
             fmt = config['m21.displayhook.format']
             filename = str(stream.write(fmt))
-            return display.Image(filename=filename)._repr_png_()
+            return display(Image(filename=filename))
+            # return display.Image(filename=filename)._repr_png_()
 
         dpi = formatter.for_type(m21.Music21Object, showm21)
         return dpi
@@ -300,7 +302,7 @@ def notes2ratio(n1, n2, maxdenominator=16) -> Fraction:
 
 
 def m21FromScoringEvents(events: List[scoring.Event], split=None, showcents=None,
-                         divsPerSemitone=None) -> m21.stream.Stream:
+                         divsPerSemitone=None, centsFontSize:int=None) -> m21.stream.Stream:
     """
     Creates a m21 voice from the events
 
@@ -319,11 +321,13 @@ def m21FromScoringEvents(events: List[scoring.Event], split=None, showcents=None
     showgliss = config['show.gliss']
     if showcents is None: showcents = config['show.cents']
     if split is None: split = config['show.split']
+    centsFontSize = centsFontSize or config['show.centsFontSize']
     stream = quant.m21FromEvents(events,
                                  split=split,
                                  showCents=showcents,
                                  showGliss=showgliss,
-                                 divsPerSemitone=divsPerSemitone)
+                                 divsPerSemitone=divsPerSemitone,
+                                 centsFontSize=centsFontSize)
     return stream
 
 

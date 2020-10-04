@@ -47,6 +47,9 @@ setup(
         "abjad>=3.1",
         # "abjad-ext-nauert @ https://github.com/Abjad/abjad-ext-nauert/tarball/master",
         "abjad-ext-nauert>=3.1",
+        "watchdog",
+        "python-constraint",
+        "pyyaml"
     ],
     license="BSD",
     zip_safe=False,

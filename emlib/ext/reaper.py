@@ -2,11 +2,27 @@
 Utilities to read regions and markers from REAPER's .RPP files
 """
 
-from collections import namedtuple
-from .. import lib as _lib
+from dataclasses import dataclass
+from emlib.lib import Seconds
 
-Region = namedtuple("Region", "start end id label")
-Marker = namedtuple("Marker", "start end id label")
+
+@dataclass
+class Marker:
+    num: int
+    time: Seconds
+    descr: str
+
+    def __post_init__(self):
+        self.time = Seconds(self.time)
+
+
+@dataclass
+class Region:
+    start: float
+    end: float
+    id: int
+    label: str
+
 
 
 def get_regions(rpp_file):
@@ -21,31 +37,33 @@ def get_regions(rpp_file):
         # expects that line has been stripped
         return line.startswith("MARKER") and line[-1] == '1'
 
-    def parse_region(line):
+    def parse_region(line: str) -> tuple[int, float, str]:
         words = line.split()
         MARKER = words[0]
-        id = int(words[1])
+        regionid = int(words[1])
         time = float(words[2])
         track = int(words[-1])
         label = " ".join(words[3:-1])
         label = label.replace('"', '')
-        return id, time, label
+        return regionid, time, label
+
     # skip until we find markers
     region_started = False
+    start = 0
     for line in f:
-        line = _lib.unicode_force(line).strip()
+        line = line.strip()
         if is_region(line):
-            id, start, label = parse_region(line)
+            regionid, start, label = parse_region(line)
             region_started = True
             break
     for line in f:
-        line = _lib.unicode_force(line).strip()
+        line = line.strip()
         if not is_region(line):
             break
-        id, time, label = parse_region(line)
+        regionid, time, label = parse_region(line)
         if region_started:
             end = time
-            regions.append(Region(start, end, id, label))
+            regions.append(Region(start, end, regionid, label))
             region_started = False
         else:
             region_started = True
@@ -57,42 +75,33 @@ def get_markers(rpp_file):
     """
     given a REAPER .rpp, extract the markers as a list of Markers
     (start, end, id, label)
+
+    A marker in reaper is a line with the form
+
+    MARKER 17  4.55480106957674 6560  0 0 1 B {55F210FA-D4E4-128E-514D-C013EAD05B78}
+    const  num t                descr ? ? ? ?  uuid
     """
     f = open(rpp_file)
-    regions = []
 
     def is_marker(line):
         # expects that line has been stripped
-        return line.startswith("MARKER") and line[-1] == '0'
+        return line.startswith("MARKER")
 
-    def parse_marker(line):
+    def parse_marker(line: str) -> Marker:
         words = line.split()
-        MARKER = words[0]
-        id = int(words[1])
-        time = float(words[2])
-        kind = int(words[-1])
-        label = " ".join(words[3:-1])
-        label = label.replace('"', '')
-        return id, time, label
+        labelType = words[0]
+        assert labelType == "MARKER"
+        num = int(words[1])
+        t = float(words[2])
+        descr = words[3]
+        return Marker(num=num, time=t, descr=descr)
 
     markers = []
     for line in f:
-        line = _lib.unicode_force(line).strip()
+        line = line.strip()
         if is_marker(line):
-            id, start, label = parse_marker(line)
-            markers.append(Marker(start, start, id, label))
+            markers.append(parse_marker(line))
     return markers
-
-
-def get_markers_and_regions(rpp_file):
-    """
-    get all markers and regions in .RPP file as a flat list
-    """
-    markers = get_markers(rpp_file)
-    regions = get_regions(rpp_file)
-    out = markers + regions
-    out.sort(key=lambda x:x.start)
-    return out
 
 
 def write_markers(csvfile, markers):
