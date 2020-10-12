@@ -389,6 +389,8 @@ def _abjTupleGetDurationType(tup: abj.core.Tuplet) -> str:
         }[tupdur.denominator]
     elif mult.denominator <= 7:
         durtype = {
+            1: 'quarter',
+            2: 'eighth',
             4: '16th',
             8: '32nd',
             16: '64th'

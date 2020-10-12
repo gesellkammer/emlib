@@ -11,22 +11,24 @@ from .core import *
 
 
 quantizationSearchTrees = {
-    'weigh': nauert.WeightedSearchTree(),
     'simple': nauert.UnweightedSearchTree(
         definition={
             2: {
                 2: {
                     2: None,
+                    3: None
                 },
-                3: None,
+                3: None
             },
+
             3: {
                 2: None,
+                3: None
             },
-            5: {
-                2: None,
-            },
-            7: None,
+            #5: {
+            #    2: None,
+            #},
+            # 7: None,
             # 7: {
             #    2: None,
             #    },
@@ -34,7 +36,7 @@ quantizationSearchTrees = {
             # 13: None,
         },
     ),
-    'default': nauert.UnweightedSearchTree()
+    'simple2': nauert.UnweightedSearchTree()
 }
 
 
@@ -98,7 +100,10 @@ def makeAbjadVoice(notes: Seq[Note], grid="simple", glissUseMacros=True,
 
     qseq = fixSilences(qseq)
     search_tree = getSearchTree(grid)
-    schema = nauert.MeasurewiseQSchema(search_tree=search_tree)
+    schema = nauert.MeasurewiseQSchema(search_tree=search_tree,
+                                       tempo=60,
+                                       time_signature=abj.TimeSignature((4, 4)),
+                                       use_full_measure=True)
     quantizer = nauert.Quantizer()
     voice = quantizer(qseq, q_schema=schema)
     abjadtools.voiceSetClef(voice)
@@ -135,6 +140,8 @@ def quantizeAsAbjadRhythm(events: Seq[Event], grid="simple", annot=False, gliss=
             print(originalnote)
     """
     events = fixOverlap(events)
+    events = [ev for ev in events if not ev.isSilence()]
+    # events = [event for event in events if not event.isSilence()]
     continuousEvents = fillSilences(events)
     minpitch = 36
     indices = list(range(minpitch, minpitch+len(events)))
@@ -145,8 +152,37 @@ def quantizeAsAbjadRhythm(events: Seq[Event], grid="simple", annot=False, gliss=
     # assert len(usedpitches) == len(events)
     pitchPairs = list(zip(durations, pitches))
     qseq = nauert.QEventSequence.from_millisecond_pitch_pairs(pitchPairs)
-    search_tree = getSearchTree(grid)
-    schema = nauert.MeasurewiseQSchema(search_tree=search_tree)
+
+    # search_tree = getSearchTree(grid)
+    search_tree = nauert.UnweightedSearchTree(definition={
+        2: {
+            2: {
+                2: None,
+
+            },
+            # 3: None,
+            # 5: None,
+        },
+        3: {
+            2: None,
+            3: None
+        },
+        4: None,
+        5: None,
+        6: None,
+        7: None,
+        8: None,
+        10: None,
+        12: None,
+        16: None,
+    })
+
+    tempo = abj.MetronomeMark((1, 4), 60)
+    schema2 = nauert.BeatwiseQSchema(search_tree=search_tree, beatspan=abj.Duration(1, 4), tempo=tempo)
+    schema = nauert.MeasurewiseQSchema(search_tree=search_tree,
+                                       use_full_measure=False,
+                                       tempo=tempo)
+    # schema = nauert.MeasurewiseQSchema()
     quantizer = nauert.Quantizer()
     voice = quantizer(qseq, q_schema=schema)
     abjadtools.voiceSetClef(voice)
@@ -241,6 +277,14 @@ def quantizeVoice(events: Seq[Event], grid="simple", divsPerSemitone=4,
     Returns: 
         the generated music21 stream
     """
+    if not events:
+        logger.warning("quantizeVoice: events is empty")
+        return m21.stream.Stream()
+
+    if all(ev.isSilence() for ev in events):
+        logger.warning("quantizeVoice: events contains only silences, returning an empty stream")
+        return m21.stream.Stream()
+
     abjvoice, mapping = quantizeAsAbjadRhythm(events, grid=grid)
 
     # Make index
@@ -366,7 +410,6 @@ def _mappedPartApplyPitches(part: m21.stream.Stream, divsPerSemitone=4,
     assert isinstance(part, m21.stream.Stream)
     partflat : m21.stream.Stream = part.flat
     tiedFromBefore = False
-    EMPTY_ANNOTATION = " "
     m21note: m21.note.Note
     midinoteForDiatonicStep: dict[int, float] = {}
     for m21note in partflat.getElementsByClass(m21.note.Note):
@@ -386,7 +429,6 @@ def _mappedPartApplyPitches(part: m21.stream.Stream, divsPerSemitone=4,
                 centsAnnotation = centsshown(centsdev, divsPerSemitone=divsPerSemitone)
                 if centsAnnotation:
                     m21tools.addTextExpression(m21note, text=centsAnnotation, placement='below', fontSize=centsFontSize)
-                # m21note.lyric = annotation if annotations is not None else EMPTY_ANNOTATION
             if event.hidden:
                 m21tools.hideNotehead(m21note)
             midinoteForDiatonicStep[diatonic] = event.pitch

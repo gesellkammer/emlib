@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 import re as _re
 import warnings
-from typing import Tuple, List
+from typing import Tuple, List, NamedTuple
 
 import sys
 
@@ -88,10 +88,17 @@ def _pitchname(pitchidx: int, micro: float) -> str:
         return _flats[pitchidx]
 
 
-def parse_midinote(midinote: float) -> Tuple[int, float, int, str]:
+class ParsedMidinote(NamedTuple):
+    pitchindex: int
+    alteration: float
+    octave: int
+    chromaticPitch: str
+
+
+def parse_midinote(midinote: float) -> ParsedMidinote:
     """
     Convert a midinote into its pitch components:
-        pitchindex, alteration, octave, pitchname
+        pitchindex, alteration, octave, chromaticPitch
 
     63.2   -> (3, 0.2, 4, "D#")
     62.8   -> (3, -0.2, 4, "Eb")
@@ -114,14 +121,67 @@ def parse_midinote(midinote: float) -> Tuple[int, float, int, str]:
             octave += 1
             ps = 0
     pitchname = _pitchname(ps, micro)
-    return ps, round(micro, 2), octave, pitchname
+    return ParsedMidinote(ps, round(micro, 2), octave, pitchname)
 
 
 _notes3 = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B", "C"]
 _enharmonics = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B", "C"]
 
 
+class NoteParts(NamedTuple):
+    octave: int
+    noteName: str
+    alteration: str
+    centsDeviation: int
+
+
+def midi_to_note_parts(midinote: float, quantized_shortcuts=True) -> NoteParts:
+    i = int(midinote)
+    micro = midinote - i
+    octave = int(midinote / 12.0) - 1
+    ps = int(midinote % 12)
+    cents = int(micro * 100 + 0.5)
+    if cents == 0:
+        return NoteParts(octave, _notes3[ps], "", 0)
+    elif cents == 50:
+        if ps in (1, 3, 6, 8, 10):
+            return NoteParts(octave, _notes3[ps+1], "-", 0)
+        return NoteParts(octave, _notes3[ps], "+", 0)
+    elif cents == 25 and quantized_shortcuts:
+        return NoteParts(octave, _notes3[ps], ">", 0)
+    elif cents == 75 and quantized_shortcuts:
+        ps += 1
+        if ps > 11:
+            octave += 1
+        if ps in (1, 3, 6, 8, 10):
+            return NoteParts(octave, _enharmonics[ps], "<", 0)
+        else:
+            return NoteParts(octave, _notes3[ps], "<", 0)
+    elif cents > 50:
+        cents = 100 - cents
+        ps += 1
+        if ps > 11:
+            octave += 1
+        return NoteParts(octave, _enharmonics[ps], "", -cents)
+    else:
+        return NoteParts(octave, _notes3[ps], "", cents)
+
+
 def m2n(midinote: float, quantized_shortcuts=True) -> str:
+    octave, note, microtonal_alteration, cents = midi_to_note_parts(midinote, quantized_shortcuts=quantized_shortcuts)
+    if cents == 0:
+        return str(octave)+note+microtonal_alteration
+    if cents > 0:
+        if cents < 10:
+            return f"{octave}{note}{microtonal_alteration}+0{cents}"
+        return f"{octave}{note}{microtonal_alteration}+{cents}"
+    else:
+        if -10 < cents:
+            return f"{octave}{note}{microtonal_alteration}-0{abs(cents)}"
+        return f"{octave}{note}{microtonal_alteration}{cents}"
+
+
+def _m2n(midinote: float, quantized_shortcuts=True) -> str:
     i = int(midinote)
     micro = midinote - i
     octave = int(midinote / 12.0) - 1

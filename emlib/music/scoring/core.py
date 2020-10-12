@@ -6,11 +6,14 @@ import uuid
 
 from emlib.typehints import Opt, U, Seq, Iter
 from emlib import lib, iterlib
-from emlib.pitchtools import n2m
+from emlib.pitchtools import n2m, m2n, parse_midinote
 
+import logging
+logger = logging.getLogger("emlib.scoring")
 
-Pitch_t  = U[int, float, str]
-Number_t = U[F, int, float]
+pitch_t  = U[int, float, str]
+number_t = U[int, float]
+time_t = U[F, int, float]
 
 
 @dataclasses.dataclass
@@ -25,7 +28,7 @@ def makeId() -> uuid.UUID:
 
 
 class Event:
-    def __init__(self, dur:Number_t=None, offset:Number_t=None, annot:str="", db:float=0, dynamic:str=None,
+    def __init__(self, dur:time_t=None, offset:number_t=None, annot:str="", db:float=0., dynamic:str=None,
                  articulation:str="", gliss:bool=False, instr:str=None, group:str="",
                  hidden=False):
         """
@@ -132,8 +135,8 @@ class Event:
 
 
 class Note(Event):
-    def __init__(self, pitch:Pitch_t, dur:F=None, endpitch:Pitch_t=0,
-                 offset:F=None, annot:str=None, **kws):
+    def __init__(self, pitch:pitch_t, dur:time_t=None, endpitch:pitch_t=0,
+                 offset:time_t=None, annot:str=None, **kws):
         """
         
         Args:
@@ -152,7 +155,7 @@ class Note(Event):
             self.gliss = True
 
     @classmethod
-    def silence(cls, dur:F, offset:F=None) -> Note:
+    def silence(cls, dur:time_t, offset:time_t=None) -> Note:
         return Note(pitch=0, dur=dur, offset=offset)
 
     def getPitches(self) -> list[float]:
@@ -191,7 +194,7 @@ class Note(Event):
         return hash((self.pitch, self.dur, self.endpitch, self.offset))
 
 
-def _asmidi(x: U[Pitch_t,Note]) -> float:
+def _asmidi(x: U[pitch_t, Note]) -> float:
     if isinstance(x, str):
         return n2m(x)
     elif isinstance(x, int):
@@ -204,8 +207,8 @@ def _asmidi(x: U[Pitch_t,Note]) -> float:
 
 
 class Chord(Event):
-    def __init__(self, pitches:list[float], dur:Number_t=None, offset:Number_t=None,
-                 endpitches:list[float]=None, **kws):
+    def __init__(self, pitches:list[pitch_t], dur:time_t=None, offset:time_t=None,
+                 endpitches:list[pitch_t]=None, **kws):
         super().__init__(dur=dur, offset=offset, **kws)
         assert all(isinstance(p, (float, int)) for p in pitches)
         self.pitches = pitches
@@ -408,6 +411,7 @@ def fillSilences(events: Seq[Event], mingap=1/64) -> list[Event]:
     Returns:
         a list of new Notes
     """
+    assert events
     assert all(isinstance(ev, Event) for ev in events)
     out: list[Event] = []
     if events[0].offset > 0:
@@ -553,30 +557,35 @@ def packInTracks(events: Seq[Event], maxrange=36) -> list[Track]:
     return [Track(unwrapPackingTrack(track)) for track in tracks]
 
 
-def centsshown(centsdev, divsPerSemitone=4) -> str:
+def centsshown(centsdev: int, divsPerSemitone=4, snap=2) -> str:
     """
     Given a cents deviation from a chromatic pitch, return
     a string to be shown along the notation, to indicate the
-    true tuning of the note. If we are very close to a notated
-    pitch (depending on divsPerSemitone), then we don't show
-    anything. Otherwise, the deviation is always the deviation
-    from the chromatic pitch
+    distance to its corresponding microtone. If we are very
+    close to a notated pitch (depending on divsPerSemitone),
+    then we don't show anything.
 
     Args:
         centsdev: the deviation from the chromatic pitch
         divsPerSemitone: divisions per semitone
+        snap: if the difference to the microtone is within this error,
+            we "snap" the pitch to the microtone
 
     Returns:
         the string to be shown alongside the notated pitch
+
+    Example:
+        centsshown(55, divsPerSemitone=4)
+            "5"
     """
     # cents can be also negative (see self.cents)
     divsPerSemitone = divsPerSemitone
     pivot = int(round(100 / divsPerSemitone))
     dist = min(centsdev%pivot, -centsdev%pivot)
-    if dist <= 2:
+    if dist <= snap:
         return ""
     if centsdev < 0:
-        # NB: this is not a normal - sign! We do this to avoid it being confused
+        # NB: this is not a normal - (minus) sign! We do this to avoid it being confused
         # with a syllable separator during rendering (this is currently the case
         # in musescore
         return f"–{-centsdev}"
@@ -620,7 +629,9 @@ def makeScore(tracks: list[Track],
               staffSize=12,
               includeBranch=True,
               backend='music21',
-              stackTracks=True
+              stackTracks=True,
+              title="",
+              composer=""
               ) -> AbstractScore:
     """
     Make a score from the list of tracks. Returns either
@@ -641,6 +652,8 @@ def makeScore(tracks: list[Track],
         includeBranch:
             add branck to the score
         stackTracks: if True, stackEvents is called on each track (see stackEvents)
+        title: the title of the score
+        composer: if given, add a composer annotation
 
     """
     from . import quantization
@@ -661,6 +674,7 @@ def makeScore(tracks: list[Track],
         from . import music21score
         voices = [quantization.quantizeVoice(track) for track in tracks]
         m21score = m21tools.stackParts(voices)
+        m21tools.scoreSetMetadata(m21score, title=title, composer=composer)
         return music21score.Music21Score(m21score, tracks=tracks, pageSize=pageSize)
     else:
         raise ValueError(f"Backend {backend} not supported. Possible backends: abjad, music21")
@@ -698,7 +712,7 @@ def roundMidinote(a: float, divsPerSemitone=4) -> float:
     return round(a/rounding_factor)*rounding_factor
 
 
-def hasSameAccidental(a: U[Pitch_t, Note], b:U[Pitch_t, Note], divsPerSemitone=4) -> bool:
+def hasSameAccidental(a: U[pitch_t, Note], b:U[pitch_t, Note], divsPerSemitone=4) -> bool:
     apitch = _asmidi(a)
     bpitch = _asmidi(b)
     return roundMidinote(apitch, divsPerSemitone) == roundMidinote(bpitch, divsPerSemitone)

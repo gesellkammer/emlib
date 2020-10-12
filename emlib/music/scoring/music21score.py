@@ -35,7 +35,7 @@ class Music21Score(core.AbstractScore):
         """
         Save this score.
 
-        Supported formats are: lilypond (.ly), pdf (.pdf), xml
+        Supported formats are: lilypond (.ly), pdf (.pdf), xml (.xml)
         """
         outfile = os.path.expanduser(outfile)
         base, ext = os.path.splitext(outfile)

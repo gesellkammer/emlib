@@ -91,27 +91,42 @@ config.load()
 
 
 # Constants
+_CSOUND_INSTRS = {
+    'turnoff':     2,
+    'chnset':      3,
+    'filltable':   4,
+    'freetable':   5,
+    'maketable':   6,
+    'playsndfile': 7,
+    'uniqinstance': 8,
+    'scheduniq': 9,
+    'strset': 10,
+    'playgen1': 11,
+    'ftsetparams': 12,
+    'pwrite': 13,
+    'automate': 14,
+    'testaudio': 15,
+    'tabwrite': 16
+}
+
+_CSOUND_TABLES = {
+    'responses': 1,
+    'subgains': 2
+}
+
+_CSOUND_CONSTS = {
+    'numtokens': 1000,
+    'event_max_size': 1999,
+    'reserved_instrs': 20,
+    'reserved_tables': 200,
+    'highest_instrnum': 12000
+}
+
 _NUMTOKENS                = 1000
 _CSOUND_EVENT_MAX_SIZE    = 1999
 _CSOUND_RESERVED_INSTRS   = 20
 _CSOUND_RESERVED_TABLES   = 200
 _CSOUND_HIGHEST_INSTRNUM  = 12000
-_CSOUND_RESPONSES_TABLE   = 1
-
-_CSOUND_INSTR_TURNOFF     = 2
-_CSOUND_INSTR_CHNSET      = 3
-_CSOUND_INSTR_FILLTABLE   = 4
-_CSOUND_INSTR_FREETABLE   = 5
-_CSOUND_INSTR_MAKETABLE   = 6
-_CSOUND_INSTR_PLAYSNDFILE = 7
-_CSOUND_INSTR_UNIQINSTANCE = 8
-_CSOUND_INSTR_SCHEDUNIQ   = 9
-_CSOUND_INSTR_STRSET      = 10
-_CSOUND_INSTR_PLAYGEN1    = 11
-_CSOUND_INSTR_FTSETPARAMS = 12
-_CSOUND_INSTR_PWRITE      = 13
-_CSOUND_INSTR_AUTOMATE    = 14
-_CSOUND_INSTR_TESTAUDIO   = 15
 
 _MYFLTPTR = _ctypes.POINTER(ctcsound.MYFLT)
 
@@ -122,7 +137,9 @@ nchnls = {nchnls}
 0dbfs  = 1
 A4     = {a4}
 
-gi__responses ftgen ${responses_table}, 0, ${numtokens}, -2, 0
+gi__responses ftgen  ${responses}, 0, ${numtokens}, -2, 0
+gi__subgains  ftgen  ${subgains},  0, 100, -2, 1
+
 
 instr ${lastnum}
     ; this is used to prevent a crash when an opcode is defined as part 
@@ -152,13 +169,21 @@ instr _notifyDealloc
     turnoff
 endin
 
-instr ${instr_turnoff}
+instr ${turnoff}
     iwhich = p4
     turnoff2 iwhich, 4, 1
     turnoff
 endin
 
-instr ${instr_chnset}
+instr ${tabwrite}
+    itab = p4
+    iidx = p5
+    ival = p6
+    tabw_i ival, iidx, itab
+    turnoff
+endin
+
+instr ${chnset}
     Schn = p4
     ival = p5
     chnset ival, Schn
@@ -166,7 +191,7 @@ instr ${instr_chnset}
 endin
 
 ; this is used to fill a table with the given pargs
-instr ${instr_filltable}
+instr ${filltable}
     itoken, ifn, itabidx, ilen passign 4
     iArgs[] passign 8, 8+ilen
     copya2ftab iArgs, ifn, itabidx
@@ -179,7 +204,7 @@ endin
 ; can make a table with data or just empty of a given size
 ; data must be smaller than 2000 which is the current limit
 ; for pfields
-instr ${instr_maketable}
+instr ${maketable}
     itoken = p4
     itabnum = p5
     ilen = p6
@@ -198,7 +223,7 @@ instr ${instr_maketable}
     turnoff
 endin
 
-instr ${instr_automate}
+instr ${automate}
     iargtab = p4
     iargidx = p5
     inumpairs = p6
@@ -238,7 +263,7 @@ instr ${instr_automate}
     tablew ky, iargidx, iargtab
 endin
 
-instr ${instr_uniqinstance_int}
+instr ${uniqinstance}
     itoken = p4
     ip1    = p5
     iuniq uniqinstance ip1
@@ -246,14 +271,14 @@ instr ${instr_uniqinstance_int}
     outvalue "__sync__", itoken
 endin
 
-instr ${instr_freetable}
+instr ${freetable}
     ifn = p4
     idelay = p5
     ftfree ifn, 0
     turnoff
 endin
 
-instr ${instr_playsndfile}
+instr ${playsndfile}
     Spath  = p4
     ichan  = p5
     ipitch = p6
@@ -270,23 +295,24 @@ instr ${instr_playsndfile}
     endif
 endin
 
-instr ${instr_play_gen1}
-    ;             4  5  6  7  8     9
-    pset 0, 0, 0, 0, 1, 1, 1, 0.05, 0
-    ; 4      5      6       7      8      9
+instr ${playgen1}
+    ;             4     5      6       7     8     9          10
+    ;             gain, speed, tabnum, chan, fade, starttime, gaingroup
+    pset 0, 0, 0, 0,    1,     1,      1,    0.05, 0,         0
     kgain = p4
     kspeed = p5
     ksampsplayed = 0
-    itabnum, ichan, ifade, ioffset passign 6
+    itabnum, ichan, ifade, ioffset, igaingroup passign 6
     inumsamples = nsamp(itabnum)
     itabsr = ftsr(itabnum)
     istartframe = ioffset * itabsr
     ksampsplayed += ksmps * kspeed
     ; ar[] loscilx xamp, kcps, ifn, iwsize, ibas, istrt
     aouts[] loscilx kgain, kspeed, itabnum, 4, 1, istartframe
-    if ifade > 0 then
-        aouts = aouts * linsegr:a(0, ifade, 1, ifade, 0)
-    endif
+    aenv = linsegr:a(0, ifade, 1, ifade, 0)
+    ksubgain = table:k(igaingroup, gi__subgains)
+    aenv *= a(ksubgain)
+    aouts = aouts * aenv
     inumouts = lenarray(aouts)
     ichans[] genarray ichan, ichan+inumouts-1
     poly0 inumouts, "outch", ichans, aouts
@@ -295,7 +321,7 @@ instr ${instr_play_gen1}
     endif
 endin
 
-instr ${instr_scheduniq}
+instr ${scheduniq}
     itoken = p4
     inumpargs = p5
     ip6 = uniqinstance(p6)
@@ -314,26 +340,26 @@ instr ${instr_scheduniq}
     turnoff
 endin
 
-instr ${instr_strset}
+instr ${strset}
     Sstr = p4
     idx  = p5
     strset idx, Sstr
     turnoff
 endin
 
-instr ${instr_ftsetparams}
+instr ${ftsetparams}
     itabnum, isr, inumchannels passign 4
     ftsetparams itabnum, isr, inumchannels
     turnoff
 endin
 
-instr ${instr_pwrite}
+instr ${pwrite}
     ip1, ipnum, ivalue passign 4
     pwrite ip1, ipnum, ivalue
     turnoff
 endin
 
-instr ${instr_testaudio}
+instr ${testaudio}
     pset 0, 0, 0, 0
     imode passign 4
     if imode == 0 then
@@ -344,26 +370,7 @@ instr ${instr_testaudio}
     outch 0, a0
 endin
     
-
-
-""").safe_substitute(instr_turnoff=_CSOUND_INSTR_TURNOFF,
-                     lastnum=_CSOUND_HIGHEST_INSTRNUM,
-                     instr_chnset=_CSOUND_INSTR_CHNSET,
-                     instr_filltable=_CSOUND_INSTR_FILLTABLE,
-                     instr_freetable=_CSOUND_INSTR_FREETABLE,
-                     instr_maketable=_CSOUND_INSTR_MAKETABLE,
-                     numtokens=_NUMTOKENS,
-                     responses_table=_CSOUND_RESPONSES_TABLE,
-                     instr_playsndfile=_CSOUND_INSTR_PLAYSNDFILE,
-                     instr_uniqinstance_int=_CSOUND_INSTR_UNIQINSTANCE,
-                     instr_scheduniq=_CSOUND_INSTR_SCHEDUNIQ,
-                     instr_strset = _CSOUND_INSTR_STRSET,
-                     instr_play_gen1 = _CSOUND_INSTR_PLAYGEN1,
-                     instr_ftsetparams = _CSOUND_INSTR_FTSETPARAMS,
-                     instr_pwrite = _CSOUND_INSTR_PWRITE,
-                     instr_testaudio = _CSOUND_INSTR_TESTAUDIO,
-                     instr_automate = _CSOUND_INSTR_AUTOMATE)
-
+""").safe_substitute(lastnum=_CSOUND_HIGHEST_INSTRNUM, **_CSOUND_INSTRS, **_CSOUND_TABLES, **_CSOUND_CONSTS)
 
 # Types
 
@@ -580,8 +587,8 @@ class CsoundEngine:
                 raise CsoundError(f"The backend {backend} is not available, no fallback backend defined")
             logger.error(f"The backend {backend} is not available. Fallback backend: {fallback_backend}")
             backend = fallback_backend
-        if outdev is None:
-            outdev = csound.default_dac_for_backend(backend)
+        # if outdev is None:
+        #     outdev = csound.default_dac_for_backend(backend)
         extraOptions = extraOptions if extraOptions is not None else []
         sr = sr if sr is not None else cfg['sr']
         if sr == 0:
@@ -590,10 +597,8 @@ class CsoundEngine:
                 # failed to get sr for backend
                 sr = 44100
                 logger.error("Failed to get sr for backend {backend}, falling back to default sr: {sr}")
-        if a4 is None:
-            a4 = cfg['A4']
-        if ksmps is None:
-            ksmps = cfg['ksmps']
+        if a4 is None: a4 = cfg['A4']
+        if ksmps is None: ksmps = cfg['ksmps']
         extraOptions = extraOptions if extraOptions is not None else []
         if quiet is None: quiet = cfg['suppress_output']
         if quiet:
@@ -654,6 +659,8 @@ class CsoundEngine:
         # ready
         self._responsesTable = None
 
+        self._subgainsTable = None
+
         # reserved channels used by the engine
         self._reservedChannels = set()
 
@@ -673,6 +680,8 @@ class CsoundEngine:
         # a dict mapping tableindex to fractional instr number
         self._assignedTables: dict[int, float] = {}
         _engines[name] = self
+
+        self._tableCacje: dict[int, np.ndarray] = {}
 
     def __repr__(self):
         return f"CsoundEngine(name={self.name}, backend={self.backend}, " \
@@ -791,6 +800,7 @@ class CsoundEngine:
         if priorengine:
             priorengine.stop()
         _engines[self.name] = self
+        self._subgainsTable = self._csound.table(_CSOUND_TABLES['subgains'])
         self.started = True
 
     def restart(self) -> None:
@@ -845,7 +855,7 @@ class CsoundEngine:
             else:
                 print(f"Unknown sync token: {token}")
 
-        self._responsesTable = self._csound.table(_CSOUND_RESPONSES_TABLE)
+        self._responsesTable = self._csound.table(_CSOUND_TABLES['responses'])
         self._csound.setOutputChannelCallback(self._outcallback)
         self._initDone = True
         self._outvalueCallbacks[bytes("__sync__", "ascii")] = _syncCallback
@@ -916,6 +926,25 @@ class CsoundEngine:
         self._globalcode[code] = out = self._csound.evalCode(code)
         return out
 
+    def tableWrite(self, tabnum:int, idx:int, value:float, delay:float=0.) -> None:
+        if not self.started:
+            raise RuntimeError("csound not started")
+        if delay == 0:
+            arr = self.getTable(tabnum)
+            if arr:
+                arr[idx] = value
+        else:
+            pargs = [_CSOUND_INSTRS['tabwrite'], delay, 1, tabnum, idx, value]
+            self._performanceThread.scoreEvent(0, "i", pargs)
+
+    def getTable(self, idx:int, cached=True) -> np.ndarray:
+        if not cached:
+            return self._csound.table(idx)
+        arr = self._tableCache.get(idx)
+        if arr is None:
+            self._tableCache[idx] = arr
+        return arr
+
     def sched(self, instrnum:int, delay:float = 0, dur:float = -1,
               args:list[float] = None) -> float:
         """
@@ -951,7 +980,7 @@ class CsoundEngine:
             instrfrac: the instrument number to remove
             delay: if 0, remove the instance as soon as possible
         """
-        pfields = [_CSOUND_INSTR_TURNOFF, delay, 0.1, instrfrac]
+        pfields = [_CSOUND_INSTRS['turnoff'], delay, 0.1, instrfrac]
         self._performanceThread.scoreEvent(0, "i", pfields)
 
     def unschedFuture(self):
@@ -1021,7 +1050,7 @@ class CsoundEngine:
         return int(tabnum)
 
     def setTableParams(self, tabnum:int, sr:int, numchannels:int = 1) -> None:
-        pargs = [_CSOUND_INSTR_FTSETPARAMS, 0, -1, tabnum, sr, numchannels]
+        pargs = [_CSOUND_INSTRS['ftsetparams'], 0, -1, tabnum, sr, numchannels]
         self._performanceThread.scoreEvent(0, "i", pargs)
 
     def makeEmptyTable(self, size, numchannels=1, sr=0, instrnum=-1) -> int:
@@ -1105,10 +1134,10 @@ class CsoundEngine:
         """
         self._setupCallbacks()
         token = self._getToken()
-
+        instrnum = _CSOUND_INSTRS['maketable']
         if data is None:
             empty = 1
-            pargs = [_CSOUND_INSTR_MAKETABLE, 0, 0.01, token, tabnum, size, empty]
+            pargs = [instrnum, 0, 0.01, token, tabnum, size, empty]
             tabnum = self._eventNotify(token, "i", pargs, callback=callback,
                                        timeout=timeout)
             return int(tabnum)
@@ -1117,7 +1146,7 @@ class CsoundEngine:
         assert size > 0
         if size < 1900:
             empty = 0
-            pargs = [_CSOUND_INSTR_MAKETABLE, 0, 0.01, token, tabnum, size, empty]
+            pargs = [instrnum, 0, 0.01, token, tabnum, size, empty]
             pargs.extend(data)
             tabnum = self._eventNotify(token, "i", pargs, callback=callback,
                                        timeout=timeout)
@@ -1125,7 +1154,7 @@ class CsoundEngine:
 
         # create an empty table
         empty = 1
-        pargs = [_CSOUND_INSTR_MAKETABLE, 0, 0.01, token, tabnum, size, empty]
+        pargs = [instrnum, 0, 0.01, token, tabnum, size, empty]
         tabnum = self._eventNotify(token, "i", pargs)
         self.fillTable(data, tabnum, method=fillmethod, block=True)
         return int(tabnum)
@@ -1138,7 +1167,8 @@ class CsoundEngine:
             channel: the name of the channel
             value: the new value
         """
-        s = f'i {_CSOUND_INSTR_CHNSET} 0 0.01 "{channel}" {value}'
+        instrnum = _CSOUND_INSTRS['chnset']
+        s = f'i {instrnum} 0 0.01 "{channel}" {value}'
         self._performanceThread.inputMessage(s)
 
     def getChannel(self, channel:str) -> float:
@@ -1190,11 +1220,12 @@ class CsoundEngine:
         now = 0
         token = 0
         delayBetweenRows = 0
+        instrnum= _CSOUND_INSTRS['filltable']
         for idx, numitems in lib.chunks(0, len(data), chunksize):
             if block and numitems < chunksize:
                 # last row
                 token = self._getToken()
-            pargs = [_CSOUND_INSTR_FILLTABLE, token, now, 0.01, tabnum, idx, numitems]
+            pargs = [instrnum, token, now, 0.01, tabnum, idx, numitems]
             payload = data[idx: idx+numitems]
             pargs.extend(payload)
             self._performanceThread.scoreEvent(0, "i", pargs)
@@ -1254,16 +1285,16 @@ class CsoundEngine:
     def getUniqueInstrInstance(self, instr: U[int, str], callback=None) -> float:
         if isinstance(instr, int):
             token = self._getToken()
-            pargs = [_CSOUND_INSTR_UNIQINSTANCE, 0, 0.01, token, instr]
+            pargs = [_CSOUND_INSTRS['uniqinstance'], 0, 0.01, token, instr]
             if not callback:
                 uniqinstr = self._eventNotify(token, "i", pargs)
                 return uniqinstr
             else:
                 self._eventNotify(token, "i", pargs, callback=callback)
 
-    def playSample(self, tabnum:int, delay=0, chan=1, speed=1, gain=1., fade=0, starttime=0.) -> float:
-        return self.sched(_CSOUND_INSTR_PLAYGEN1, delay=delay, dur=-1,
-                          args=[gain, speed, tabnum, chan, fade, starttime])
+    def playSample(self, tabnum:int, delay=0, chan=1, speed=1, gain=1., fade=0, starttime=0., gaingroup=0, dur=-1) -> float:
+        return self.sched(_CSOUND_INSTRS['playgen1'], delay=delay, dur=dur,
+                          args=[gain, speed, tabnum, chan, fade, starttime, gaingroup])
 
     def playSoundFromDisc(self, path:str, delay=0., chan=0, speed=1., unique=False
                           ) -> float:
@@ -1285,15 +1316,15 @@ class CsoundEngine:
             raise RuntimeError(f"Engine {self.name} not started")
 
         if not unique:
-            p1 = _CSOUND_INSTR_PLAYSNDFILE
+            p1 = _CSOUND_INSTRS['playsndfile']
         else:
-            p1 = self.getUniqueInstrInstance(_CSOUND_INSTR_PLAYSNDFILE)
+            p1 = self.getUniqueInstrInstance(_CSOUND_INSTRS['playsndfile'])
         msg = f"i {p1} {delay} -1 \"{path}\" {chan} {speed}"
         self._performanceThread.inputMessage(msg)
         return p1
 
     def pwrite(self, p1, pnum, value, delay=0):
-        self.sched(_CSOUND_INSTR_PWRITE, delay=delay, dur=-1, args=[p1, pnum, value])
+        self.sched(_CSOUND_INSTRS['pwrite'], delay=delay, dur=-1, args=[p1, pnum, value])
 
     def automateTable(self, tabnum:int, idx:int, pairs:Seq[float], 
                       mode='linear', param=0., delay=0.) -> float:
@@ -1326,7 +1357,7 @@ class CsoundEngine:
         else:
             args += list(pairs)
         dur = pairs[-2] + self.ksmps / self.sr
-        return self.sched(_CSOUND_INSTR_AUTOMATE, delay=delay, dur=dur, args=args)
+        return self.sched(_CSOUND_INSTRS['automate'], delay=delay, dur=dur, args=args)
 
     def strSet(self, s:str) -> int:
         if not self.started:
@@ -1337,7 +1368,8 @@ class CsoundEngine:
             stringIndex = self._getStrIndex()
             if not self.started:
                 raise CsoundNotStartedError()
-            msg = f'i {_CSOUND_INSTR_STRSET} 0 -1 "{s}"'
+            instrnum = _CSOUND_INSTRS['strset']
+            msg = f'i {instrnum} 0 -1 "{s}"'
             self._performanceThread.inputMessage(msg)
             self._strToIndex[stringIndex] = s
             self._indexToStr[s] = stringIndex
@@ -1366,11 +1398,11 @@ class CsoundEngine:
     def freeTable(self, tableindex, delay=0) -> None:
         logger.debug(f"Freeing table {tableindex}")
         self.unassignTable(tableindex)
-        pargs = [_CSOUND_INSTR_FREETABLE, delay, 0.01, tableindex]
+        pargs = [_CSOUND_INSTRS['freetable'], delay, 0.01, tableindex]
         self._performanceThread.scoreEvent(0, "i", pargs)
 
     def testAudio(self, dur:float=4) -> float:
-        return self.sched(_CSOUND_INSTR_TESTAUDIO, dur=dur)
+        return self.sched(_CSOUND_INSTRS['testaudio'], dur=dur)
 
 
     # ~~~~~~~~~~~~~~~ UDP ~~~~~~~~~~~~~~~~~~
@@ -1416,6 +1448,23 @@ class CsoundEngine:
             logger.debug(f"Making table with init values: {values} ({overrides})")
             return self.makeTable(data=values, block=wait)
 
+    def setSubGain(self, idx: int, gain: float) -> None:
+        """
+        Sets one of the subgains to the given value
+
+        Each engine has a set of subgains which can be used by instruments
+        to set the gain as a group. These gains are stored in a table gi__subgains
+
+        Args:
+            idx: the subgain to set
+            gain: the value of the subgain
+
+        """
+        if not self.started:
+            raise RuntimeError("csound not started")
+        self._subgainsTable[idx] = gain
+
+
 def _getUUID() -> str:
     return str(_uuid.uuid4())
 
@@ -1442,7 +1491,7 @@ def _cleanup() -> None:
         stopEngine(name)
 
 
-def activeEngines() -> set[str]:
+def activeEngines() -> KeysView[str]:
     """
     Returns a list with the names of the active engines
     """
@@ -2715,7 +2764,7 @@ class _InstrManager:
 
     def playSample(self, sample:U[int, TableProxy, str], chan=1, gain=1.,
                    dur=-1., speed=1., loop=False, delay=0., pan=-1,
-                   start=0., fade=-1) -> Synth:
+                   start=0., fade=-1, gaingroup=0) -> Synth:
         """
         Play a sample
 
@@ -2727,13 +2776,16 @@ class _InstrManager:
             pan: a value between 0-1. -1 means default, which is 0 for mono,
                 0.5 for stereo. For multichannel (3+) samples, panning is not
                 taken into account
-            gain: gain factor
+            gain: gain factor. See also: gaingroup
             speed: speed of playback
             loop: True/False or -1 to loop as defined in the file itself (not all
                 file formats define loop points)
             delay: time to wait before playback starts
             start: the starting playback time (0=play from beginning)
             fade: fade in/out in secods. -1=default
+            gaingroup: the idx of a gain group. The gain of all samples routed to the
+                same group are scaled by the same value and can be altered as a group
+                via CsoundEngine.setSubGain(idx, gain)
 
         Returns:
             A Synth
@@ -2750,7 +2802,7 @@ class _InstrManager:
         return self.sched('.playgen2',
                           delay=delay,
                           dur=dur,
-                          pargs=[tabnum, int(loop), start, fade],
+                          pargs=[tabnum, int(loop), start, fade, gaingroup],
                           tabargs=dict(gain=gain, speed=speed, chan=chan, pan=pan))
 
     def makeRenderer(self, sr=44100, nchnls=1, ksmps=64, a4=442.) -> Renderer:
@@ -3053,16 +3105,18 @@ builtinInstr = [
     CsoundInstr('.playgen2', 
                 tabledef=dict(chan=1, speed=1, gain=1, pan=-1),
                 body=r"""
-        isndtab, iloop, istart, ifade passign 5
+        isndtab, iloop, istart, ifade, igaingroup passign 5
 
         ifade = ifade < 0 ? 0.05 : ifade
+        igaingroup = limit(igaingroup, 0, 100)
         inumouts = ftchnls(isndtab)
         inumsamples = nsamp(isndtab)
         isr = ftsr(isndtab)
         idur = inumsamples / isr
         ixfade = 0.005
         know init istart
-        
+        ksubgain = table:k(igainGroup, gi__subgains)
+                
         if inumouts == 0 then
             ; not a gen1 table, fail
             initerror sprintf("Table %d was not generated via gen1", isndtab)
@@ -3070,6 +3124,8 @@ builtinInstr = [
 
         kidx init 0
         aenv = linsegr:a(0, ifade, 1, ifade, 0)
+        aenv *= a(ksubgain)
+            
         ; if p3 > 0 then
         ;     aenv = linseg(0, ifade, 1, p3-ifade*2, 0)
         ; else

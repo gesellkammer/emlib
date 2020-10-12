@@ -501,19 +501,27 @@ def _noteScalePitch(note: m21.note.Note, factor: t.Rat) -> None:
     note.pitch = pitch   
 
 
+def stackPartsInplace(parts:t.Seq[m21.stream.Stream], outstream:m21.stream.Stream) -> None:
+    """
+    This solves the problem that a Score will stack Parts vertically,
+    but append any other stream horizontally
+    """
+    for part in parts:
+        part = lib.astype(m21.stream.Part, part)
+        outstream.insert(0, part)
+
+
 def stackParts(parts:t.Seq[m21.stream.Stream], outstream:m21.stream.Stream=None
-               ) -> m21.stream.Stream:
+               ) -> m21.stream.Score:
     """
     Create a score from the different parts given
 
     This solves the problem that a Score will stack Parts vertically,
     but append sny other stream horizontally
     """
-    outstream = outstream or m21.stream.Score()
-    for part in parts:
-        part = lib.astype(m21.stream.Part, part)
-        outstream.insert(0, part)
-    return outstream
+    score = m21.stream.Score()
+    stackPartsInplace(parts, outstream=score)
+    return score
 
 
 def attachToObject(obj:m21.Music21Object, thingToAttach:m21.Music21Object, contextclass):
@@ -819,3 +827,46 @@ def writePdf(m21stream, outfile, fmt='musicxml.pdf') -> None:
     xmlfile = base + '.xml'
     m21stream.write(fmt, xmlfile)
     assert os.path.exists(outfile)
+
+
+def scoreSetMetadata(score: m21.stream.Score, title="", composer="") -> None:
+    """
+    Add title/composer to the given score. This metadata is used when converting
+    to pdf and rendered as text
+
+    Args:
+        score: the score to modify in place
+        title: a title for this score
+        composer: composer text is added at the right corner
+
+    """
+    score.insert(0, m21.metadata.Metadata())
+    score.metadata.title = title
+    score.metadata.composer = composer
+
+
+def addBestClefs(part: m21.stream.Stream, threshold=4):
+    """
+    Add clefs to part whenever needed. For a clef change it is necessary
+    that at least `threshold` notes are outside the ambitus of the current
+    clef.
+
+    Args:
+        part: a stream holding the part to be modified
+        threshold: the min. number of notes outside the ambitus to justify a clef change
+    """
+    print("------------- addBestClefs")
+
+    notes = list(part.getElementsByClass(m21.note.Note))
+    if not notes:
+        print("no notes :-(")
+        return
+    print(notes)
+    currentClef = bestClef(notes[:threshold])
+    attachToObject(notes[0], currentClef)
+    for group in notes[threshold::threshold]:
+        bestnow = bestClef(group)
+        if bestnow != currentClef:
+            currentClef = bestnow
+            attachToObject(group[0], currentClef, contextclass='Measure')
+
