@@ -10,7 +10,7 @@
 
 import numpy
 from collections import deque
-from emlib.lib import isiterable
+from emlib.misc import isiterable
 from emlib.iterlib import window, izip
 
 

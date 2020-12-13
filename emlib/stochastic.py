@@ -1,5 +1,5 @@
 from __future__ import division
-from emlib.lib import isiterable
+from emlib.misc import isiterable
 from itertools import product
 import numpy
 from collections import defaultdict

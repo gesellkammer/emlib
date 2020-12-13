@@ -1,7 +1,7 @@
 """ video routines based on ffmpeg and moviepy """
 
 from emlib.pitchtools import db2amp
-from emlib.lib import add_suffix
+from emlib.misc import add_suffix
 import numpy as np
 import moviepy.editor
 import moviepy

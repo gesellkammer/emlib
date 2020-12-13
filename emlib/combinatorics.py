@@ -3,7 +3,7 @@ from operator import mul
 import random
 from . import iterlib as _iterlib
 import numpy as _np
-from . import lib as _lib
+from . import misc
 import warnings as _warnings
 import itertools
 from itertools import combinations, permutations
@@ -267,12 +267,12 @@ def _unsort(xs, entropy=1, margin=0):
     """
 
     if margin != 0:
-        if not _lib.isiterable(margin):
+        if not misc.isiterable(margin):
             margin = (margin, margin)
         margin0, margin1 = margin
         margin1 = len(xs) - margin1
         unsorted = unsort(xs[margin0:margin1], entropy, 0)
-        out = _lib.copyseq(xs)
+        out = misc.copyseq(xs)
         out[margin0:margin1] = unsorted
         return out
     if entropy == 0:

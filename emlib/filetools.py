@@ -1,6 +1,7 @@
+from __future__ import annotations
 import datetime
 import os
-import emlib.typehints as t
+from typing import List
 
 
 def modified_date(f: str) -> datetime.date:
@@ -11,7 +12,7 @@ def modified_date(f: str) -> datetime.date:
     return datetime.date.fromtimestamp(t)
 
 
-def files_between(files: t.List[str], start, end) -> t.List[str]:
+def files_between(files: List[str], start, end) -> List[str]:
     """
     files: a list of files
     start: a tuple as would be passed to datetime.date

@@ -6,7 +6,7 @@ from matplotlib.collections import PatchCollection
 
 from matplotlib import cm
 import numpy as np
-from emlib.lib import isiterable, pixels_to_inches
+from emlib.misc import isiterable, pixels_to_inches
 import typing as t
 
 

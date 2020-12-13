@@ -1,12 +1,12 @@
 from __future__ import annotations
 import textwrap
-from emlib import lib
+from emlib import misc
 import emlib.typehints as t
 
 
 def reindent(text:str, prefix="", stripEmptyLines=True) -> str:
     if stripEmptyLines:
-        text = lib.strip_lines(text)
+        text = misc.strip_lines(text)
     text = textwrap.dedent(text)
     if prefix:
         text = textwrap.indent(text, prefix=prefix)

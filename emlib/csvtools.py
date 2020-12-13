@@ -8,7 +8,7 @@ import re as _re
 from .containers import RecordList
 from typing import Sequence as Seq, List
 import dataclasses
-from .lib import could_be_number, asnumber
+from .misc import could_be_number, asnumber
 
 
 def _as_number_if_possible(s, fallback=None, accept_fractions=True, accept_expon=False):

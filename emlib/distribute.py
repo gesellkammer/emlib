@@ -13,7 +13,6 @@ from .lib import frange as _frange, returns_tuple as _returns_tuple, fib
 from .import combinatorics, iterlib, interpol
 
 from typing import Sequence as Seq, List, Union as _U
-Num = _U[int, float]
 import logging
 
 PHI = 1.61803398874989484820458683436563811772030917
@@ -28,7 +27,8 @@ logger = logging.getLogger("emlib.distribute")
 # ------------------------------------------------------------
 
 
-def round_seq_preserving_sum(seq: Seq[float], minval=1, maxval:int=None) -> list[int]:
+def round_seq_preserving_sum(seq: Seq[float], minval=1, maxval:int=None
+                             ) -> List[int]:
     """
     Round the elements of seq preserving the sum so that
 
@@ -71,8 +71,7 @@ def round_seq_preserving_sum(seq: Seq[float], minval=1, maxval:int=None) -> list
 #
 # ------------------------------------------------------------
 
-def _partition_fib(n, numpartitions, homogeneity=0):
-    # type: (int, int, float) -> List[int]
+def _partition_fib(n: int, numpartitions: int, homogeneity=0) -> List[int]:
     """
     if homogeneity == 0: the partitions build a fib curve, which means that if
 
@@ -101,8 +100,7 @@ def _partition_fib(n, numpartitions, homogeneity=0):
     return sorted(partitions)
 
 
-def partition_fib(n, numpart):
-    # type: (int, int) -> List[float]
+def partition_fib(n: int, numpart: int) -> List[float]:
     platonic = [fib(i) for i in range(50, 50+numpart)]
     ratio = n / float(sum(platonic))
     seq = [x * ratio for x in platonic]
@@ -150,7 +148,7 @@ def partition_expon(n, numpartitions, minval, maxval, homogeneity=1):
     return values
 
 
-def choose_best_distr(values, possible_elements):
+def choose_best_distr(values: Seq[T], possible_elements: Seq[T]) -> List[T]:
     # type: (Seq[float], Seq[float]) -> Seq[float]
     """
     try to follow the distribution of values as close as possible
@@ -359,11 +357,11 @@ def partition_with_curve(x, numpart, curve, method='brentq', return_exp=False, e
     n = x
 
     def func(r):
-        return sum((bpf.expon(x0, x0, x1, x1, exp=r)|curve).map(numpart)) - n
+        return sum((bpf.expon(x0, x0, x1, x1, exp=r) | curve).map(numpart)) - n
     try:
         if method == 'brentq':
             r = _brentq(func, x0, x1)
-            curve = bpf.expon(x0, x0, x1, x1, exp=r)|curve
+            curve = bpf.expon(x0, x0, x1, x1, exp=r) | curve
             parts = curve.map(numpart)
         elif method == 'fsolve':
             xs = np.linspace(x0, x1, 100)
@@ -371,7 +369,7 @@ def partition_with_curve(x, numpart, curve, method='brentq', return_exp=False, e
             rs = set(r for r in rs if x0 <= r <= x1 and r not in excluded)
             parts = []
             for r in rs:
-                curve = bpf.expon(x0, x0, x1, x1, exp=r)|curve
+                curve = bpf.expon(x0, x0, x1, x1, exp=r) | curve
                 parts0 = curve.map(numpart)
                 parts.extend(parts0)
     except ValueError:
@@ -485,7 +483,6 @@ def onepulse(x, resolution, entropy=0):
     return bins
 
 
-
 def dither_curve(curve, numsamples, resolution=2):
     # type: (_Bpf, int, int) -> List[int]
     """
@@ -502,8 +499,6 @@ def dither_curve(curve, numsamples, resolution=2):
                 the resulting curve. There is a tradeoff between x and y resolution
     """
     origs = curve.map(numsamples)
-    #if resolution is None:
-    #    resolution = max(2, int(max(origs))-1)
     resolution = max(1, resolution-1)
     out = [0]*int(resolution/2)
 
@@ -564,11 +559,6 @@ def pulse_curve(curve, n, resolution=5, entropy=0, x0=None, x1=None):
             x1 = curve.x1
         except AttributeError:
             x1 = 1
-    # dx = (x1-x0)/n
-    #nums = int(n / resolution + 0.5)
-    #intvalue = int(n / nums)
-    #rest = n - (intvalue * nums)
-    #resolutions = [intvalue + int(index < rest) for index in range(nums)]
     resolutions = _dither_resolutions(n, resolution)
     nums = len(resolutions)
     print(resolutions)
@@ -640,7 +630,7 @@ class _FillMatch:
 
 @dataclasses.dataclass
 class _FillResult:
-    matches: list[_FillMatch]
+    matches: List[_FillMatch]
     unfilled_containers: list
     unsused_streams: list
 
@@ -777,7 +767,7 @@ def fib_curve_between(n, y0, y1, N=5):
     h = bpf.fib(0, y0, 1, y1)
 
     def f(r):
-        b = bpf.expon(0, 0, 1, 1, exp=r)|h
+        b = bpf.expon(0, 0, 1, 1, exp=r) | h
         samples = b.map(N)
         ratios = samples[1:] / samples[:-1]
         dif = abs(ratios - PHI).sum()
@@ -785,7 +775,7 @@ def fib_curve_between(n, y0, y1, N=5):
 
     try:
         r = _brentq(f, 0, 20)
-        out = bpf.expon(0, 0, 1, 1, exp=r)|h
+        out = bpf.expon(0, 0, 1, 1, exp=r) | h
     except ArithmeticError:
         out = None
     return out
