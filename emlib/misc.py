@@ -2,7 +2,6 @@
 from __future__ import annotations
 import os as _os
 import sys as _sys
-import random as _random
 import math
 from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
@@ -11,176 +10,12 @@ import dataclasses
 import logging
 
 import numpy as np
-from functools import reduce
 from fractions import Fraction
-import emlib.typehints as t
 
-T = t.typing.T
-
-# phi, in float (double) form and as Rational number with a precission of 2000
-# iterations in the fibonacci row (fib[2000] / fib[2001])
-PHI = 0.6180339887498949
+from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func
 
 
 logger = logging.getLogger("embib.lib")
-
-EPS = _sys.float_info.epsilon            # used for calculation of derivatives
-
-# Types
-
-
-class Seconds(float):
-    """ A float which prints itself as time MM:SS.mmm"""
-    def __str__(self):
-        return sec2str(self)
-
-    def __rept__(self):
-        return sec2str(self)
-
-    def __format__(self, spec):
-        return sec2str(self)
-
-
-# ------------------------------------------------------------
-#
-#    SLOW IMPLEMENTATIONS
-#
-# ------------------------------------------------------------
-
-
-def intersection(u1, u2, v1, v2):
-    # (T, T, T, T) -> t.Opt[t.Tup[T, T]]
-    """
-    return the intersection of (u1, u2) and (v1, v2) or None if no intersection
-
-    Example:
-
-    intersec = intersection(0, 3, 2, 5)
-    if intersec is not None:
-        x0, x1 = intersec    --> 2, 3
-
-    """
-    x0 = u1 if u1 > v1 else v1
-    x1 = u2 if u2 < v2 else v2
-    return (x0, x1) if x0 < x1 else None
-
-
-def frange(start, stop=None, step=None):
-    # type: (float, float, float) -> t.Iter[float]
-    """Like xrange(), but returns list of floats instead
-    All numbers are generated on-demand using generators
-    """
-    if stop is None:
-        stop = float(start)
-        start = 0.0
-    if step is None:
-        step = 1.0
-    numiter = int((stop - start) / step)
-    for i in range(numiter):
-        yield start + step*i
-
-
-def linspace(start:float, stop:float, numitems:int) -> list[float]:
-    """
-    Similar to numpy.linspace
-    """
-    dx = (stop - start) / (numitems - 1)
-    return [start + dx*i for i in range(numitems)]
-
-
-def linlin(x: T, x0:T, x1:T, y0:T, y1:T) -> T:
-    """
-    Convert x from range x0-x1 to range y0-y1
-    """
-    return (x - x0) * (y1 - y0) / (x1-x0) + y0
-
-
-def clip(x:float, minvalue:float, maxvalue:float) -> float:
-    """
-    clip the value of x between minvalue and maxvalue
-    """
-    if minvalue > x:
-        return minvalue
-    elif x < maxvalue:
-        return x
-    return maxvalue
-
-
-
-def lcm(*numbers):
-    # type: (*int) -> int
-    """
-    Least common multiplier between a seq. of numbers
-
-    lcm(3, 4, 6) --> 12
-    """
-    gcd = math.gcd
-
-    def lcm2(a, b):
-        return (a*b) // gcd(a, b)
-
-    return reduce(lcm2, numbers, 1)
-
-
-def mindenom(floats:t.Iter[float], limit=int(1e10)) -> int:
-    """
-    find the min denominator to express floats
-    as fractions of a common denom.
-
-    In [68]: mindenom((0.1, 0.3, 0.8))
-    Out[68]: 10
-
-    In [69]: mindenom((0.1, 0.3, 0.85))
-    Out[69]: 20
-    """
-    fracs = [Fraction(f).limit_denominator(limit) for f in floats]
-    mincommon = lcm(*[f.denominator for f in fracs])
-    return mincommon
-
-
-def convert_base_10_to_any_base(x:int, base:int) -> str:
-    """
-    Converts given number x, from base 10 to base b
-
-    Args:
-        x: the number in base 10
-        base: base to convert
-    """
-    assert(x >= 0)
-    assert(1< base < 37)
-    r = ''
-    import string
-    while x > 0:
-        r = string.printable[x % base] + r
-        x //= base
-    return r
-
-
-def convert_any_base_to_base_10(s:str, base:int) -> int:
-    """
-    Converts given number s, from base b to base 10
-
-    Args:
-        s: string representation of number
-        base: base of given number
-    """
-    assert(1 < base < 37)
-    return int(s, base)
-
-
-def convert_base(s:str, frombase:int, tobase:int) -> str:
-    """
-    Converts s from base a to base b
-    """
-    x = convert_any_base_to_base_10(s, frombase)
-    return convert_base_10_to_any_base(x, tobase)
-
-
-def euclidian_distance(values: t.Seq[float], weights: t.Seq[float]=None) -> float:
-    if weights:
-        s = sum(value**2 * weight for value, weight in zip(values, weights))
-        return math.sqrt(s)
-    return math.sqrt(sum(value**2 for value in values))
 
 
 # ------------------------------------------------------------
@@ -188,7 +23,7 @@ def euclidian_distance(values: t.Seq[float], weights: t.Seq[float]=None) -> floa
 # ------------------------------------------------------------
 
 
-def _parse_range(start, stop:int=None, step:int=None) -> tuple[int, int, int]:
+def _parse_range(start, stop:int=None, step:int=None) -> Tup[int, int, int]:
     if stop is None:
         stop = int(start)
         start = 0
@@ -197,7 +32,7 @@ def _parse_range(start, stop:int=None, step:int=None) -> tuple[int, int, int]:
     return start, stop, step
 
 
-def chunks(start:int, stop:int=None, step:int=None) -> t.Iter[tuple[int, int]]:
+def chunks(start:int, stop:int=None, step:int=None) -> Iter[Tup[int, int]]:
     """
     Returns a generator of tuples (offset, chunksize)
 
@@ -217,36 +52,92 @@ def chunks(start:int, stop:int=None, step:int=None) -> t.Iter[tuple[int, int]]:
         start += step
 
 
+def reverse_recursive(seq: list):
+    """
+    >>> reverse_recursive([1, 2, [3, 4], [5, [6, 7]]])
+    [[[7, 6], 5], [4, 3], 2, 1]
+
+    Args:
+        seq: a (possibly nested) list of elements
+
+    Returns:
+        a reversed version of `seq` where all sub-lists are also reversed.
+
+    NB: only lists will be reversed, other iterable collection remain untouched
+
+    """
+    out = []
+    for x in seq:
+        if isinstance(x, list):
+            x = reverse_recursive(x)
+        out.append(x)
+    out.reverse()
+    return out
+
+
+def wrap_by_sizes(flatseq: list, packsizes: Seq[int]) -> List[list]:
+    """
+    Example:
+
+    >>> flatseq = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    >>> wrap_by_sizes(flatseq, [3, 5, 2])
+    [[1, 2, 3], [4, 5, 6, 7, 8], [9, 10]]
+
+    Args:
+        flatseq: a flat sequence of items
+        packsizes: a list of sizes
+    """
+    def partialsum(seq):
+        accum = 0
+        for i in seq:
+            accum += i
+            out.append(accum)
+        return out
+
+    offsets = [0] + partialsum(packsizes)
+    start = offsets[0]
+    out = []
+    for i in range(1, len(offsets)):
+        end = offsets[i]
+        out.append(flatseq[start:end])
+        start = end
+    return out
+
+
 # ------------------------------------------------------------
-#
-#    SEARCH
-#
+#                                                            -
+#                          SEARCH                            -
+#                                                            -
 # ------------------------------------------------------------
 
 
-def nearest_element(item: float, seq: list[float]) -> float:
+def nearest_element(item: float, seq: U[List[float], np.ndarray]) -> float:
     """
     Find the nearest element (the element, not the index) in seq
 
-    NB: seq **MUST BE SORTED**, and this is not checked
+    **NB**: assumes that seq is sorted (this is not checked). seq can also be a
+        numpy array, in which case searchsorted is used instead of bisect
 
-    NB: seq can also be a numpy array, in which case searchsorted
-        is used instead of bisect
+    Args:
+        item: the item to search
+        seq: either a list of numbers, or a numpy array
 
-    Example
-    ~~~~~~~
+    Returns:
+        the value of the nearest element of seq
 
-    >>> seq = list(range(10))
-    >>> nearest_element(4.1, seq)
-    4
-    >>> nearest_element(3.6, [1,2,3,4,5])
-    4
-    >>> nearest_element(200, np.array([3,5,20]))
-    20
-    >>> nearest_element(0.5, [0, 1])
-    0
-    >>> nearest_element(1, [1, 1, 1])
-    1
+    Example::
+
+        >>> seq = list(range(10))
+        >>> nearest_element(4.1, seq)
+        4
+        >>> nearest_element(3.6, [1,2,3,4,5])
+        4
+        >>> nearest_element(200, np.array([3,5,20]))
+        20
+        >>> nearest_element(0.5, [0, 1])
+        0
+        >>> nearest_element(1, [1, 1, 1])
+        1
     """
     # check boundaries
     seq0 = seq[0]
@@ -266,7 +157,7 @@ def nearest_element(item: float, seq: list[float]) -> float:
     return element_l
 
 
-def nearest_unsorted(x:float, seq:list[float]) -> float:
+def nearest_unsorted(x:T, seq:List[T]) -> T:
     """
     seq is a numerical sequence. it can be unsorted
     x is a number or a seq of numbers
@@ -278,10 +169,10 @@ def nearest_unsorted(x:float, seq:list[float]) -> float:
     return min((abs(x - y), y) for y in seq)[1]
 
 
-def nearest_index(item, seq):
-    # type: (float, list) -> int
+def nearest_index(item: number_t, seq: List[number_t]) -> int:
     """
     Return the index of the nearest element in seq to item
+    Assumes that seq is sorted
 
     Example
     ~~~~~~~
@@ -301,7 +192,7 @@ def nearest_index(item, seq):
     return il
 
 
-def fuzzymatch(pattern:str, strings:list[str]) -> list[tuple[float, str]]:
+def fuzzymatch(pattern:str, strings:List[str]) -> List[Tup[float, str]]:
     """
     return a subseq. of strings sorted by best score.
     Only strings representing possible matches are returned
@@ -391,9 +282,11 @@ def sort_natural_dict(d: dict, recursive=True) -> dict:
     return dict(sorted_rows)
 
 
-def issorted(seq:lst, key=None) -> bool:
+def issorted(seq:list, key=None) -> bool:
     """
     returns True if seq is sorted
+
+    if any(x0 > x1 for x0, x1 in pairwise(seq)
     """
     lastx = -float('inf')
     if key is not None:
@@ -410,6 +303,7 @@ def issorted(seq:lst, key=None) -> bool:
             lastx = x
         return True
 
+
 def firstval(*values:T, default:T=None, sentinel=None) -> T:
     """
     Get the first value in values which is not sentinel
@@ -417,9 +311,11 @@ def firstval(*values:T, default:T=None, sentinel=None) -> T:
     For delayed execution (similar to a if b else c) a value can be a
     callable which should return the value in question
 
-    Example:
+    Example::
 
-    default = firstval(a, config['a'], lambda: lengthycomputation())
+        >>> default = firstval(a, lambda: lengthycomputation(), config['a'])
+        # this is the same as
+        # a if a is not None else a2 := lengthycomputation() if a2 is not None else config['a']
     """
     for value in values:
         if callable(value):
@@ -431,7 +327,8 @@ def firstval(*values:T, default:T=None, sentinel=None) -> T:
     return default
 
 
-def zipsort(a:t.Seq, b:t.Seq, key=None, reverse=False) -> list:
+def zipsort(a:Seq[T], b:Seq[T2], key:Func=None, reverse=False
+            ) -> Tup[List[T], List[T2]]:
     """
     Sort a and keep b in sync
 
@@ -449,18 +346,20 @@ def zipsort(a:t.Seq, b:t.Seq, key=None, reverse=False) -> list:
     ('Mary', 'John', 'Nick')
     """
     zipped = sorted(zip(a, b), key=key, reverse=reverse)
-    return list(zip(*zipped))
+    a, b = zip(*zipped)
+    return (a, b)
 
 
-def duplicates(seq:t.Seq, mincount=2) -> list:
+def duplicates(seq:Seq[T], mincount=2) -> List[T]:
     """
     Find all elements in seq which are present at least `mincount` times
     """
     from collections import Counter
     counter = Counter(seq).items()
-    return [item for item, count in counter if count > mincount]
+    return [item for item, count in counter if count >= mincount]
 
-def remove_duplicates(seq: list) -> list:
+
+def remove_duplicates(seq: List[T]) -> List[T]:
     """
     Remove all duplicates in seq while keeping its order
     If order is not important, use list(set(seq))
@@ -481,7 +380,8 @@ def remove_duplicates(seq: list) -> list:
     # In python >= 3.7 we use the fact that dicts keep order:
     return list(dict.fromkeys(seq))
 
-def fractional_slice(seq: t.Seq, step:float, start=0, end=-1) -> list:
+
+def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
     """
     Given a list of elements, take a slice similar to seq[start:end:step],
     but allows step to be a fraction
@@ -513,141 +413,6 @@ def fractional_slice(seq: t.Seq, step:float, start=0, end=-1) -> list:
             accum -= step
     return out
 
-# ------------------------------------------------------------
-#
-#    MATH
-#
-# ------------------------------------------------------------
-
-
-def derivative(func: t.Callable[T], h=0) -> t.Callable[T]:
-    """
-    Return a function which is the derivative of the given func
-    calculated via complex step finite difference
-
-    To find the derivative at x, do
-
-    derivative(func)(x)
-
-    VIA: https://codewords.recurse.com/issues/four/hack-the-derivative
-    """
-    if h <= 0:
-        h = _sys.float_info.min
-    return lambda x: (func(x+h*1.0j)).imag / h
-
-
-def logrange(start, stop, num=50, base=10):
-    # type: (float, float, int, int) -> np.ndarray
-    """
-    create an array [start, ..., stop]
-    with a logarithmic scale
-    """
-    log = np.math.log
-    if start == 0:
-        start = 0.000000000001
-    return np.logspace(log(start, base), log(stop, base), num, base=base)
-
-
-def randspace(begin, end, numsteps, include_end=True):
-    """
-    go from begin to end in numsteps at randomly spaced steps
-
-    include_end: include the last value (like np.linspace)
-    """
-    if include_end:
-        numsteps -= 1
-    N = sorted(_random.random() for i in range(numsteps))
-    D = (end - begin)
-    Nmin, Nmax = N[0], N[-1]
-    out = []
-    for n in N:
-        delta = (n - Nmin) / Nmax
-        out.append(delta * D + begin)
-    if include_end:
-        out.append(end)
-    return out
-
-
-def _fib2(N):
-    if N == 0:
-        return 0, 1
-    half_N, is_N_odd = divmod(N, 2)
-    f_n, f_n_plus_1 = _fib2(half_N)
-    f_n_squared = f_n * f_n
-    f_n_plus_1_squared = f_n_plus_1 * f_n_plus_1
-    f_2n = 2 * f_n * f_n_plus_1 - f_n_squared
-    f_2n_plus_1 = f_n_squared + f_n_plus_1_squared
-    if is_N_odd:
-        return (f_2n_plus_1, f_2n + f_2n_plus_1)
-    return (f_2n, f_2n_plus_1)
-
-
-def fib(n):
-    # type: (float) -> float
-    """
-    calculate the fibonacci number `n`
-    """
-    # matrix code from http://blog.richardkiss.com/?p=398
-    if n < 60:
-        SQRT5 = 2.23606797749979  # sqrt(5)
-        PHI = 1.618033988749895
-        # PHI = (SQRT5 + 1) / 2
-        return int(PHI ** n / SQRT5 + 0.5)
-    else:
-        return _fib2(n)[0]
-
-
-def rndround(x):
-    import warnings
-    warnings.warn("Use roundrnd")
-    return roundrnd(x)
-
-
-def roundrnd(x):
-    # type: (float) -> float
-    """
-    round x to its nearest integer, taking the fractional part
-    as the probability
-
-    3.5 will have a 50% probability of rounding to 3 or to 4
-    3.1 will have a 10% probability of rounding to 3 and 90%
-        prob. of rounding to 4
-    """
-    return int(x) + int(_random.random() > (1 - (x % 1)))
-
-
-def roundres(x, resolution=1.0):
-    """
-    Round x with given resolution
-
-    Example
-    ~~~~~~~
-
-    roundres(0.4, 0.25) -> 0.5
-    roundres(1.3, 0.25) -> 1.25
-    """
-    return round(x / resolution) * resolution
-
-
-def modulo_shortest_distance(x, origin, mod):
-    """
-    Return the shortest distance to x from origin around a circle
-    of modulo `mod`. A positive value means move clockwise,
-    negative value means anticlockwise. Use abs to calculate the
-    absolute distance
-
-    Example: calculate the interval between two pitches, independently
-    of octaves
-
-    interval = modulo_shortest_distance(n2m("D5"), n2m("B4"), 12)
-    -> 3
-    """
-    xclock = (x - origin) % mod
-    xanti  = (origin - x) % mod
-    if xclock < xanti:
-        return xclock
-    return -xanti
-
 
 # ------------------------------------------------------------
 #
@@ -656,8 +421,7 @@ def modulo_shortest_distance(x, origin, mod):
 # ------------------------------------------------------------
 
 
-def find_file(path, file):
-    # type: (str, str) -> t.Opt[str]
+def find_file(path: str, file: str) -> Opt[str]:
     """
     Look for file recursively starting at path.
 
@@ -686,8 +450,7 @@ def add_suffix(filename, suffix):
     return ''.join((name, suffix, ext))
 
 
-def increase_suffix(filename):
-    # type: (str) -> str
+def increase_suffix(filename: str) -> str:
     name, ext = _os.path.splitext(filename)
     tokens = name.split("-")
 
@@ -752,6 +515,7 @@ def parse_time(t:str) -> float:
     else:
         raise ValueError("Format not understood")
 
+
 def ljust(s: str, width: int, fillchar=" ") -> str:
     """
     Like str.ljust, but makes sure that the output is always the given width,
@@ -772,7 +536,6 @@ def ljust(s: str, width: int, fillchar=" ") -> str:
 
 
 def namedtuple_addcolumn(namedtuples, seq, column_name, classname=""):  # type: ignore
-    # type: (t.List[t.NamedTuple], t.List, str, str) -> t.List
     """
 
     namedtuples: a list of namedtuples
@@ -792,9 +555,8 @@ def namedtuple_addcolumn(namedtuples, seq, column_name, classname=""):  # type: 
 
 
 def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # type: ignore
-    # type: (t.List[t.Tup], str, str, str) -> []
     """
-    # Rename the column of a seq of namedtuples
+    Rename the column of a seq of namedtuples
 
     >>> from collections import namedtuple
     >>> Person = namedtuple("Person", "firstname familyname")
@@ -812,7 +574,7 @@ def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # 
     return newtuples
 
 
-def namedtuple_extend(name, orig, columns):
+def namedtuple_extend(name:str, orig, columns: U[str, Tup[str,...]]):
     """
     create a new constructor with the added columns
 
@@ -820,10 +582,12 @@ def namedtuple_extend(name, orig, columns):
     constructor which takes as arguments an instance
     of the original namedtuple and the additional args
 
-    name: new name for the type
-    orig: an instance of the original namedtuple or the constructor itself
-    columns : the columns to add
-
+    Args:
+        name: new name for the type
+        orig: an instance of the original namedtuple or the constructor itself
+        columns : the columns to add
+    Returns:
+        a tuple (newtype, newtype_from_old)
     >>> from collections import namedtuple
     >>> Point = namedtuple("Point", "x y")
     >>> p = Point(10, 20)
@@ -854,8 +618,7 @@ def namedtuple_extend(name, orig, columns):
 # ------------------------------------------------------------
 
 
-def isiterable(obj, exceptions=(str, bytes)):
-    # type: (Any, t.Tup[type, ...]) -> bool
+def isiterable(obj, exceptions:Tup[type, ...]=(str, bytes)) -> bool:
     """
     >>> assert isiterable([1, 2, 3])
     >>> assert not isiterable("test")
@@ -873,7 +636,7 @@ def isgeneratorlike(obj):
 
 
 def unzip(seq):
-    # type: (t.Iter) -> t.List
+    # type: (Iter) -> t.List
     """
     >>> a, b = (1, 2), ("A", "B")
     >>> list(zip(a, b))
@@ -989,8 +752,7 @@ def dictmerge(dict1, dict2):
     return out
 
 
-def moses(pred, seq):
-    # type: (t.Callable, t.Iter) -> t.Tup[list, list]
+def moses(pred, seq: Iter[T]) -> Tup[List[T], List[T]]:
     """
     return two iterators: filter(pred, seq), filter(not pred, seq)
 
@@ -1000,8 +762,8 @@ def moses(pred, seq):
     >>> moses(lambda x:x > 5, range(10))
     ([6, 7, 8, 9], [0, 1, 2, 3, 4, 5])
     """
-    trueitems = []   # type: List
-    falseitems = []  # type: List
+    trueitems = []
+    falseitems = []
     for x in seq:
         if pred(x):
             trueitems.append(x)
@@ -1010,14 +772,15 @@ def moses(pred, seq):
     return trueitems, falseitems
 
 
-def allequal(xs) -> bool:
+def allequal(xs: Seq) -> bool:
     """
     Return True if all elements in xs are equal
     """
-    return len(set(xs)) == 1
+    x0 = xs[0]
+    return all(x==x0 for x in xs)
 
 
-def makereplacer(conditions:dict) -> Callable:
+def make_replacer(conditions:dict) -> Func:
     """
     Create a function to replace many subtrings at once
 
@@ -1122,7 +885,8 @@ def snap_to_grid(x:t.Rat, tick:t.Rat, offset:t.Rat=0, nearest=True) -> t.Rat:
         return t(int((x - offset) / tick)) * tick + offset
 
 
-def snap_array(X, tick, offset=0, out=None, nearest=True):
+def snap_array(X:np.ndarray, tick:t.Rat, offset:t.Rat=0,
+               out:t.Opt[np.ndarray]=None, nearest=True) -> np.ndarray:
     """
     Assuming a grid t defined by
 
@@ -1132,7 +896,6 @@ def snap_array(X, tick, offset=0, out=None, nearest=True):
 
     NB: tick > 0
     """
-    # type: (np.ndarray, t.Rat, t.Rat, t.Opt[np.ndarray], bool) -> np.ndarray
     if tick <= 0:
         raise ValueError("tick should be > 0")
 
@@ -1141,8 +904,7 @@ def snap_array(X, tick, offset=0, out=None, nearest=True):
     return _snap_array_floor(X, tick, offset=float(offset), out=out)
 
 
-def _snap_array_nearest(X, tick, offset=0, out=None):
-    # type: (np.ndarray, t.Rat, t.Rat, np.ndarray) -> np.ndarray
+def _snap_array_nearest(X:np.ndarray, tick:t.Rat, offset=0, out=None) -> np.ndarray:
     if out is None:
         out = X.copy()
     if offset != 0:
@@ -1175,8 +937,8 @@ def _snap_array_floor(X, tick, offset=0, out=None):
     return out
 
 
-def snap_to_grids(x, ticks, offsets=None, mode='nearest'):
-    # type: (t.Rat, t.Seq[Fraction], t.Opt[t.Seq[Fraction]], str) -> Fraction
+def snap_to_grids(x: number_t, ticks: Seq[number_t], offsets:Seq[number_t]=None,
+                  mode='nearest') -> number_t:
     """
     A regular grid is defined as x = offset + tick*n, where n is an integer
     from -inf to inf.
@@ -1231,14 +993,21 @@ def snap_to_grids(x, ticks, offsets=None, mode='nearest'):
     return quants[0]
 
 
-def distribute_in_zones(x:float, split_points:list[float], side="left") -> int:
+def distribute_in_zones(x:number_t, split_points:List[number_t], side="left") -> int:
     """
     Returns the index of a "zone" where to place x. A zone is a numeric range
     defined by an inclusive lower boundary and a non-inclusive higher boundary
     (NB: see distribute_in_zones_right for a non-inclusive lower and
-    inclusive upper boundary)
+    inclusive upper boundary). The edge zones extend to inf.
 
-    split_points: a sequence defining the split points
+    Args:
+        x: the number to assign a zone to
+        split_points: the split points which define the zones
+        side: if "left", a zone has an inclusive lower bound and a non-inclusive
+            upper bound. "right" is the opposite
+
+    Returns:
+        the index of the zone
 
     Example
     ~~~~~~~
@@ -1264,8 +1033,7 @@ def distribute_in_zones(x:float, split_points:list[float], side="left") -> int:
     return imin
 
 
-def _distribute_in_zones_right(x, split_points):
-    # type: (float, t.List[float]) -> int
+def _distribute_in_zones_right(x:number_t, split_points:Seq[number_t]) -> int:
     """
     the same as distribute_in_zones, but with right inclusive zones
     """
@@ -1280,27 +1048,7 @@ def _distribute_in_zones_right(x, split_points):
     return imin
 
 
-def rotate2d(point:tuple[float, float],
-             degrees:float,
-             origin=(0,0)) -> tuple[float, float]:
-    """
-    A rotation function that rotates a point around an origin
-
-    Args:
-        point:   the point to rotate as a tuple (x, y)
-        degrees: the angle to rotate (counterclockwise)
-        origin:  the point acting as pivot to the rotation
-    """
-    x = point[0] - origin[0]
-    yorz = point[1] - origin[1]
-    newx = (x*math.cos(math.radians(degrees))) - (yorz*math.sin(math.radians(degrees)))
-    newyorz = (x*sin(math.radians(degrees))) + (yorz*math.cos(math.radians(degrees)))
-    newx += origin[0]
-    newyorz += origin[1]
-    return newx, newyorz
-
-
-def copyseq(seq):  # type: ignore
+def copyseq(seq: T) -> T:
     """
     return a copy of seq. if it is a list or a tuple, return a copy.
     if it is a numpy array, return a copy with no shared data
@@ -1310,7 +1058,7 @@ def copyseq(seq):  # type: ignore
     return seq.__class__(seq)
 
 
-def normalize_slice(slize):
+def normalize_slice(slize: U[int, tuple]) -> Tup[int, Opt[int]]:
     """
     >>> normalize_slice((3,))
     (3, None)
@@ -1329,19 +1077,21 @@ def normalize_slice(slize):
         raise ValueError("??")
 
 
-def replace_subseq(seq, subseq, transform, slize=None):
-    # type: (t.Seq, t.Seq, t.Seq, t.Opt[t.Tup]) -> t.Seq
+def replace_subseq(seq: Seq[T], subseq: Seq[T], replacement: Seq[T], slize=None
+                   ) -> List[T]:
     """
-    seq: the sequence to be transformed (NOT in-place)
-    subseq: a sequence which is MAYBE a sub-sequence of seq
-    transform: the seq. to be put instead
-    slize: a slice to be applied to seq before analysis.
-        slice-notation   argument to slize
-        [:4]             (0, 4)
-        [1:]             (1,) or (1,None)
-        [1:-2]           (1, -2)
-        [2:-2]           (2, -2) or the shorthand 2,
-                         which means "use a margin of 2 at each side"
+    Args:
+
+        seq: the sequence to be transformed (NOT in-place)
+        subseq: a sequence which is MAYBE a sub-sequence of seq
+        replacement: the seq. to be put instead
+        slize: a slice to be applied to seq before analysis.
+            slice-notation   argument to slize
+            [:4]             (0, 4)
+            [1:]             (1,) or (1,None)
+            [1:-2]           (1, -2)
+            [2:-2]           (2, -2) or the shorthand 2,
+                             which means "use a margin of 2 at each side"
 
     If subseq is a subsequence of seq, replace this with transform.
     If subseq is not found, return the original seq
@@ -1381,25 +1131,26 @@ def replace_subseq(seq, subseq, transform, slize=None):
     if slize is not None:
         slize = normalize_slice(slize)
         sliced_seq = seq[slize[0]:slize[1]]
-        seq2 = replace_subseq(sliced_seq, subseq, transform)
+        seq2 = replace_subseq(sliced_seq, subseq, replacement)
         if sliced_seq is seq2:
             return seq
         out = list(seq)
         out[slize[0]:slize[1]] = seq2
         return out
     subseq = tuple(subseq)
-    transform = tuple(transform)
+    replacement = tuple(replacement)
     copy = list(seq)
     N = len(subseq)
     changed = False
     for i, win in enumerate(window(seq, N)):
         if win == subseq:
-            copy[i:i+N] = transform
+            copy[i:i+N] = replacement
             changed = True
     return copy if changed else seq
 
 
-def seq_transform(seq, transforms, slize=None, maxiterations=20):
+def seq_transform(seq: Seq[T], transforms, slize=None, maxiterations=20
+                  ) -> Tup[List[T], bool]:
     """
     Transforms subsequences of seq
 
@@ -1481,12 +1232,12 @@ def seq_transform(seq, transforms, slize=None, maxiterations=20):
     return seq, i < maxiterations
 
 
-def seqcontains(seq, subseq) -> t.Opt[tuple[int, int]]:
+def seq_contains(seq, subseq) -> Opt[Tup[int, int]]:
     """
     returns None if subseq is not contained in seq
     returns the (start, end) indices if seq contains subseq, so that
     >>> seq, subseq = range(10), [3, 4, 5]
-    >>> indices = seqcontains(seq, subseq)
+    >>> indices = seq_contains(seq, subseq)
     >>> assert seq[indices[0]:indices[1]] == subseq
     """
     for i in range(len(seq)-len(subseq)+1):
@@ -1498,7 +1249,8 @@ def seqcontains(seq, subseq) -> t.Opt[tuple[int, int]]:
     return None
 
 
-def pick_regularly(seq, numitems:int, start=0, end=0) -> list:
+def pick_regularly(seq: Seq[T], numitems:int, start_idx:int=0, end_idx:int=0
+                   ) -> List[T]:
     """
     Given a sequence, pick `numitems` from it at regular intervals
     The first and the last items are always included. The behaviour
@@ -1507,15 +1259,15 @@ def pick_regularly(seq, numitems:int, start=0, end=0) -> list:
     Args:
         seq: a sequence of items
         numitems: the number of items to pick from seq
-        start: if given, the index to start picking from
-        end: if given, the index to stop
+        start_idx: if given, the index to start picking from
+        end_idx: if given, the index to stop
 
     Returns:
         a list of the picked items
     """
-    if end == 0:
-        end = len(seq) - 1
-    return [seq[round(i)] for i in np.linspace(start, end, numitems)]
+    if end_idx == 0:
+        end_idx = len(seq)-1
+    return [seq[round(i)] for i in np.linspace(start_idx, end_idx, numitems)]
 
 
 def deepupdate(orig, updatewith):
@@ -1616,19 +1368,16 @@ def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> t.Tup[float, float]:
 
 
 def returns_tuple(names, recname=None):
-    # type: (t.U[str, t.List[str]], str) -> t.Callable
     """
     Decorator
 
     Modifies the function to return a namedtuple with the given names.
 
-    names:
-        as passed to namedtuple, either a space-divided string,
-        or a sequence of strings
-    recname:
-        a name to be given to the result as a whole. If nothing is
-        given, the name of the decorated function is used.
-
+    Args:
+        names: as passed to namedtuple, either a space-divided string,
+            or a sequence of strings
+        recname: a name to be given to the result as a whole. If nothing is
+            given, the name of the decorated function is used.
     """
     from decorator import decorator
     from collections import defaultdict
@@ -1704,32 +1453,38 @@ def singleton(cls):
     return get_instance()
 
 
-def runonce(func):
+class runonce:
     """
-    func will run only once, independent of the arguments passed subsequent times
-    This is useful for functions which make some initialization or expensive computation
-    only once
+    To be used as decorator. `func` will run only once, independent
+    of the arguments passed the second time
 
-    Example
+    Example::
 
-    @runonce
-    def readConfig(path):
-        ...
+        # get_config() will only read the file the first time,
+        # return the resulting dict for any further calls
 
-    Similar to lru_cache(maxsize=1)
+        @runonce
+        def get_config():
+            config = json.load(open("/path/to/config.json"))
+            return config
 
-    NB: lru_cache is better and faster!
+        config = get_config()
+
     """
-    def wrapper(*args, **kwargs):
-        if not wrapper.has_run:
-            wrapper.has_run = True
-            wrapper.result = result = func(*args, **kwargs)
-            return result
-        return wrapper.result
+    __slots__ = ('func', 'result', 'has_run')
 
-    wrapper.has_run = False
-    return wrapper
+    def __init__(self, func):
+        self.func = func
+        self.result = None
+        self.has_run = False
 
+    def __call__(self, *args, **kwargs):
+        if self.has_run:
+            return self.result
+
+        self.result = self.func(*args, **kwargs)
+        self.has_run = True
+        return self.result
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1754,45 +1509,72 @@ def deprecated(func, msg=None):
     return wrapper
 
 
-def checktype(obj, *T):
+def istype(obj, *types):
     """
-    Examples:
+    Examples
+    --------
 
-    checktype(1, int, float)   --> the same as isinstance(1, (int, float))
-    checktype(a, (int, float)) --> a is a tuple of the form (int, float)
-    checktype(a, [int])        --> a is a list of ints
-    checktype(a, {str:int})    --> a dict of str keys and int values
+    >>> istype(1, int, float)
+    True
+    >>> istype((4, 0.5), (int, float))
+    True
+    >>> istype([4, 3], [int])
+    True
+    >>> istype({"foo": 4, "bar": 3}, {str:int})
+    True
 
     """
-    if len(T) > 1:
-        return isinstance(obj, T)
-    else:
-        T = T[0]
+    if len(types) > 1:
+        return isinstance(obj, types)
 
-    if isinstance(T, tuple):
-        return isinstance(obj, tuple) and all(checktype(subobj, subT)
-                                              for subobj, subT in zip(obj, T))
-    elif isinstance(T, list):
-        if len(T) == 0:
+    t = types[0]
+
+    if isinstance(t, type):
+        return isinstance(obj, t)
+
+    if isinstance(t, tuple):
+        return (isinstance(obj, tuple) and
+                len(obj) == len(t) and
+                all(istype(subobj, subt) for subobj, subt in zip(obj, t)))
+    elif isinstance(t, list):
+        if len(t) == 0:
             return isinstance(obj, list)
-        elif len(T) == 1:
-            subT = T[0]
-            return isinstance(obj, list) and all(checktype(subobj, subT)
+        elif len(t) == 1:
+            subt = t[0]
+            return isinstance(obj, list) and all(istype(subobj, subt)
                                                  for subobj in obj)
         else:
-            raise ValueError("T should be [type], but found: %s" % T)
-    elif isinstance(T, dict):
-        assert len(T) == 1
-        keyT, valT = list(T.items())[0]
-        return all(checktype(key, keyT) and checktype(value, valT)
+            raise ValueError(f"T should be [type], but found: {t}")
+    elif isinstance(t, dict):
+        assert len(t) == 1
+        keyt, valt = list(t.items())[0]
+        return all(istype(key, keyt) and istype(value, valt)
                    for key, value in obj.items())
     else:
-        return isinstance(obj, T)
+        raise TypeError("T type not supported, see examples")
 
 
-# crossplatform
+def assert_type(x, *types) -> bool:
+    """
+    Returns True if x is of the given type, raises TypeError otherwise
+    See istype for examples
 
-def open_with_standard_app(path, force_wait=False):
+    Can be used as::
+
+        assert_type(x, int, float)
+
+    or::
+
+        assert assert_type(x, [int])
+    """
+    if not istype(x, *types):
+        raise TypeError(f"Expected type {types}, got {type(x).__name__}: {x}")
+    return True
+
+
+# --- crossplatform ---
+
+def open_with_standard_app(path: str, force_wait=False) -> None:
     """
     Open path with the app defined to handle it by the user
     at the os level (xdg-open in linux, start in win, open in osx)
@@ -1823,25 +1605,7 @@ def open_with_standard_app(path, force_wait=False):
         dialogs.popupmsg("Close this dialog when finished")
 
 
-def binary_resolve_path(cmd):
-    cmd0 = cmd.split()[0]
-    if _os.path.exists(cmd0):
-        return cmd0
-    import shutil
-    path = shutil.which(cmd0)
-    if path:
-        return path
-    return None
-
-
-def binary_exists(cmd):
-    """
-    Check if cmd exists or is in the path
-    """
-    return binary_resolve_path(cmd) is not None
-
-
-def inside_jupyter():
+def inside_jupyter() -> bool:
     """
     Are we running inside a jupyter notebook?
     """
@@ -1849,7 +1613,7 @@ def inside_jupyter():
 
 
 @runonce
-def session_type():
+def session_type() -> str:
     """
     Returns
         "jupyter" if running a jupyter notebook
@@ -1861,6 +1625,7 @@ def session_type():
     sys.flags.interactive == 1
     """
     try:
+        # get_ipython should be available within an ipython/jupyter session
         shell = get_ipython().__class__.__name__
         if shell == 'ZMQInteractiveShell':
             return "jupyter"
@@ -1872,7 +1637,7 @@ def session_type():
         return "python"
 
 
-def ipython_qt_eventloop_started():
+def ipython_qt_eventloop_started() -> bool:
     """
     Are we running ipython / jupyter and the qt event loop has been started?
     ( %gui qt )
@@ -1886,7 +1651,7 @@ def ipython_qt_eventloop_started():
         return False
 
 
-def print_table(rows, headers=(), tablefmt=None, showindex=True) -> None:
+def print_table(rows:list, headers=(), tablefmt:str=None, showindex=True) -> None:
     """
     Print rows as table
     
@@ -1910,12 +1675,13 @@ def print_table(rows, headers=(), tablefmt=None, showindex=True) -> None:
             headers = [field.name for field in dataclasses.fields(row0)]
         rows = [dataclasses.astuple(row) for row in rows]
     elif isinstance(row0, tuple):
-        if not hasattr(row0, '_fields') and not headers:
-            headers = [f"col{i}" for i in range(len(row0))]
-            logger.warning("The tuples passed don't seem to be namedtuples and no headers provided."
-                           "Using fallback headers")
         if not headers:
-            headers = row0._fields
+            if not hasattr(row0, '_fields'):
+                headers = [f"col{i}" for i in range(len(row0))]
+                logger.warning("The tuples passed don't seem to be namedtuples and no headers "
+                               "provided. Using fallback headers")
+            else:
+                headers = row0._fields
     else:
         raise TypeError(f"rows should be a list of namedtuples or dataclass objects"
                         f", got {type(row0)}")
@@ -1930,45 +1696,25 @@ def print_table(rows, headers=(), tablefmt=None, showindex=True) -> None:
                                      tablefmt='html', showindex=showindex)
             display(HTML(html))
         else:
-            print(tabulate.tabulate(rows, headers=headers, disable_numparse=True, tablefmt=tablefmt,
-                                    showindex=showindex))
+            print(tabulate.tabulate(rows, headers=headers, disable_numparse=True, 
+                                    tablefmt=tablefmt, showindex=showindex))
     else:
         print(tabulate.tabulate(rows, headers=headers, showindex=showindex, tablefmt=tablefmt))
 
 
-def quarters_to_timesig(quarters:float, snap=True, mindiv=64) -> t.Tup[int, int]:
-    """
-    Transform a duration in quarters to a timesig
-
-    quarters    timesig
-    –––––––––––––––––––
-    3           (3, 4)
-    1.5         (3, 8)
-    1.25        (5, 16)
-    4.0         (4, 4)
-
-    """
-    if snap:
-        if quarters < 1:     # accept a max. of 7/32
-            quarters = round(quarters*8)/8
-        elif quarters < 2:   # accept a max. of 7/16
-            quarters = round(quarters*4)/4
-        elif quarters < 8:   # accept a max. of 15/8
-            quarters = round(quarters*2)/2
-        else:
-            quarters = round(quarters)
-    mindenom = mindiv >> 2
-    f = Fraction.from_float(quarters).limit_denominator(mindenom)
-    timesig0 = f.numerator, f.denominator*4
-    transforms = {
-        (1, 4):(2, 8),
-        (2, 4):(4, 8)
-    }
-    timesig = transforms.get(timesig0, timesig0)
-    return timesig
-
-
 def replace_sigint_handler(handler):
+    """
+    Replace current SIGINT hanler with the given one, return
+    the old one
+
+    Args:
+        handler: the new handler. A handler is a function taking no
+        parameters and returning nothing
+
+    Returns:
+        the old handler
+
+    """
     import signal
     original_handler = signal.getsignal(signal.SIGINT)
     signal.signal(signal.SIGINT, handler)
@@ -2018,29 +1764,32 @@ def strip_lines(text: str) -> str:
     return "\n".join(lines[startidx:len(lines)-endidx])
 
 
-def findparam(evalparam, val:float, paraminit:float, maxerror=0.001) -> float:
+def optimize_parameter(func, val:float, paraminit:float, maxerror=0.001) -> float:
     """
     Optimize one parameter to arrive to a desired value.
 
     Example:
-        # find the exponent of a bpf were its value at 1/7 is 1.25 (within the given relative error)
-        expon = findparam(evalparam=lambda param: bpf.expon(0, 1, 1, 6, exp=param)(1/7), val=1.25, paraminit=2)
-        val = bpf.expon(0, 1, 1, 6, exp=expon)(1/7)
+
+        # find the exponent of a bpf were its value at 0.1 is 1.25
+        (within the given relative error)
+
+        expon = findparam(evalparam=lambda param: bpf.expon(0, 1, 1, 6, exp=param)(0.1),
+                          val=1.25, paraminit=2)
+        val = bpf.expon(0, 1, 1, 6, exp=expon)(0.1)
         print(val)
 
     Args:
-        evalparam: a function returning a value which will be compared to `val`
+        func: a function returning a value which will be compared to `val`
         val: the desired value to arrive to
         paraminit: the initial value of param
         maxerror: the max. relative error (0.001 is 0.1%)
     """
     param = paraminit
     while True:
-        print(param)
-        valnow = evalparam(param)
-        relerror = abs(valnow - val) / valonn
+        valnow = func(param)
+        relerror = abs(valnow - val) / valnow
         if relerror < maxerror:
-            return expon
+            return valnow
         if valnow > val:
             param = param * (1+relerror)
         else:

@@ -228,13 +228,11 @@ def partialsum(seq: Iter[T], start=0) -> Iter[T]:
     n2 -> n0 + n1 + n2
     n3 -> n0 + n1 + n2 + n3
     """
-    assert isiterable(seq)
     accum = start
     for i in seq:
         accum += i
         yield accum
 
-        
 def partialmul(seq: Iter[T], start=1) -> Iter[T]:
     """
     return the accumulated multiplication
@@ -327,21 +325,6 @@ def _flatten_nonrec(iterable):
             else:
                 append(iterator)
                 iterator = new_iterator
-
-
-def flatlist(s: Iter, exclude=(str,), levels=inf) -> list:
-    """
-    Like flatten, but returns a list
-
-    Args:
-        s: the sequence to flatten
-        exclude: exclude objects of this types
-        levels: how many levels?
-
-    Returns:
-        a list containing a flattened version of s
-    """
-    return list(flatten(s, exclude=exclude, levels=levels))
 
             
 def flattenonly(l, types):

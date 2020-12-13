@@ -18,6 +18,7 @@ from typing import (
 import typing
 from fractions import Fraction
 
-Rat = U[int, float, Fraction]
 Func = Callable
 T = TypeVar("T")
+T2 = TypeVar("T2")
+number_t = U[int, float, Fraction]
