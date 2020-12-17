@@ -7,7 +7,7 @@ from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
 import re as _re
 import dataclasses
-import logging
+import warnings
 
 import numpy as np
 from fractions import Fraction
@@ -15,41 +15,9 @@ from fractions import Fraction
 from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func
 
 
-logger = logging.getLogger("embib.lib")
-
-
 # ------------------------------------------------------------
 #     CHUNKS
 # ------------------------------------------------------------
-
-
-def _parse_range(start, stop:int=None, step:int=None) -> Tup[int, int, int]:
-    if stop is None:
-        stop = int(start)
-        start = 0
-    if step is None:
-        step = 1
-    return start, stop, step
-
-
-def chunks(start:int, stop:int=None, step:int=None) -> Iter[Tup[int, int]]:
-    """
-    Returns a generator of tuples (offset, chunksize)
-
-    Example
-    =======
-
-    chunks(0, 10, 3)
-    (0, 3)
-    (3, 3)
-    (6, 3)
-    (9, 1)
-    """
-    start, stop, step = _parse_range(start, stop, step)
-    while start < stop:
-        size = min(stop - start, step)
-        yield start, size
-        start += step
 
 
 def reverse_recursive(seq: list):
@@ -200,15 +168,13 @@ def fuzzymatch(pattern:str, strings:List[str]) -> List[Tup[float, str]]:
     pattern: the string to search for within S
     strings: a list os possible strings
     """
-    import re
-    pattern = '.*?'.join(map(re.escape, list(pattern)))
+    pattern = '.*?'.join(map(_re.escape, list(pattern)))
 
     def calculate_score(pattern, s):
-        match = re.search(pattern, s)
+        match = _re.search(pattern, s)
         if match is None:
             return 0
-        return 100.0 / ((1 + match.start()) *
-                        (match.end() - match.start() + 1))
+        return 100.0 / ((1 + match.start()) * (match.end() - match.start() + 1))
 
     S2 = []
     for s in strings:
@@ -225,7 +191,7 @@ def fuzzymatch(pattern:str, strings:List[str]) -> List[Tup[float, str]]:
 # ------------------------------------------------------------
 
 
-def sort_natural(l: list, key=None) -> list:
+def sort_natural(seq: list, key=None) -> list:
     """
     sort a sequence 'l' of strings naturally, so that
     'item1' and 'item2' are before 'item10'
@@ -260,8 +226,8 @@ def sort_natural(l: list, key=None) -> list:
         return [convert(c) for c in re.split('([0-9]+)', key)]
 
     if key:
-        return sorted(l, key=lambda x: alphanum_key(key(x)))
-    return sorted(l, key=alphanum_key)
+        return sorted(seq, key=lambda x: alphanum_key(key(x)))
+    return sorted(seq, key=alphanum_key)
 
 
 def sort_natural_dict(d: dict, recursive=True) -> dict:
@@ -414,74 +380,7 @@ def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
     return out
 
 
-# ------------------------------------------------------------
-#
-#    IO and file-management
-#
-# ------------------------------------------------------------
-
-
-def find_file(path: str, file: str) -> Opt[str]:
-    """
-    Look for file recursively starting at path.
-
-    If file is found in path or any subdir, the complete path is returned
-    ( /this/is/a/path/filename )
-
-    else None
-    """
-    dir_cache = set()  # type: t.Set[str]
-    for directory in _os.walk(path):
-        if directory[0] in dir_cache:
-            continue
-        dir_cache.add(directory[0])
-        if file in directory[2]:
-            return '/'.join((directory[0], file))
-    return None
-
-def add_suffix(filename, suffix):
-    # type: (str, str) -> str
-    """
-    add a suffix between the name and the extension
-
-    add_suffix("test.txt", "-OLD") == "test-OLD.txt"
-    """
-    name, ext = _os.path.splitext(filename)
-    return ''.join((name, suffix, ext))
-
-
-def increase_suffix(filename: str) -> str:
-    name, ext = _os.path.splitext(filename)
-    tokens = name.split("-")
-
-    def increase_number(number_as_string):
-        n = int(number_as_string) + 1
-        s = "%0" + str(len(number_as_string)) + "d"
-        return s % n
-
-    if len(tokens) > 1:
-        suffix = tokens[-1]
-        if could_be_number(suffix):
-            new_suffix = increase_number(suffix)
-            new_name = name[:-len(suffix)] + new_suffix
-        else:
-            new_name = name + '-01'
-    else:
-        new_name = name + '-01'
-    return new_name + ext
-
-
-def normalize_path(path):
-    # type: (str) -> str
-    """
-    Convert `path` to an absolute path with user expanded
-    (something that can be safely passed to a subprocess)
-    """
-    return _os.path.abspath(_os.path.expanduser(path))
-
-
-def sec2str(seconds):
-    # type: (float) -> str
+def sec2str(seconds:float) -> str:
     h = int(seconds // 3600)
     m = int((seconds - h * 3600) // 60)
     s = seconds % 60
@@ -635,8 +534,7 @@ def isgeneratorlike(obj):
     return hasattr(obj, '__iter__') and not hasattr(obj, '__len__')
 
 
-def unzip(seq):
-    # type: (Iter) -> t.List
+def unzip(seq: Iter[T]) -> List[T]:
     """
     >>> a, b = (1, 2), ("A", "B")
     >>> list(zip(a, b))
@@ -647,7 +545,7 @@ def unzip(seq):
     return list(zip(*seq))
 
 
-def asnumber(obj, accept_fractions=True, accept_expon=False):
+def asnumber(obj, accept_fractions=True, accept_expon=False) -> U[int, float, Fraction, None]:
     """
     Return obj as number, or None of it cannot be converted
     to a number
@@ -704,8 +602,7 @@ def astype(type_, obj, construct=None):
     return obj if isinstance(obj, type_) else (construct or type_)(obj)
 
 
-def could_be_number(x):
-    # type: (t.Any) -> bool
+def could_be_number(x) -> bool:
     """
     True if `x` can be interpreted as a number
 
@@ -716,9 +613,8 @@ def could_be_number(x):
     "mystring" | False
 
     """
-    n = asnumber(x)
-    return n is not None
-
+    raise Deprecated("Use asnumber(x) is not None")
+    
 
 def str_is_number(s:str, accept_exp=False, accept_fractions=False):
     """
@@ -735,8 +631,7 @@ def str_is_number(s:str, accept_exp=False, accept_fractions=False):
         return re.fullmatch(r"[-+]?[0-9]*\.?[0-9]+", s) is not None
 
 
-def dictmerge(dict1, dict2):
-    # type: (dict, dict) -> dict
+def dictmerge(dict1: dict, dict2: dict) -> dict:
     """
     Merge the contents of the two dicts.
     If they have keys in common, the value in dict1 is overwritten
@@ -754,7 +649,7 @@ def dictmerge(dict1, dict2):
 
 def moses(pred, seq: Iter[T]) -> Tup[List[T], List[T]]:
     """
-    return two iterators: filter(pred, seq), filter(not pred, seq)
+    return two lists: filter(pred, seq), filter(not pred, seq)
 
     Example
     ~~~~~~~
@@ -795,10 +690,9 @@ def make_replacer(conditions:dict) -> Func:
 
     See also: replacemany
     """
-    import re
-    rep = {re.escape(k): v for k, v in conditions.items()}
-    pattern = re.compile("|".join(rep.keys()))
-    return lambda txt: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
+    rep = {_re.escape(k): v for k, v in conditions.items()}
+    pattern = _re.compile("|".join(rep.keys()))
+    return lambda txt: pattern.sub(lambda m: rep[_re.escape(m.group(0))], txt)
 
 
 def dumpobj(obj) -> list:
@@ -806,54 +700,6 @@ def dumpobj(obj) -> list:
     return all 'public' attributes of this object
     """
     return [(item, getattr(obj, item)) for item in dir(obj) if not item.startswith('__')]
-
-
-def json_minify(json:str, strip_space=True) -> str:
-    """
-    strip comments and remove space from string
-
-    json: a string representing a json object
-    """
-    import re
-    tokenizer = re.compile('"|(/\*)|(\*/)|(//)|\n|\r')
-    in_string = False
-    inmulticmt = False
-    insinglecmt = False
-    new_str = []
-    from_index = 0     # from is a keyword in Python
-
-    for match in re.finditer(tokenizer, json):
-        if not inmulticmt and not insinglecmt:
-            tmp2 = json[from_index:match.start()]
-            if not in_string and strip_space:
-                # replace only white space defined in standard
-                tmp2 = re.sub('[ \t\n\r]*', '', tmp2)
-            new_str.append(tmp2)
-
-        from_index = match.end()
-
-        if match.group() == '"' and not (inmulticmt or insinglecmt):
-            escaped = re.search('(\\\\)*$', json[:match.start()])
-            if not in_string or escaped is None or len(escaped.group()) % 2 == 0:
-                # start of string with ", or unescaped "
-                # character found to end string
-                in_string = not in_string
-            from_index -= 1   # include " character in next catch
-        elif match.group() == '/*' and not (in_string or inmulticmt or insinglecmt):
-            inmulticmt = True
-        elif match.group() == '*/' and not (in_string or inmulticmt or insinglecmt):
-            inmulticmt = False
-        elif match.group() == '//' and not (in_string or inmulticmt or insinglecmt):
-            insinglecmt = True
-        elif ((match.group() == '\n' or match.group() == '\r') and not (
-                in_string or inmulticmt or insinglecmt)):
-            insinglecmt = False
-        elif not (inmulticmt or insinglecmt) and (
-                match.group() not in ['\n', '\r', ' ', '\t'] or not strip_space):
-            new_str.append(match.group())
-
-    new_str.append(json[from_index:])
-    return ''.join(new_str)
 
 
 def can_be_pickled(obj) -> bool:
@@ -920,8 +766,7 @@ def _snap_array_nearest(X:np.ndarray, tick:t.Rat, offset=0, out=None) -> np.ndar
     return out
 
 
-def _snap_array_floor(X, tick, offset=0, out=None):
-    # type: (np.ndarray, float, float, np.ndarray) -> np.ndarray
+def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out:np.ndarray=None) -> np.ndarray:
     if out is None:
         out = X.copy()
     if offset != 0:
@@ -1236,9 +1081,12 @@ def seq_contains(seq, subseq) -> Opt[Tup[int, int]]:
     """
     returns None if subseq is not contained in seq
     returns the (start, end) indices if seq contains subseq, so that
-    >>> seq, subseq = range(10), [3, 4, 5]
-    >>> indices = seq_contains(seq, subseq)
-    >>> assert seq[indices[0]:indices[1]] == subseq
+    
+    Example::
+
+        >>> seq, subseq = range(10), [3, 4, 5]
+        >>> indices = seq_contains(seq, subseq)
+        >>> assert seq[indices[0]:indices[1]] == subseq
     """
     for i in range(len(seq)-len(subseq)+1):
         for j in range(len(subseq)):
@@ -1289,7 +1137,7 @@ def deepupdate(orig, updatewith):
 # ------------------------------------------------------------
 
 
-def fig2data(fig):
+def fig2data(fig) -> np.ndarray:
     """
     Convert a Matplotlib figure to a 4D numpy array with RGBA
     channels and return it
@@ -1308,8 +1156,7 @@ def fig2data(fig):
     return buf
 
 
-def pixels_to_cm(pixels, dpi=300):
-    # type: (int, int) -> float
+def pixels_to_cm(pixels: int, dpi=300) -> float:
     """
     convert a distance in pixels to cm
 
@@ -1321,8 +1168,7 @@ def pixels_to_cm(pixels, dpi=300):
     return cm
 
 
-def cm_to_pixels(cm, dpi=300):
-    # type: (float, int) -> float
+def cm_to_pixels(cm: float, dpi=300) -> float:
     """
     convert a distance in cm to pixels
     """
@@ -1331,15 +1177,15 @@ def cm_to_pixels(cm, dpi=300):
     return pixels
 
 
-def inches_to_pixels(inches, dpi=300):
+def inches_to_pixels(inches: float, dpi=300) -> float:
     return inches * dpi
 
 
-def pixels_to_inches(pixels, dpi=300):
+def pixels_to_inches(pixels: int, dpi=300) -> float:
     return pixels / dpi
 
 
-def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> t.Tup[float, float]:
+def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> Tup[float, float]:
     """
     Convert a pagesize given as DIN size (A3, A4, ...) and page orientation
     into a tuple (height, width) in mm
@@ -1496,8 +1342,6 @@ def deprecated(func, msg=None):
     oldname = deprecated(newname)
 
     """
-    import warnings
-
     if msg is None:
         msg = f"Deprecated! use {func.__name__}"
 
@@ -1678,8 +1522,8 @@ def print_table(rows:list, headers=(), tablefmt:str=None, showindex=True) -> Non
         if not headers:
             if not hasattr(row0, '_fields'):
                 headers = [f"col{i}" for i in range(len(row0))]
-                logger.warning("The tuples passed don't seem to be namedtuples and no headers "
-                               "provided. Using fallback headers")
+                warnings.warn("The tuples passed don't seem to be namedtuples and no headers "
+                              "provided. Using fallback headers")
             else:
                 headers = row0._fields
     else:

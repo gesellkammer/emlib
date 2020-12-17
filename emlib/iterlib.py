@@ -184,6 +184,35 @@ def iterchunks(seq: Iter, chunksize: int) -> Iter[Tup]:
             yield chunk
 
 
+def parse_range(start, stop:int=None, step:int=None) -> Tup[int, int, int]:
+    if stop is None:
+        stop = int(start)
+        start = 0
+    if step is None:
+        step = 1
+    return start, stop, step
+
+
+def chunks(start:int, stop:int=None, step:int=None) -> Iter[Tup[int, int]]:
+    """
+    Returns a generator of tuples (offset, chunksize)
+
+    Example
+    =======
+
+    chunks(0, 10, 3)
+    (0, 3)
+    (3, 3)
+    (6, 3)
+    (9, 1)
+    """
+    start, stop, step = _parse_range(start, stop, step)
+    while start < stop:
+        size = min(stop - start, step)
+        yield start, size
+        start += step
+
+
 def isiterable(obj, exclude=(str,)) -> bool:
     if exclude:
         return hasattr(obj, '__iter__') and (not isinstance(obj, exclude))
@@ -302,6 +331,10 @@ def flatten(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf) -> Iter[T]:
                 yield elem
             else:
                 yield from flatten(elem, exclude, levels-1)
+
+
+def flattened(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf) -> List[T]:
+    return list(flatten(s, exclude=exclude, levels=levels))
 
 
 # as a reference, a non-recursive version. It is slower than flatten
