@@ -1,8 +1,8 @@
 from __future__ import annotations
 import datetime
 import os
-from emlib.typehings import List, Opt
-
+from typing import List, Optional as Opt
+from . import misc
 
 def modifiedDate(f: str) -> datetime.date:
     """
@@ -50,7 +50,7 @@ def findFile(path: str, file: str) -> Opt[str]:
 
     else None
     """
-    dir_cache = set()  # type: t.Set[str]
+    dir_cache = set()
     for directory in os.walk(path):
         if directory[0] in dir_cache:
             continue
@@ -61,7 +61,6 @@ def findFile(path: str, file: str) -> Opt[str]:
 
 
 def addSuffix(filename: str, suffix: str) -> str:
-    # type: (str, str) -> str
     """
     add a suffix between the name and the extension
 
@@ -69,8 +68,26 @@ def addSuffix(filename: str, suffix: str) -> str:
 
     This does NOT rename the file, it merely returns the string
     """
-    name, ext = _os.path.splitext(filename)
+    name, ext = os.path.splitext(filename)
     return ''.join((name, suffix, ext))
+
+
+def withExtension(filename: str, extension: str) -> str:
+    """
+    Return a new filename where the original extension has
+    been replaced with `extension`
+
+
+    filename    | extension  |  output
+    ------------|------------|------------
+    foo.txt     | .md        |  foo.md
+    foo.txt     | md         |  foo.md
+    foo.bar.baz | zip        | foo.bar.zip
+    """
+    if not extension.startswith("."):
+        extension = "." + extension
+    base = os.path.splitext(filename)[0]
+    return base + extension
 
 
 def increaseSuffix(filename: str) -> str:
@@ -84,7 +101,7 @@ def increaseSuffix(filename: str) -> str:
     foo-01.txt     foo-02.txt
     foo-2.txt      foo-03.txt
     """
-    name, ext = _os.path.splitext(filename)
+    name, ext = os.path.splitext(filename)
     tokens = name.split("-")
 
     def increase_number(number_as_string):
@@ -94,7 +111,7 @@ def increaseSuffix(filename: str) -> str:
 
     if len(tokens) > 1:
         suffix = tokens[-1]
-        if could_be_number(suffix):
+        if misc.asnumber(suffix) is not None:
             new_suffix = increase_number(suffix)
             new_name = name[:-len(suffix)] + new_suffix
         else:
@@ -109,4 +126,4 @@ def normalizePath(path:str) -> str:
     Convert `path` to an absolute path with user expanded
     (something that can be safely passed to a subprocess)
     """
-    return _os.path.abspath(_os.path.expanduser(path))
+    return os.path.abspath(os.path.expanduser(path))

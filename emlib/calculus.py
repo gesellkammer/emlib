@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import annotations
 """
 Based on calculus.jl
 """
@@ -6,6 +6,7 @@ Based on calculus.jl
 import math
 import struct as _struct
 import random as _random
+from typing import Callable
 
 NAN = float('nan')
 epsilon = math.ldexp(1.0, -53)      # smallest double such that eps+0.5!=0.5
@@ -15,7 +16,7 @@ smalleps = math.ldexp(1.0, -1074)   # smallest increment for doubles < minfloat
 infinity = math.ldexp(1.0, 1023) * 2
 
 
-def nextafter(x, direction=1):
+def nextafter(x:float, direction=1) -> float:
     """
     returns the next float after x in the direction indicated
 
@@ -42,7 +43,7 @@ def nextafter(x, direction=1):
     return math.ldexp(m, e)
 
 
-def eps(x):
+def eps(x:float) -> float:
     """
     return the difference with the next representable float
     """
@@ -51,7 +52,7 @@ def eps(x):
     return abs(nextafter(x) - x)
 
 
-def next_float_up(x):
+def next_float_up(x:float) -> float:
     """
     return the next representable float
     """
@@ -71,14 +72,14 @@ def next_float_up(x):
     return _struct.unpack('<d', _struct.pack('<q', n))[0]
 
 
-def next_float_down(x):
+def next_float_down(x:float) -> float:
     """
     return the previous representable float
     """
     return -next_float_up(-x)
 
 
-def next_toward(x, y):
+def next_toward(x:float, y:float) -> float:
     """
     return the next representable float between x and y
     """
@@ -96,23 +97,23 @@ def next_toward(x, y):
         return next_float_down(x)
 
 
-def cbrt(x):
+def cbrt(x:float) -> float:
     """ cubic root """
     return math.pow(x, 1.0 / 3)
 
 
-def finite_difference_forward(func, x, h=None):
+def finite_difference_forward(func, x:float, h:float=None) -> float:
     epsilon = math.sqrt(eps(max(1, abs(x)))) if h is None else h
     # use machine-representable numbers
     return (func(x + epsilon) - func(x)) / epsilon
 
 
-def finite_difference_central(func, x, h=None):
+def finite_difference_central(func, x:float, h:float=None) -> float:
     epsilon = cbrt(eps(max(1, abs(x)))) if h is None else h
     return (func(x + epsilon) - func(x - epsilon)) / (2 * epsilon)
 
 
-def finite_difference(func, x, mode='central'):
+def finite_difference(func, x:float, mode='central') -> float:
     """
     derivative of func at x
     """
@@ -124,14 +125,15 @@ def finite_difference(func, x, mode='central'):
         raise ValueError("mode must be 'forward' or 'central'")
 
 
-def derivative(func):
+def derivative(func) -> Callable[[float], float]:
     """
     return a new function representing the derivative of func
     """
     return lambda x: finite_difference_central(func, x)
 
 
-def _integrate_adaptive_simpsons_inner(f, a, b, eps, S, fa, fb, fc, bottom):
+def _integrate_adaptive_simpsons_inner(f:Callable, a:float, b:float, eps:float, S:float,
+                                       fa:float, fb:float, fc:float, bottom:float) -> float:
     c = (a + b) / 2
     h = b - a
     d = (a + c) / 2
@@ -150,7 +152,8 @@ def _integrate_adaptive_simpsons_inner(f, a, b, eps, S, fa, fb, fc, bottom):
     )
 
 
-def integrate_adaptive_simpsons(f, a, b, accuracy=10e-10, max_iterations=50):
+def integrate_adaptive_simpsons(f:Callable, a:float, b:float, accuracy=10e-10,
+                                max_iterations=50) -> float:
     c = (a + b) / 2
     h = b - a
     fa = f(a)
@@ -161,7 +164,7 @@ def integrate_adaptive_simpsons(f, a, b, accuracy=10e-10, max_iterations=50):
                                               S, fa, fb, fc, max_iterations)
 
 
-def integrate_monte_carlo(f, a, b, iterations):
+def integrate_monte_carlo(f:Callable, a:float, b:float, iterations:int):
     estimate = 0.0
     width = (b - a)
     for i in range(iterations):
@@ -170,7 +173,7 @@ def integrate_monte_carlo(f, a, b, iterations):
     return estimate / iterations
 
 
-def integrate(f, a, b, method='simpsons'):
+def integrate(f:Callable, a:float, b:float, method='simpsons') -> float:
     if method == 'simpsons':
         return integrate_adaptive_simpsons(f, a, b)
     elif method == 'montecarlo':

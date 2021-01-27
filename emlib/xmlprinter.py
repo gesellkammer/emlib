@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 help write out XML documents
 
@@ -52,9 +53,10 @@ License, or (at your option) any later version.
 The idea for this module was taken from Perl's XML::Writer.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 _TAB = '  '
+_SEPARATOR = "--=======================================================--"
 
 
 class WellFormedError(Exception):
@@ -79,7 +81,7 @@ class xmlprinter(object):
         self._tabify = True
         self._last = "start"
 
-    def __call__(self, *args):
+    def __call__(self, *args) -> bool:
         self.data(*args)
         return True
 
@@ -94,7 +96,7 @@ class xmlprinter(object):
         self.startElement(*args, **kws)
         return self
 
-    def tag1(self, name, *data):
+    def tag1(self, name:str, *data):
         """
         Allows to construct simple tags
 
@@ -112,7 +114,7 @@ class xmlprinter(object):
         self.endElement()
 
 
-    def startDocument(self, encoding='UTF-8'):
+    def startDocument(self, encoding='UTF-8') -> None:
         """Begin writing out a document, including the XML declaration.
         Currently the encoding header can be changed from the default,
         but it won't affect how the rest of the document is encoded.
@@ -121,32 +123,32 @@ class xmlprinter(object):
             quoteattr(self.xml_version), quoteattr(encoding)))
         self._past_decl = True
 
-    def notationDecl(self, name, public_id=None, system_id=None):
-        """Insert DOCTYPE declaration.
+    def notationDecl(self, name:str, public_id:str=None, system_id:str=None):
+        """
         Can only be added right after document start.
         Optional for a well-formed document.
         At least a public_id or system_id must be specified if called."""
         if self._past_doctype:
             raise WellFormedError("past allowed point for doctype")
 
-        self.fp.write('<!DOCTYPE %s' % name)
+        self.fp.write(f'<!DOCTYPE {name}')
 
         if public_id is not None:
             if system_id is None:
                 raise TypeError("must have system_id with public_id")
             self.fp.write(" PUBLIC %s %s" % (quoteattr(public_id), quoteattr(system_id)))
         else:
+            assert system_id is not None
             self.fp.write(" SYSTEM %s" % quoteattr(system_id))
         self.fp.write(">\n")
         self._past_doctype = True
 
-    def startElement(self, name, **attrs):
+    def startElement(self, name:str, **attrs) -> None:
         """Start element 'name' with attributes 'attrs'. (<example>)"""
         self._past_doctype = True
         self._past_decl = True
         if self._finished:
             raise WellFormedError("attempt to add second root element")
-        # tabulizar
         if self._tabify or self._last == "end":
             self.fp.write('\n')
         self.fp.write(_TAB * len(self._elstack))
@@ -160,7 +162,7 @@ class xmlprinter(object):
         self._tabify = True
         self._last = "start"
 
-    def data(self, data):
+    def data(self, data:str) -> None:
         """Add text 'data'."""
         data = str(data)
         # self.fp.write(escape(data).encode('UTF-8'))
@@ -168,11 +170,11 @@ class xmlprinter(object):
         self._tabify = False
         self._last = "data"
 
-    def separator(self, s = "--=======================================================--"):
+    def separator(self, s=_SEPARATOR) -> None:
         self.fp.write(_TAB*len(self._elstack))
         self.fp.write('\n<!'+s+'>\n')
 
-    def empty(self, name, **attrs):
+    def empty(self, name:str, **attrs) -> None:
         """Add an empty element (<example />)"""
         if not self._inroot:
             raise WellFormedError("attempt to add element outside of root")
@@ -183,7 +185,7 @@ class xmlprinter(object):
             self.fp.write(" %s=%s" % (attr, quoteattr(val)))
         self.fp.write("/>")
 
-    def endElement(self, name=None):
+    def endElement(self, name:str=None) -> None:
         """End the element 'name'.
         If 'name' is None, then end the most recently-opened element.
         (</example>).
@@ -210,7 +212,7 @@ class xmlprinter(object):
         self._tabify = True
         self._last = "end"
 
-    def endDocument(self, autoclose=True):
+    def endDocument(self, autoclose=True) -> None:
         """Finish up a document.
         If autoclose is True, then also close any unclosed elements.
         Else, all elements must already be closed.
@@ -225,12 +227,12 @@ class xmlprinter(object):
         self._finished = True
 
 
-def escape(data):
+def escape(data:str) -> str:
     """Escape &, <, and > in a string of data; used for character data."""
     return data.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def quoteattr(data):
+def quoteattr(data:str) -> str:
     """Escape and quote an attribute value."""
     data = escape(data)
     # We don't just turn " into &quot;, we'll use single quotes

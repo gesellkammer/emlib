@@ -3,10 +3,11 @@ import operator as _operator
 import random as _random
 from functools import reduce
 from fractions import Fraction
-from math import gcd, sqrt
+from math import gcd, sqrt, cos, sin, radians
 import sys as _sys
+import numpy as np
 
-from emlib.typehints import T, number_t, List, Tup, Opt, Iter, Seq, Func
+from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, Seq, Callable
 
 
 __all__ = ("PHI",
@@ -34,7 +35,8 @@ __all__ = ("PHI",
            "roundrnd",
            "roundres",
            "modulo_shortest_distance",
-           "rotate2d"
+           "rotate2d",
+           "optimize_parameter"
            )
 
 
@@ -47,11 +49,11 @@ def intersection(u1:T, u2:T, v1:T, v2:T) -> Opt[Tup[T, T]]:
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
 
-    Example:
+    Example::
 
-    intersec = intersection(0, 3, 2, 5)
-    if intersec is not None:
-        x0, x1 = intersec    --> 2, 3
+        >>> intersec = intersection(0, 3, 2, 5)
+        >>> if intersec is not None:
+        ...     x0, x1 = intersec   # (2, 3)
 
     """
     x0 = u1 if u1 > v1 else v1
@@ -306,7 +308,7 @@ def split_interval_at_values(start: number_t, end: number_t, offsets: Seq[number
     return out
 
 
-def derivative(func: Func[T], h=0) -> Func[T]:
+def derivative(func: Callable[[number_t], number_t], h=0) -> Callable[[number_t], float]:
     """
     Return a function which is the derivative of the given func
     calculated via complex step finite difference
@@ -319,7 +321,7 @@ def derivative(func: Func[T], h=0) -> Func[T]:
     """
     if h <= 0:
         h = _sys.float_info.min
-    return lambda x: (func(x+h*1.0j)).imag / h
+    return lambda x: (float(func(x+h*1.0j))).imag / h
 
 
 def logrange(start:float, stop:float, num=50, base=10) -> np.ndarray:
@@ -327,21 +329,26 @@ def logrange(start:float, stop:float, num=50, base=10) -> np.ndarray:
     create an array [start, ..., stop]
     with a logarithmic scale
     """
-    log = np.math.log
+    log = np.log
     if start == 0:
         start = 0.000000000001
     return np.logspace(log(start, base), log(stop, base), num, base=base)
 
 
-def randspace(begin: T, end: T, numsteps: int, include_end=True) -> List[T]:
+def randspace(begin: float, end: float, numsteps: int, include_end=True
+              ) -> List[float]:
     """
     go from begin to end in numsteps at randomly spaced steps
 
-    include_end: include the last value (like np.linspace)
+    Args:
+        begin: start number
+        end: end number
+        numsteps: number of elements to generate
+        include_end: include the last value (like np.linspace)
     """
     if include_end:
         numsteps -= 1
-    N = sorted(_random.random() for i in range(numsteps))
+    N = sorted(_random.random() for _ in range(numsteps))
     D = (end - begin)
     Nmin, Nmax = N[0], N[-1]
     out = []
@@ -439,8 +446,8 @@ def rotate2d(point:Tup[float, float],
     """
     x = point[0] - origin[0]
     yorz = point[1] - origin[1]
-    newx = (x*math.cos(math.radians(degrees))) - (yorz*math.sin(math.radians(degrees)))
-    newyorz = (x*math.sin(math.radians(degrees))) + (yorz*math.cos(math.radians(degrees)))
+    newx = (x*cos(radians(degrees))) - (yorz*sin(radians(degrees)))
+    newyorz = (x*sin(radians(degrees))) + (yorz*cos(radians(degrees)))
     newx += origin[0]
     newyorz += origin[1]
     return newx, newyorz
@@ -476,3 +483,36 @@ def periodic_float_to_fraction(s: str) -> Fraction:
     return Fraction(num, den)
 
 
+def optimize_parameter(func, val:float, paraminit:float, maxerror=0.001,
+                       maxiterations=100) -> Tup[float, int]:
+    """
+    Optimize one parameter to arrive to a desired value.
+
+    Example:
+
+        # find the exponent of a bpf were its value at 0.1 is 1.25
+        (within the given relative error)
+
+        expon = optimize_parameter(evalparam=lambda param: bpf.expon(0, 1, 1, 6, exp=param)(0.1),
+                                   val=1.25, paraminit=2)
+        val = bpf.expon(0, 1, 1, 6, exp=expon)(0.1)
+        print(val)
+
+    Args:
+        func: a function returning a value which will be compared to `val`
+        val: the desired value to arrive to
+        paraminit: the initial value of param
+        maxerror: the max. relative error (0.001 is 0.1%)
+        maxiterations: max. number of iterations
+    """
+    param = paraminit
+    for i in range(maxiterations):
+        valnow = func(param)
+        relerror = abs(valnow - val) / valnow
+        if relerror < maxerror:
+            break
+        if valnow > val:
+            param = param * (1+relerror)
+        else:
+            param = param * (1-relerror)
+    return valnow, i

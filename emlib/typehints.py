@@ -13,12 +13,19 @@ from typing import (
     NamedTuple,    # for mutable cases, use @dataclasses.dataclass
     overload,      # this makes only sense inside pyi files
     Callable,
-    Any
+    Any,
 )
 import typing
 from fractions import Fraction
 
 Func = Callable
 T = TypeVar("T")
+S = TypeVar("S", covariant=True)
 T2 = TypeVar("T2")
 number_t = U[int, float, Fraction]
+
+
+class SupportsArithmethic(typing.Protocol[T]):
+    def __add__(self: T, other: T) -> T: ...
+
+    def __truediv__(self, other: int) -> S: ...

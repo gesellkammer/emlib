@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 from fractions import Fraction
 
-from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func
+from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any
 
 
 # ------------------------------------------------------------
@@ -125,7 +125,7 @@ def nearest_element(item: float, seq: U[List[float], np.ndarray]) -> float:
     return element_l
 
 
-def nearest_unsorted(x:T, seq:List[T]) -> T:
+def nearest_unsorted(x:number_t, seq:List[number_t]) -> number_t:
     """
     seq is a numerical sequence. it can be unsorted
     x is a number or a seq of numbers
@@ -142,14 +142,13 @@ def nearest_index(item: number_t, seq: List[number_t]) -> int:
     Return the index of the nearest element in seq to item
     Assumes that seq is sorted
 
-    Example
-    ~~~~~~~
+    Example::
 
-    >>> seq = [0, 3, 4, 8]
-    >>> nearest_index(3.1, seq)
-    1
-    >>> nearest_index(6.5, seq)
-    3
+        >>> seq = [0, 3, 4, 8]
+        >>> nearest_index(3.1, seq)
+        1
+        >>> nearest_index(6.5, seq)
+        3
     """
     ir = _bisect(seq, item)
     if ir >= len(seq) or ir <= 0:
@@ -159,30 +158,6 @@ def nearest_index(item: number_t, seq: List[number_t]) -> int:
         return ir
     return il
 
-
-def fuzzymatch(pattern:str, strings:List[str]) -> List[Tup[float, str]]:
-    """
-    return a subseq. of strings sorted by best score.
-    Only strings representing possible matches are returned
-
-    pattern: the string to search for within S
-    strings: a list os possible strings
-    """
-    pattern = '.*?'.join(map(_re.escape, list(pattern)))
-
-    def calculate_score(pattern, s):
-        match = _re.search(pattern, s)
-        if match is None:
-            return 0
-        return 100.0 / ((1 + match.start()) * (match.end() - match.start() + 1))
-
-    S2 = []
-    for s in strings:
-        score = calculate_score(pattern, s)
-        if score > 0:
-            S2.append((score, s))
-    S2.sort(reverse=True)
-    return S2
 
 # ------------------------------------------------------------
 #
@@ -210,14 +185,8 @@ def sort_natural(seq: list, key=None) -> list:
     >>> seq = [(2, "e10"), (10, "e2")]
     >>> sort_natural(seq, key=lambda tup:tup[1])
     [(10, 'e2'), (2, 'e10')]
-    >>> sort_natural(seq, key=1) # this is the same as above
-    [(10, 'e2'), (2, 'e10')]
     """
     import re
-
-    if isinstance(key, int):
-        import operator
-        key = operator.itemgetter(key)
 
     def convert(text):
         return int(text) if text.isdigit() else text.lower()
@@ -234,14 +203,13 @@ def sort_natural_dict(d: dict, recursive=True) -> dict:
     """
     sort dict d naturally and recursively
     """
-    rows = []
-    sorted_rows = {}
+    rows: List[Tup[str, Any]] = []
     if recursive:
         for key, value in d.items():
             if isinstance(value, dict):
                 value = sort_natural_dict(value, recursive=recursive)
             rows.append((key, value))
-            sorted_rows = sort_natural(rows)
+        sorted_rows = sort_natural(rows)
     else:
         keys = list(d.keys())
         sorted_rows = [(key, d[key]) for key in sort_natural(keys)]
@@ -270,18 +238,16 @@ def issorted(seq:list, key=None) -> bool:
         return True
 
 
-def firstval(*values:T, default:T=None, sentinel=None) -> T:
+def firstval(*values:T, default:T, sentinel=None) -> T:
     """
-    Get the first value in values which is not sentinel
-
-    For delayed execution (similar to a if b else c) a value can be a
-    callable which should return the value in question
+    Get the first value in values which is not sentinel. If
+    no value is found, default is returned. To allow short-cirtcuit
+    lazy evaluation, a callable can be given, in which case the function
+    will only be evaluated if the previous values where `sentinel`
 
     Example::
 
-        >>> default = firstval(a, lambda: lengthycomputation(), config['a'])
-        # this is the same as
-        # a if a is not None else a2 := lengthycomputation() if a2 is not None else config['a']
+        >>> default = firstval(a, lambda: computation(), config['a'])
     """
     for value in values:
         if callable(value):
@@ -370,7 +336,7 @@ def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
     if step < 1:
         raise ValueError("step should be >= 1 (for now)")
 
-    accum = 0
+    accum = 0.
     out = [seq[start]]
     for elem in seq[start+1:end]:
         accum += 1
@@ -414,17 +380,6 @@ def parse_time(t:str) -> float:
     else:
         raise ValueError("Format not understood")
 
-
-def ljust(s: str, width: int, fillchar=" ") -> str:
-    """
-    Like str.ljust, but makes sure that the output is always the given width,
-    even if s is longer than `width`
-    """
-    s = s if isinstance(s, str) else str(s)
-    s = s.ljust(width, fillchar)
-    if len(s) > width:
-        s = s[:width]
-    return s
 
 
 # ------------------------------------------------------------
@@ -473,7 +428,7 @@ def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # 
     return newtuples
 
 
-def namedtuple_extend(name:str, orig, columns: U[str, Tup[str,...]]):
+def namedtuple_extend(name:str, orig, columns: U[str, Seq[str]]):
     """
     create a new constructor with the added columns
 
@@ -487,14 +442,18 @@ def namedtuple_extend(name:str, orig, columns: U[str, Tup[str,...]]):
         columns : the columns to add
     Returns:
         a tuple (newtype, newtype_from_old)
-    >>> from collections import namedtuple
-    >>> Point = namedtuple("Point", "x y")
-    >>> p = Point(10, 20)
-    >>> Vec3, fromPoint = namedtuple_extend("Vec3", Point, "z")
-    >>> Vec3(1, 2, 3)
-    Vec3(x=1, y=2, z=3)
-    >>> fromPoint(p, 30)
-    Vec3(x=10, y=20, z=30)
+
+    Example::
+
+        >>> from collections import namedtuple
+        >>> Point = namedtuple("Point", "x y")
+        >>> p = Point(10, 20)
+        >>> Vec3, fromPoint = namedtuple_extend("Vec3", Point, "z")
+        >>> Vec3(1, 2, 3)
+        Vec3(x=1, y=2, z=3)
+        >>> fromPoint(p, 30)
+        Vec3(x=10, y=20, z=30)
+
     """
     if isinstance(columns, str):
         columns = columns.split()
@@ -519,8 +478,12 @@ def namedtuple_extend(name:str, orig, columns: U[str, Tup[str,...]]):
 
 def isiterable(obj, exceptions:Tup[type, ...]=(str, bytes)) -> bool:
     """
-    >>> assert isiterable([1, 2, 3])
-    >>> assert not isiterable("test")
+    Examples::
+
+        >>> isiterable([1, 2, 3])
+        True
+        >>> isiterable("test")
+        False
     """
     return hasattr(obj, '__iter__') and not isinstance(obj, exceptions)
 
@@ -531,33 +494,26 @@ def isgenerator(obj):
 
 
 def isgeneratorlike(obj):
+    "Does ``obj`` behave like a generator? (it can be iterated but has no length)"
     return hasattr(obj, '__iter__') and not hasattr(obj, '__len__')
 
 
-def unzip(seq: Iter[T]) -> List[T]:
+def asnumber(obj, accept_fractions=True, accept_expon=False
+             ) -> U[int, float, Fraction, None]:
     """
-    >>> a, b = (1, 2), ("A", "B")
-    >>> list(zip(a, b))
-    [(1, 'A'), (2, 'B')]
-    >>> list( unzip(zip(a, b)) ) == [a, b]
-    True
-    """
-    return list(zip(*seq))
-
-
-def asnumber(obj, accept_fractions=True, accept_expon=False) -> U[int, float, Fraction, None]:
-    """
-    Return obj as number, or None of it cannot be converted
+    Return ``obj`` as number, or None of it cannot be converted
     to a number
 
-    >>> asnumber(1)
-    1
-    >>> asnumber("3.4")
-    3.4
-    >>> asnumber("1/3", accept_fractions=True)
-    Fraction(1, 3)
-    >>> asnumber("hello") is None
-    True
+    Examples::
+
+        >>> asnumber(1)
+        1
+        >>> asnumber("3.4")
+        3.4
+        >>> asnumber("1/3", accept_fractions=True)
+        Fraction(1, 3)
+        >>> asnumber("hello") is None
+        True
     """
     if hasattr(obj, '__float__'):
         return obj
@@ -580,48 +536,39 @@ def asnumber(obj, accept_fractions=True, accept_expon=False) -> U[int, float, Fr
         return None
 
 
-def astype(type_, obj, construct=None):
+def astype(type_, obj=None, factory=None):
     """
     Return obj as type. If obj is already of said type, obj itself is returned
     Otherwise, obj is converted to type. If a special contructor is needed,
-    it can be given as `construct`
+    it can be given as `construct`. If no obj is passed, a partial function
+    is returned which can check for that particular type
 
-    obj: the object to be checkec/converted
-    type_: the type the object should have
-    construct: if given, a function (obj) -> obj of type `type_`
-        Otherwise, type_ itself is used
+    Args:
+        type_: the type the object should have
+        obj: the object to be checkec/converted
+        factory: if given, a function ``(obj) -> obj`` of type ``type_``
 
-    Example
+    Example::
 
-
-    astype(list, (3, 4)) -> [3, 4]
-    l = [3, 4]
-    assert astype(list, l) is l --> True
-    aslist = partial(astype, list)
+        >>> astype(list, (3, 4))
+        [3, 4]
+        >>> l = [3, 4]
+        >>> astype(list, l) is l
+        True
+        >>> aslist = astype(list)
     """
-    return obj if isinstance(obj, type_) else (construct or type_)(obj)
+    factory = factory or type_
+    if obj is None:
+        return lambda obj: obj if isinstance(obj, type_) else factory(obj)
+    return obj if isinstance(obj, type_) else factory(obj)
 
-
-def could_be_number(x) -> bool:
-    """
-    True if `x` can be interpreted as a number
-
-    2          | True
-    "0.4"      | True
-    "3/4"      | True
-    "inf"      | True
-    "mystring" | False
-
-    """
-    raise Deprecated("Use asnumber(x) is not None")
-    
 
 def str_is_number(s:str, accept_exp=False, accept_fractions=False):
     """
     NB: fractions should have the form num/den, like 3/4, with no spaces in between
     """
     if accept_exp and accept_fractions:
-        return could_be_number(s)
+        return asnumber(s) is not None
     import re
     if accept_exp:
         return re.fullmatch(r"[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?", s) is not None
@@ -651,11 +598,10 @@ def moses(pred, seq: Iter[T]) -> Tup[List[T], List[T]]:
     """
     return two lists: filter(pred, seq), filter(not pred, seq)
 
-    Example
-    ~~~~~~~
+    Example::
 
-    >>> moses(lambda x:x > 5, range(10))
-    ([6, 7, 8, 9], [0, 1, 2, 3, 4, 5])
+        >>> moses(lambda x:x > 5, range(10))
+        ([6, 7, 8, 9], [0, 1, 2, 3, 4, 5])
     """
     trueitems = []
     falseitems = []
@@ -681,14 +627,12 @@ def make_replacer(conditions:dict) -> Func:
 
     conditions: a dictionary of string:replacement
 
-    Example
-    ~~~~~~~
+    Example::
 
-    replacer = makereplacer({"&":"&amp;", " ":"_", "(":"\\(", ")":"\\)"})
-    replacer("foo & (bar)")
-    -> "foo_&amp;_\(bar\)"
+        >>> replacer = make_replacer({"&":"&amp;", " ":"_", "(":"\\(", ")":"\\)"})
+        >>> replacer("foo & (bar)")
+        "foo_&amp;_\(bar\)"
 
-    See also: replacemany
     """
     rep = {_re.escape(k): v for k, v in conditions.items()}
     pattern = _re.compile("|".join(rep.keys()))
@@ -714,7 +658,7 @@ def can_be_pickled(obj) -> bool:
     return obj == obj2
 
 
-def snap_to_grid(x:t.Rat, tick:t.Rat, offset:t.Rat=0, nearest=True) -> t.Rat:
+def snap_to_grid(x:number_t, tick:number_t, offset:number_t=0, nearest=True) -> number_t:
     """
     Given a grid defined by offset + tick * N, find the nearest element
     of that grid to a given x
@@ -731,8 +675,8 @@ def snap_to_grid(x:t.Rat, tick:t.Rat, offset:t.Rat=0, nearest=True) -> t.Rat:
         return t(int((x - offset) / tick)) * tick + offset
 
 
-def snap_array(X:np.ndarray, tick:t.Rat, offset:t.Rat=0,
-               out:t.Opt[np.ndarray]=None, nearest=True) -> np.ndarray:
+def snap_array(X:np.ndarray, tick:float, offset:float=0.,
+               out:Opt[np.ndarray]=None, nearest=True) -> np.ndarray:
     """
     Assuming a grid t defined by
 
@@ -750,7 +694,7 @@ def snap_array(X:np.ndarray, tick:t.Rat, offset:t.Rat=0,
     return _snap_array_floor(X, tick, offset=float(offset), out=out)
 
 
-def _snap_array_nearest(X:np.ndarray, tick:t.Rat, offset=0, out=None) -> np.ndarray:
+def _snap_array_nearest(X:np.ndarray, tick:number_t, offset=0, out=None) -> np.ndarray:
     if out is None:
         out = X.copy()
     if offset != 0:
@@ -766,7 +710,8 @@ def _snap_array_nearest(X:np.ndarray, tick:t.Rat, offset=0, out=None) -> np.ndar
     return out
 
 
-def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out:np.ndarray=None) -> np.ndarray:
+def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out:np.ndarray=None) -> \
+        np.ndarray:
     if out is None:
         out = X.copy()
     if offset != 0:
@@ -854,16 +799,14 @@ def distribute_in_zones(x:number_t, split_points:List[number_t], side="left") ->
     Returns:
         the index of the zone
 
-    Example
-    ~~~~~~~
+    Example::
 
-    # 1 and 5 define three zones: (-inf, 1], (1, 5], (5, inf)
-    >>> distribute_in_zones(2, [1, 5])
-    1
-    >>> distribute_in_zones(5, [1, 5])
-    2
+        # 1 and 5 define three zones: (-inf, 1], (1, 5], (5, inf)
+        >>> distribute_in_zones(2, [1, 5])
+        1
+        >>> distribute_in_zones(5, [1, 5])
+        2
 
-    SEE ALSO: distribute_in_zones_right
     """
     if side == "right":
         return _distribute_in_zones_right(x, split_points)
@@ -893,24 +836,17 @@ def _distribute_in_zones_right(x:number_t, split_points:Seq[number_t]) -> int:
     return imin
 
 
-def copyseq(seq: T) -> T:
-    """
-    return a copy of seq. if it is a list or a tuple, return a copy.
-    if it is a numpy array, return a copy with no shared data
-    """
-    if isinstance(seq, np.ndarray):
-        return seq.copy()
-    return seq.__class__(seq)
-
-
 def normalize_slice(slize: U[int, tuple]) -> Tup[int, Opt[int]]:
     """
-    >>> normalize_slice((3,))
-    (3, None)
-    >>> normalize_slice((0, -2))
-    (0, -2)
-    >>> normalize_slice(4)
-    (4, -4)
+
+    Example::
+
+        >>> normalize_slice((3,))
+        (3, None)
+        >>> normalize_slice((0, -2))
+        (0, -2)
+        >>> normalize_slice(4)
+        (4, -4)
     """
     if isinstance(slize, int):
         return (slize, -slize)
@@ -923,7 +859,7 @@ def normalize_slice(slize: U[int, tuple]) -> Tup[int, Opt[int]]:
 
 
 def replace_subseq(seq: Seq[T], subseq: Seq[T], replacement: Seq[T], slize=None
-                   ) -> List[T]:
+                   ) -> Seq[T]:
     """
     Args:
 
@@ -994,89 +930,6 @@ def replace_subseq(seq: Seq[T], subseq: Seq[T], replacement: Seq[T], slize=None
     return copy if changed else seq
 
 
-def seq_transform(seq: Seq[T], transforms, slize=None, maxiterations=20
-                  ) -> Tup[List[T], bool]:
-    """
-    Transforms subsequences of seq
-
-    transforms: a sequence of transforms. Each transform can be formulated as:
-                - (subseq, transformation)
-                  Example: ((0, 1, 0, 5), (0, 1, 5, 0))
-                - a string of the format "0 1 0 5 -> 0 1 5 0"
-                  Numbers will be converted to numbers
-                transforms itself can be a multiline string holding individual
-                string transforms
-
-    Returns: (newsequence, stable) where stable is True if the transforms
-    reached a steady state before maxiterations
-
-    NB: an individual transformation can also have a slize.
-    That means that the transform should be applied to a subsequence
-    of the seq (see examples). Individual slizes of the transforms
-    override the main slize argument (so the slize argument is really
-    a default for the slize setting in each transform)
-
-    Example
-    ~~~~~~~
-
-    >>> a = [0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1]
-    >>> a2, stable = seq_transform(a, [                   \
-        "0 0 0 1 1 1  -> 0 0 1 0 1 1",                    \
-        "0 0 0 0 0 1 1 1 1 1 -> 0 0 1 0 0 1 1 0 1 1 [2:]" \
-        ])
-    >>> a2
-    [0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1]
-    """
-    if slize is not None:
-        slize = normalize_slice(slize)
-
-    def uncomment(s):
-        return s.split("#")[0]
-
-    if isinstance(transforms, str):
-        lines = [line for line in [uncomment(line).strip()
-                                   for line in transforms.splitlines()]
-                 if "->" in line]
-        return seq_transform(seq, lines, maxiterations)
-    valid_transforms = []
-    for transform in transforms:
-        if isinstance(transform, str) and "->" in transform:
-            if "[" in transform:
-                transform, transform_slice = transform.split("[")
-                l, r = transform_slice.split("]")[0].split(":")
-                l = int(l) if l else 0
-                r = int(r) if r else None
-                transform_slize = normalize_slice((l, r))
-            else:
-                transform_slize = slize
-            subseq, trans = [s.strip().split() for s in transform.split("->")]
-            subseq = list(map(asnumber, subseq))
-            trans = list(map(asnumber, trans))
-            valid_transforms.append((subseq, trans, transform_slize))
-        else:
-            if len(transform) == 2:
-                transform = (transform[0], transform[1], slize)
-            valid_transforms.append(transform)
-    # --> We apply the transforms until there are no more changes or
-    #     we reach the maxiterations.
-    # --> If we reach the maxiterations, the transform system is
-    #     not stable and there
-    # are some oscillations
-    changed_reg = []
-    i = 0
-    for i in range(maxiterations):
-        changed = False
-        for orig, transf, slize in valid_transforms:
-            seq2 = replace_subseq(seq, orig, transf, slize)
-            if not (seq2 is seq):
-                changed = True
-                seq = seq2
-        changed_reg.append(changed)
-        if changed_reg[-2:] == [False, False]:
-            break
-    return seq, i < maxiterations
-
-
 def seq_contains(seq, subseq) -> Opt[Tup[int, int]]:
     """
     returns None if subseq is not contained in seq
@@ -1097,25 +950,32 @@ def seq_contains(seq, subseq) -> Opt[Tup[int, int]]:
     return None
 
 
-def pick_regularly(seq: Seq[T], numitems:int, start_idx:int=0, end_idx:int=0
-                   ) -> List[T]:
+def pick_regularly(seq: U[List[T], np.ndarray], numitems:int, start_idx:int=0,
+                   end_idx:int=0
+                   ) -> U[np.ndarray, List[T]]:
     """
     Given a sequence, pick `numitems` from it at regular intervals
     The first and the last items are always included. The behaviour
     is similar to numpy's linspace
 
     Args:
-        seq: a sequence of items
+        seq: a sequence of items (a list of items or a numpy array)
         numitems: the number of items to pick from seq
         start_idx: if given, the index to start picking from
         end_idx: if given, the index to stop
 
     Returns:
-        a list of the picked items
+        a list of the picked items (as a list if the input was a list, or a numpy
+        array if the input was an array)
     """
     if end_idx == 0:
         end_idx = len(seq)-1
-    return [seq[round(i)] for i in np.linspace(start_idx, end_idx, numitems)]
+    indexes = np.linspace(start_idx, end_idx, numitems)
+    np.round(indexes, out=indexes)
+    if isinstance(seq, np.ndarray):
+        return seq[indexes]
+    else:
+        return [seq[i] for i in indexes]
 
 
 def deepupdate(orig, updatewith):
@@ -1142,8 +1002,11 @@ def fig2data(fig) -> np.ndarray:
     Convert a Matplotlib figure to a 4D numpy array with RGBA
     channels and return it
 
-    fig: a matplotlib figure
-    returns a numpy 3D array of RGBA values
+    Args:
+        fig: a matplotlib figure
+
+    Returns:
+        a numpy 3D array of RGBA values
     """
     fig.canvas.draw()        # draw the renderer
     # Get the RGBA buffer from the figure
@@ -1160,8 +1023,9 @@ def pixels_to_cm(pixels: int, dpi=300) -> float:
     """
     convert a distance in pixels to cm
 
-    pixels -> number of pixels
-    dpi    -> dots (pixels) per inch
+    Args:
+        pixels: number of pixels
+        dpi: dots (pixels) per inch
     """
     inches = pixels / dpi
     cm = inches * 2.54
@@ -1190,9 +1054,12 @@ def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> Tup[float, float]:
     Convert a pagesize given as DIN size (A3, A4, ...) and page orientation
     into a tuple (height, width) in mm
 
-    :param pagesize: size as DIN string (a3, a4, etc)
-    :param pagelayout: portrait or landscape
-    :return: a tuple (height, width) in mm
+    Args:
+        pagesize: size as DIN string (a3, a4, etc)
+        pagelayout: portrait or landscape
+
+    Returns:
+        a tuple (height, width) in mm
     """
     pagesize = pagesize.lower()
     if pagesize == 'a3':
@@ -1224,6 +1091,19 @@ def returns_tuple(names, recname=None):
             or a sequence of strings
         recname: a name to be given to the result as a whole. If nothing is
             given, the name of the decorated function is used.
+
+
+    Example::
+
+        >>> @returns_tuple("minval maxval")
+        ... def minmax(seq):
+        ...     return min(seq), max(seq)
+        >>> result = minmax([1, 2, 3, 4])
+        >>> result.minval
+        1
+        >>> result.maxval
+        4
+
     """
     from decorator import decorator
     from collections import defaultdict
@@ -1279,7 +1159,7 @@ def public(f):
 
 def singleton(cls):
     """
-    A decorator to create a singleton class
+    A class decorator to create a singleton class
 
     @singleton
     class Logger(object):
@@ -1335,38 +1215,18 @@ class runonce:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def deprecated(func, msg=None):
-    """
-    To be used as
-
-    oldname = deprecated(newname)
-
-    """
-    if msg is None:
-        msg = f"Deprecated! use {func.__name__}"
-
-    def wrapper(*args, **kws):
-
-        warnings.warn(msg)
-        return func(*args, **kws)
-
-    return wrapper
-
-
 def istype(obj, *types):
     """
-    Examples
-    --------
+    Examples::
 
-    >>> istype(1, int, float)
-    True
-    >>> istype((4, 0.5), (int, float))
-    True
-    >>> istype([4, 3], [int])
-    True
-    >>> istype({"foo": 4, "bar": 3}, {str:int})
-    True
-
+        >>> istype(1, int, float)
+        True
+        >>> istype((4, 0.5), (int, float))
+        True
+        >>> istype([4, 3], [int])
+        True
+        >>> istype({"foo": 4, "bar": 3}, {str:int})
+        True
     """
     if len(types) > 1:
         return isinstance(obj, types)
@@ -1418,7 +1278,9 @@ def assert_type(x, *types) -> bool:
 
 # --- crossplatform ---
 
-def open_with_standard_app(path: str, force_wait=False) -> None:
+def open_with_standard_app(path: str, wait:U[str, bool]=False, min_wait=0.5,
+                           timeout:float=None
+                           ) -> None:
     """
     Open path with the app defined to handle it by the user
     at the os level (xdg-open in linux, start in win, open in osx)
@@ -1426,29 +1288,132 @@ def open_with_standard_app(path: str, force_wait=False) -> None:
     This opens the default application in the background
     and returns immediately
 
-    Returns a subprocess.Popen object. You can wait on this process
-    by calling .wait on it. It can happen that the standard app is a server
-    like application, where it is not possible to wait on it (like
-    emacsclient or sublimetext). For those cases use force_wait=True,
-    which opens a dialog that needs to be clicked in order to signal that
-    editing is finished
+    Args:
+        path: the file to open
+        wait: if True, we wait until the app has returned. This is in many cases
+            not possible. If the app returns right away a dialog is created
+            to make waiting explicit until the user confirms this dialog.
+            Alternatively wait can be passed the string "modified", in which case
+            we wait until the given file is modified
+        min_wait: min. wait time. when waiting on app being closed. If the app
+            closes before this time, a dialog appears asking for confirmation.
+        timeout: a timeout for waiting on modified
+
     """
-    import subprocess
+    import subprocess, time
     platform = _sys.platform
     if platform == 'linux':
-        subprocess.call(["xdg-open", path])
+        proc = subprocess.Popen(["xdg-open", path])
     elif platform == "win32":
         # this function exists only in windows
         _os.startfile(path)
     elif platform == "darwin":
-        subprocess.call(["open", path])
+        proc = subprocess.Popen(["open", path])
+        min_wait = max(min_wait, 1)
     else:
         raise RuntimeError(f"platform {platform} not supported")
-    if force_wait:
-        from emlib import dialogs
-        dialogs.popupmsg("Close this dialog when finished")
+
+    t0 = time.time()
+    if wait == "modified":
+        wait_for_file_modified(path, timeout=timeout or 36000)
+    elif wait:
+        if platform == "win32":
+            dialogs.popupmsg("Close this dialog when finished")
+        else:
+            proc.wait()
+            if time.time()-t0 < min_wait:
+                from emlib import dialogs
+                dialogs.popupmsg("Close this dialog when finished")
 
 
+def _split_command(s:str) -> List[str]:
+    parts = s.split()
+    parts = [p.replace('"', '') for p in parts]
+    return parts
+
+
+def open_with(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
+              min_wait=0.5, timeout=None) -> None:
+    """
+    Open a given file with a given app. It can either wait on the app
+    to exit or wait until the file was modified. The app can be either
+    a command as a string or a list of string arguments passed to
+    subprocess.Popen
+
+    Args:
+        path: the path to the file to open
+        app: a command-line string or a list of string arguments. If no app is given,
+            we ask the os to open this file with its standard app
+        wait: if True, wait until the app stops. If the app is a daemon
+            up, meaning that it returns immediately, this situation
+            is detected and a dialog is created which needs to be
+            clicked in order for the function to return. Alternatively, wait can take
+            the value "modified", in which case we wait until ``path`` has been modified
+        shell: should app be started from a shell?
+        min_wait: if the application returns before this time a wait
+            dialog is created
+        timeout: a timeout for wait_on_modified
+    """
+    if app is None:
+        assert not shell
+        open_with_standard_app(path, wait=wait, min_wait=min_wait, timeout=timeout)
+        return
+
+    import subprocess, time
+
+    if shell:
+        assert isinstance(app, str), "shell needs a command-line as string"
+        proc = subprocess.Popen(f'{app} "{path}"', shell=True)
+    else:
+        args = app if isinstance(app, list) else app.split()
+        args.append(path)
+        proc = subprocess.Popen(args)
+    t0 = time.time()
+    if wait == "modified":
+        wait_for_file_modified(path, timeout=timeout)
+    elif wait:
+        proc.wait()
+        if time.time()-t0 < min_wait:
+            from emlib import dialogs
+            dialogs.popupmsg("Close this dialog when finished")
+
+
+def wait_for_file_modified(path:str, timeout:float=None) -> bool:
+    """
+    Wait until file is modified. This is useful when editing
+    a file on an external application which runs in a daemon
+    mode, meaning that opening a file in it might return
+    immediately.
+
+    Returns True if the file was modified, False if it wasn't
+    or if the operation timed-out
+    """
+    from watchdog.observers import Observer
+    from watchdog.events import PatternMatchingEventHandler
+    import time
+    directory, base = _os.path.split(path)
+    if not directory:
+        directory = "."
+    handler = PatternMatchingEventHandler([base], ignore_patterns="",
+                                          ignore_directories=True, case_sensitive=True)
+    observer = Observer()
+    modified = False
+
+    def on_modified(event):
+        nonlocal modified
+        modified = True
+        observer.stop()
+
+    handler.on_modified = on_modified
+    observer.schedule(handler, path=directory, recursive=False)
+    observer.start()
+    if timeout is None:
+        timeout = 360000  # 100 hours
+    observer.join(timeout)
+    return modified
+
+
+@runonce
 def inside_jupyter() -> bool:
     """
     Are we running inside a jupyter notebook?
@@ -1457,20 +1422,28 @@ def inside_jupyter() -> bool:
 
 
 @runonce
+def is_interactive_session() -> bool:
+    """ Are we running inside an interactive session? """
+    return _sys.flags.interactive == 1
+
+
+@runonce
 def session_type() -> str:
     """
-    Returns
+    What kind of python session are we in?
+
+    Returns:
         "jupyter" if running a jupyter notebook
         "ipython-terminal" if running ipython in a terminal
         "ipython" if running ipython outside a terminal
         "python" if a normal python
 
-    NB: to check if we are inside an interactive session, check
-    sys.flags.interactive == 1
+    .. note::
+        See also `is_interactive_session`
     """
     try:
         # get_ipython should be available within an ipython/jupyter session
-        shell = get_ipython().__class__.__name__
+        shell = get_ipython().__class__.__name__   # type: ignore
         if shell == 'ZMQInteractiveShell':
             return "jupyter"
         elif shell == 'TerminalInteractiveShell':
@@ -1489,13 +1462,13 @@ def ipython_qt_eventloop_started() -> bool:
     session = session_type()
     if session == 'ipython-terminal' or session == 'jupyter':
         # we are inside ipython so we can just call 'get_ipython'
-        ip = get_ipython()
+        ip = get_ipython()   # type: ignore
         return ip.active_eventloop == "qt"
     else:
         return False
 
 
-def print_table(rows:list, headers=(), tablefmt:str=None, showindex=True) -> None:
+def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
     """
     Print rows as table
     
@@ -1506,8 +1479,6 @@ def print_table(rows:list, headers=(), tablefmt:str=None, showindex=True) -> Non
             (depending on if we are running inside jupyter or in a terminal, etc)
             Otherwise it is passed to tabulate.tabulate
         showindex: if True, add a column with the index of each row
-
-    Returns:
 
     """
     if not rows:
@@ -1520,28 +1491,24 @@ def print_table(rows:list, headers=(), tablefmt:str=None, showindex=True) -> Non
         rows = [dataclasses.astuple(row) for row in rows]
     elif isinstance(row0, tuple):
         if not headers:
-            if not hasattr(row0, '_fields'):
-                headers = [f"col{i}" for i in range(len(row0))]
-                warnings.warn("The tuples passed don't seem to be namedtuples and no headers "
-                              "provided. Using fallback headers")
-            else:
-                headers = row0._fields
+            fields = getattr(row0, '_fields', None)
+            headers = fields or [f"col{i}" for i in range(len(row0))]
+
     else:
-        raise TypeError(f"rows should be a list of namedtuples or dataclass objects"
+        raise TypeError(f"rows should be a list of tuples, namedtuples or dataclass objects"
                         f", got {type(row0)}")
 
     import tabulate
     if inside_jupyter():
         from IPython.display import HTML, display
-        if tablefmt is None:
+        if not tablefmt:
             tablefmt = 'html'
+        s = tabulate.tabulate(rows, headers=headers, disable_numparse=True,
+                              tablefmt=tablefmt, showindex=showindex)
         if tablefmt == 'html':
-            html = tabulate.tabulate(rows, headers=headers, disable_numparse=True,
-                                     tablefmt='html', showindex=showindex)
-            display(HTML(html))
+            display(HTML(s))
         else:
-            print(tabulate.tabulate(rows, headers=headers, disable_numparse=True, 
-                                    tablefmt=tablefmt, showindex=showindex))
+            print(s)
     else:
         print(tabulate.tabulate(rows, headers=headers, showindex=showindex, tablefmt=tablefmt))
 
@@ -1569,11 +1536,13 @@ class temporary_sigint_handler:
     """
     Context manager to install a temporary sigint handler
 
-    def handler():
-        print("sigint detected!")
+    Example::
 
-    with teporary_sigint_handler(handler):
-        # Do something here, handler will be called if SIGINT (ctrl-c) is received
+        >>> def handler():
+        ...    print("sigint detected!")
+
+        >>> with teporary_sigint_handler(handler):
+        ...    # Do something here, handler will be called if SIGINT (ctrl-c) is received
     """
 
     def __init__(self, handler):
@@ -1588,56 +1557,63 @@ class temporary_sigint_handler:
         return True
 
 
-def strip_lines(text: str) -> str:
+def simplify_breakpoints(bps: List[T], coordsfunc: Func,
+                         tolerance: number_t=0.01
+                         ) -> List[T]:
     """
-    Like .strip but for lines. Removes empty lines
-    at the beginning or end of text, without touching
-    lines in between
-    """
-    lines = text.splitlines()
-    startidx, endidx = 0, 0
-
-    for startidx, line in enumerate(lines):
-        if line.strip():
-            break
-
-    for endidx, line in enumerate(reversed(lines)):
-        if line.strip():
-            break
-
-    return "\n".join(lines[startidx:len(lines)-endidx])
-
-
-def optimize_parameter(func, val:float, paraminit:float, maxerror=0.001) -> float:
-    """
-    Optimize one parameter to arrive to a desired value.
-
-    Example:
-
-        # find the exponent of a bpf were its value at 0.1 is 1.25
-        (within the given relative error)
-
-        expon = findparam(evalparam=lambda param: bpf.expon(0, 1, 1, 6, exp=param)(0.1),
-                          val=1.25, paraminit=2)
-        val = bpf.expon(0, 1, 1, 6, exp=expon)(0.1)
-        print(val)
+    Assuming a list of some objects building a multisegmented line
+    in 2D, simplify this line by eliminating superfluous breakpoints
+    which don't contribute (enough) to the resolution of this line
 
     Args:
-        func: a function returning a value which will be compared to `val`
-        val: the desired value to arrive to
-        paraminit: the initial value of param
-        maxerror: the max. relative error (0.001 is 0.1%)
+        bps: a list of breakpoints
+        coordsfunc: a function of the form (breakpoint) -> (x, y)
+        tolerance: if the difference between two consecutive slopes is below this threshold
+            we assume that the two lines are colinear and we don't need the middle point
+
+    Returns:
+        the list of simplified breakpoints. The first and last breakpoints of the original
+        will always be part of the result
+
+    Example::
+
+        >>> @dataclasses.dataclass
+        ... class Point:
+        ...     name: str
+        ...     x: float
+        ...     y: float
+
+        >>> points = [Point("A", 0, 0),
+        ...           Point("B", 2, 0),
+        ...           Point("C", 3, 0),
+        ...           Point("D", 4, 1),
+        ...           Point("E", 5, 2)]
+        >>> simplify_breakpoints(points, coordsfunc=(lambda p: p.x, p.y))
+        [Point(name="A", x=0, y=0), Point(name="C", x=3, y=0), Point(name="E", x=5, y=2)]
     """
-    param = paraminit
-    while True:
-        valnow = func(param)
-        relerror = abs(valnow - val) / valnow
-        if relerror < maxerror:
-            return valnow
-        if valnow > val:
-            param = param * (1+relerror)
-        else:
-            param = param * (1-relerror)
+    if len(bps) <= 3:
+        return bps
+
+    def colinear(A, B, C, tolerance=0.01):
+        Ax, Ay = coordsfunc(A)
+        Bx, By = coordsfunc(B)
+        Cx, Cy = coordsfunc(C)
+        slopeAB = (By - Ay) / (Bx - Ax)
+        slopeBC = (Cy - By) / (Cx - Bx)
+        return abs(slopeAB-slopeBC) < tolerance
+
+    A = bps[0]
+    B = bps[1]
+    simplified = [A]
+
+    for C in bps[2:]:
+        if not colinear(A, B, C, tolerance=tolerance):
+            simplified.append(B)
+            A = B
+        B = C
+
+    simplified.append(bps[-1])
+    return simplified
 
 
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––

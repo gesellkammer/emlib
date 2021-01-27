@@ -151,6 +151,12 @@ class Converter:
         freqs = [self.m2f(m) for m in midinotes]
         return freqs
 
+    def asmidi(self, x:U[int, float, str]) -> float:
+        if isinstance(x, str):
+            return self.str2midi(x)
+        else:
+            return x
+
     def str2midi(self, s: str) -> float:
         """
         Accepts all that n2m accepts but with the addition of
@@ -373,6 +379,51 @@ r2i = ratio2interval
 i2r = interval2ratio
 
 
+def quantize_midinote(midinote: float, divisions_per_semitone, method="round") -> float:
+    if method == "round":
+        return round(midinote * divisions_per_semitone) / divisions_per_semitone
+    elif method == "floor":
+        return int(midinote * divisions_per_semitone) / divisions_per_semitone
+    raise ValueError(f"method should be either 'round' or 'floor', got {method}")
+
+
+def quantize_notename(notename: str, divisions_per_semitone) -> str:
+    octave, letter, alter, cents = split_notename(notename)
+    cents = int(round(cents/100 * divisions_per_semitone) / divisions_per_semitone * 100)
+    if cents >= 100 or cents <= -100:
+        notename = m2n(round(n2m(notename) * divisions_per_semitone) / divisions_per_semitone)
+        octave, letter, alter, cents = split_notename(notename)
+    intalter = 1 if alter == "#" else -1 if alter == "b" else 0
+    return construct_notename(octave, letter, intalter, cents)
+
+
+def construct_notename(octave:int, letter:str, alter:int, cents:int) -> str:
+    """
+    Args:
+        octave: the octave of the notename (4 = central octave)
+        letter: the pitch letter, one of "a", "b", "c", ... (case is not important)
+        alter: 1=sharp, -1=flat, 0=natural
+        cents: cents deviation from chromatic pitch
+
+    Returns:
+        the notename
+
+        octave  | letter | alter | cents | returned notename
+        --------|--------|-------|-------|------------------
+        4       | a      | -1    | -25   | 4Ab-25
+        6       | d      | 0     | +40   | 6D+40
+        5       | e      | 0     | -50   | 5E-
+    """
+    alterstr = "#" if alter == 1 else "b" if alter == -1 else ""
+    if cents == 50:
+        centsstr = "+"
+    elif cents == -50:
+        centsstr = "-"
+    else:
+        centsstr = "+" + str(cents) if cents > 0 else str(cents) if cents < 0 else ""
+    return f"{octave}{letter.upper()}{alterstr}{centsstr}"
+
+
 def pitchbend2cents(pitchbend: int, maxcents=200) -> int:
     """
     Convert a MIDI pitchband to the amount to set bent by the pitchwheel
@@ -392,19 +443,35 @@ def cents2pitchbend(cents: int, maxcents=200) -> int:
 
 
 _centsrepr = {
-    '+': 50,
-    '-': -50,
-    '*': 25,
-    '>': 25,
-    '<': -25,
+    '#+': 150,
+    '#>': 125,
+    '#':  100,
+    '#<': 75,
+    '+':  50,
+    '>':  25,
+    '':   0,
+    '<':  -25,
+    '-':  -50,
+    'b>': -75,
+    'b':  -100,
+    'b<': -125,
+    'b-': -150
 }
 
-def split_notename(notename: str) -> Tuple[int, str, int, int]:
-    """
-    Return (octave, letter, alteration (1=#, -1=b), cents)
+def alteration_to_cents(alteration: str) -> int:
+    cents = _centsrepr.get(alteration)
+    if cents is None:
+        raise ValueError(f"Unknown alteration: {alteration}, "
+                         f"it should be one of {', '.join(_centsrepr.keys())}")
+    return cents
 
-    4C#+10  -> (4, "C", 1, 10)
-    Eb4-15  -> (4, "E", -1, -15)
+
+def split_notename(notename: str) -> NoteParts:
+    """
+    Return (octave, letter, alteration (#, b), cents)
+
+    4C#+10  -> (4, "C", "#", 10)
+    Eb4-15  -> (4, "E", "b", -15)
     """
 
     def parse_centstr(centstr: str) -> int:
@@ -421,15 +488,15 @@ def split_notename(notename: str) -> Tuple[int, str, int, int]:
         letter = notename[0]
         l1 = notename[1]
         if l1 == "#":
-            alter = 1
+            alter = "#"
             octave = int(notename[2])
             cursor = 3
         elif l1 == "b":
-            alter = -1
+            alter = "b"
             octave = int(notename[2])
             cursor = 3
         else:
-            alter = 0
+            alter = ""
             octave = int(notename[1])
             cursor = 2
         centstr = notename[cursor:]
@@ -440,19 +507,19 @@ def split_notename(notename: str) -> Tuple[int, str, int, int]:
         letter = notename[1]
         rest = notename[2:]
         cents = 0
-        alter = 0
+        alter = ""
         if rest:
             r0 = rest[0]
             if r0 == "b":
-                alter = -1
+                alter = "b"
                 centstr = rest[1:]
             elif r0 == "#":
-                alter = 1
+                alter = "#"
                 centstr = rest[1:]
             else:
                 centstr = rest
             cents = parse_centstr(centstr)
-    return octave, letter.upper(), alter, cents
+    return NoteParts(octave, letter.upper(), alter, cents)
 
 
 def split_cents(notename: str) -> Tuple[str, int]:
@@ -599,8 +666,8 @@ def notated_pitch(midinote: float, divsPerSemitone=4) -> NotatedPitch:
     notename = m2n(rounded_midinote)
     octave, letter, alter, cents = split_notename(notename)
     basename, cents = split_cents(notename)
-    chromaticStep = letter + ("#" if alter == 1 else "b" if alter == -1 else "")
-    diatonicAlteration = alter+cents/100
+    chromaticStep = letter + alter
+    diatonicAlteration = (alteration_to_cents(alter)+cents) / 100
     try:
         diatonic_index = "CDEFGAB".index(letter)
     except ValueError:
