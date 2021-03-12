@@ -113,3 +113,4 @@ def ljust(s: str, width: int, fillchar=" ") -> str:
     if len(s) > width:
         s = s[:width]
     return s
+

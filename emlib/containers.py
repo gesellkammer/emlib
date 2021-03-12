@@ -5,8 +5,38 @@ from keyword import iskeyword as _iskeyword
 from collections import OrderedDict as _OrderedDict
 import itertools
 import tabulate
-from typing import Union, Sequence as Seq
+from typing import Union, Sequence as Seq, Optional as Opt
 
+
+class FullError(Exception): pass
+class EmptyError(Exception): pass
+
+
+class IntPool:
+    def __init__(self, capacity:int, start=0):
+        self.capacity = capacity
+        self.pool = set(range(start, start+capacity))
+        self.tokenrange = (start, start+capacity)
+
+    def pop(self) -> int:
+        if not self.pool:
+            raise EmptyError("This pool is empty")
+        return self.pool.pop()
+
+    def push(self, token:int) -> None:
+        if len(self.pool) == self.capacity:
+            raise FullError()
+        if not self.tokenrange[0] <= token < self.tokenrange[1]:
+            raise ValueError("This token is not part of the pool")
+        if token in self.pool:
+            raise ValueError(f"token {token} already in pool")
+        self.pool.add(token)
+
+    def grow(self, n:int) -> None:
+        maxval = self.tokenrange[1]
+        self.pool.update(range(maxval, maxval+n))
+        self.tokenrange[1] = maxval+n
+    
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #     RecordList: a list of namedtuples

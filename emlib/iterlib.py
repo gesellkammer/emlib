@@ -323,18 +323,47 @@ def flatten(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf) -> Iter[T]:
     list(flatten(seq))
     -> [1, 2, 3, 4, 5, 6]
     """
-    if not hasattr(s, '__iter__') or isinstance(s, exclude):
-        yield s
-    else:
-        for elem in s:
-            if isinstance(elem, exclude) or levels <= 0:
-                yield elem
-            else:
-                yield from flatten(elem, exclude, levels-1)
+    for item in s:
+        if isinstance(item, exclude or levels <= 0) or not hasattr(item, '__iter__'):
+            yield item
+        else:
+            yield from flattened(item, exclude, levels-1)
+    
+
+def flatdict(d: dict) -> list:
+    """
+    Given a dictionary, return a flat list where keys and values are interleaved.
+    This is similar to doing `flattened(d.items())`
+
+    Example
+    =======
+
+        >>> d = {'a': 1, 'b': 2, 'c': 3}
+        >>> flatdict(d)
+        ['a', 1, 'b', 2, 'c', 3]
+    """
+    ks = d.keys()
+    vs = d.values()
+    out = [0] * (len(d)*2)
+    out[::2] = ks
+    out[1::2] = vs
+    return out
 
 
-def flattened(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf) -> List[T]:
-    return list(flatten(s, exclude=exclude, levels=levels))
+def flattened(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf, out=None) -> List[T]:
+    if out is None:
+        out = []
+    _flattened2(s, out, exclude, levels)
+    return out
+    
+
+def _flattened2(s, out:list, exclude, levels:int) -> None:
+    for item in s:
+        if isinstance(item, exclude or levels <= 0) or not hasattr(item, '__iter__'):
+            out.append(item)
+        else:
+            _flattened2(item, out, exclude, levels-1)
+        
 
 
 # as a reference, a non-recursive version. It is slower than flatten
@@ -540,6 +569,19 @@ def interleave(seqs, pass_exceptions=()):
         iters = newiters
         
 
+
+def splitInChunks(s: Seq[T], chunksize: int) -> List[Seq[T]]:
+    """
+    Example
+    =======
+
+    >>> s = "FooBarBaz"
+    >>> splitInChunks(s, 3)
+    ["Foo", "Bar", "Baz"]
+    """
+    return [s[i:i+chunksize] for i in range(0, len(s), chunksize)]
+
+    
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

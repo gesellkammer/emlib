@@ -238,11 +238,12 @@ def issorted(seq:list, key=None) -> bool:
         return True
 
 
-def firstval(*values:T, default:T, sentinel=None) -> T:
+def firstval(*values, sentinel=None):
     """
-    Get the first value in values which is not sentinel. If
-    no value is found, default is returned. To allow short-cirtcuit
-    lazy evaluation, a callable can be given, in which case the function
+    Get the first value in values which is not sentinel.
+    At least one of the values should differ from sentinel, otherwise
+    an exception is raised. To allow short-cirtcuit lazy evaluation,
+    a callable can be given as value, in which case the function
     will only be evaluated if the previous values where `sentinel`
 
     Example::
@@ -256,7 +257,7 @@ def firstval(*values:T, default:T, sentinel=None) -> T:
                 return value2
         elif value is not sentinel:
             return value
-    return default
+    raise ValueError(f"All values are {sentinel}")
 
 
 def zipsort(a:Seq[T], b:Seq[T2], key:Func=None, reverse=False

@@ -2,6 +2,34 @@ import numpy as np
 from numpy.lib.stride_tricks import as_strided
 
 
+def interlace(*arrays: np.ndarray) -> np.ndarray:
+    """
+    Interweave multiple arrays into a flat array in the form
+
+    Example::
+
+        A = [a0, a1, a2, ...]
+        B = [b0, b1, b2, ...]
+        C = [c0, c1, c2, ...]
+        interlace(A, B, C)
+        -> [a0, b0, c0, a1, b1, c1, ...]
+
+    Args:
+        *arrays (): the arrays to interleave. They should be 1D arrays of the
+            same length
+
+    Returns:
+        a 1D array with the elements of the given arrays interleaved
+
+    """
+    assert all(a.size == arrays[0].size and a.dtype == arrays[0].dtype for a in arrays)
+    size = arrays[0].size * len(arrays)
+    out = np.empty((size,), dtype=arrays[0].dtype)
+    for i, a in enumerate(arrays):
+        out[i::len(arrays)] = a
+    return out
+
+
 def npzip(*arrays):
     """
     zip 1-D arrays, similar to the built-in zip
@@ -187,3 +215,12 @@ def linlin(xs:np.ndarray, x0:float, x1:float, y0:float, y1: float) -> np.ndarray
     xs *= y1 - y0
     xs += y0
     return xs
+
+
+def astype(a: np.ndarray, typedescr):
+    """
+    The same as: `if a.dtype != typedescr: a = as.astype(typedescr)`
+    
+    """
+    return a if a.dtype == typedescr else a.astype(typedescr)
+    

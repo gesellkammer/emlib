@@ -8,7 +8,7 @@ import re as _re
 from .containers import RecordList
 from typing import Sequence as Seq, List
 import dataclasses
-from .misc import could_be_number, asnumber
+from .misc import asnumber
 
 
 def _as_number_if_possible(s, fallback=None, accept_fractions=True, accept_expon=False):
@@ -110,11 +110,11 @@ def readcsv(csvfile, columns:list[str]=None, asnumber=True,
     if columns is not None:
         assert isinstance(columns, (tuple, list))
     else:
-        if not any(could_be_number(x) for x in firstrow) or firstrow[0].startswith('#'):
+        if not any(asnumber(x) is not None for x in firstrow) or firstrow[0].startswith('#'):
             columns = firstrow
         else:
-            print("Can't assume column names. Pass the column names as arguments")
-            raise TypeError("Number-like cells found in the first-row")
+            raise TypeError("Can't assume column names. Pass the column names as arguments."
+                            "Number-like cells found in the first-row")
     normalized_columns = [_normalize_column_name(col) for col in columns]
     columns = _treat_duplicates(normalized_columns)
     rowname = rowname if rowname is not None else 'Row'
@@ -148,7 +148,8 @@ def write_records_as_csv(records: list, outfile: str) -> None:
     Write the records as a csv file
 
     Args:
-        records: a list of dataclass objects or namedtuples (anything with a '_fields' attribute)
+        records: a list of dataclass objects or namedtuples
+            (anything with a '_fields' attribute)
         outfile: the path to save the csv file
     """
     r0 = records[0]
@@ -167,32 +168,32 @@ def write_records_as_csv(records: list, outfile: str) -> None:
     f.close()
 
 
-def writecsv(namedtuples, outfile, column_names=None, write_row_name=False):
+def writecsv(rows: list, outfile:str, column_names:Seq[str]=None):
     """
-    write a sequence of named tuples to outfile as CSV
+    write a sequence of tuples/named tuples/dataclasses to outfile as CSV
 
-    alternatively, you can also specify the column_names. in this case it
-    is not necessary for the tuples to be be namedtuples
+    Args:
+        rows: a list of tuples (one per row), namedtuples, dataclasses, etc.
+            If namedtuples/dataclasses are passed, the column named are used.
+        outfile: the path of the file to write
+        column_names: needed if simple tuples/lists are passed
     """
-    firstrow = namedtuples[0]
-    isnamedtuple = hasattr(firstrow, '_fields')
-    if isnamedtuple and column_names is None:
-        column_names = firstrow._fields
+    firstrow = rows[0]
+    rowsiter = rows
+    if dataclasses.is_dataclass(firstrow):
+        if column_names is None:
+            fields = dataclasses.fields(firstrow)
+            column_names = [f.name for f in fields]
+        rowsiter = (dataclasses.astuple(row) for row in rows)
+    elif hasattr(firstrow, '_fields'):
+        if column_names is None:
+            column_names = firstrow._fields
     outfile = _os.path.splitext(outfile)[0] + '.csv'
-
     f = open(outfile, 'w', newline='', encoding='utf-8')
     f_write = f.write
     w = _csv.writer(f)
-    if isnamedtuple and write_row_name:
-        try:
-            # this is a hack! where is the name of a namedtuple??
-            rowname = firstrow.__doc__.split('(')[0]  
-        except AttributeError:  # maybe not a namedtuple in the end
-            rowname = firstrow.__class__.__name__
-        line = "# rowname:%s\n" % rowname
-        f_write(line)
     if column_names:
         w.writerow(column_names)
-    for row in namedtuples:
+    for row in rowsiter:
         w.writerow(row)
     f.close()

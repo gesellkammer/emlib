@@ -1,27 +1,50 @@
+from __future__ import annotations
 import socket
+from typing import Optional as Opt
 
 
-def udpsocket():
+def findport() -> Opt[int]:
     """
-    creates a UDP socket
+    Find a free port (for UDP communication)
 
-    To send a message:
+    Returns:
+        the port number or None if no ports are available
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+    except:
+        s.close()
+        return None
 
-    sock = udpsocket()
-    sock.sendto(b"mymessage", ('192.168.1.3', 8888))
+
+def udpsocket() -> socket.socket:
+    """
+    Creates a UDP socket
+
+    Example::
+
+        # send some data
+        sock = udpsocket()
+        sock.sendto(b"mymessage", ('192.168.1.3', 8888))
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     return sock
 
 
-def udpserver(port, ip='127.0.0.1'):
+def udpserver(port, ip='127.0.0.1') -> socket.socket:
     """
-    To receive data:
+    Create a udp server
 
-    sock = udpserver(8888)
-    while True:
-        # bufsize = 1024
-        data, addr = sock.recvfrom(1024)
+    Example::
+
+        # receive some data
+        sock = udpserver(8888)
+        while True:
+            # bufsize = 1024
+            data, addr = sock.recvfrom(1024)
 
     https://wiki.python.org/moin/UdpCommunication
     """
