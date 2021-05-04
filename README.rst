@@ -14,4 +14,5 @@ emlib is a set of modules with miscelaneous functionality:
 - csv utilities
 - iterator tools (similar to more_itertools)
 - containers: RecordList (a list of named tuples)
+- doctools: tools to generate documentation (for mkdocs particularly)
 - etc

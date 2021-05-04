@@ -1,3 +1,6 @@
+"""
+Utility functions related to network (find a port, create a udp server, etc)
+"""
 from __future__ import annotations
 import socket
 from typing import Optional as Opt
@@ -24,6 +27,9 @@ def udpsocket() -> socket.socket:
     """
     Creates a UDP socket
 
+    Returns:
+        a socket
+
     Example::
 
         # send some data
@@ -34,9 +40,13 @@ def udpsocket() -> socket.socket:
     return sock
 
 
-def udpserver(port, ip='127.0.0.1') -> socket.socket:
+def udpserver(port: int, addr='127.0.0.1') -> socket.socket:
     """
     Create a udp server
+
+    Args:
+        port: the port to listen to
+        addr: the server address
 
     Example::
 
@@ -49,5 +59,5 @@ def udpserver(port, ip='127.0.0.1') -> socket.socket:
     https://wiki.python.org/moin/UdpCommunication
     """
     sock = udpsocket()
-    sock.bind((ip, port))
+    sock.bind((addr, port))
     return sock 

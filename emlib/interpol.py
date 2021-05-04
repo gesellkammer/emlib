@@ -26,7 +26,7 @@ def ilin1(x, y0, y1):
 # ~~~~~~~~~~~~~~~~~~~~~~~
 
 
-def interpol_halfcos(x, x0, y0, x1, y1):
+def interpol_halfcos(x: float, x0: float, y0: float, x1: float, y1: float) -> float:
     """
     interpolate between (x0, y0) and (x1, y1) at point x
     """
@@ -34,7 +34,8 @@ def interpol_halfcos(x, x0, y0, x1, y1):
     return y0 + ((y1 - y0) * (1 + cos(dx)) / 2.0)
 
 
-def interpol_halfcosexp(x,  x0,  y0,  x1,  y1,  exp):
+def interpol_halfcosexp(x: float, x0: float, y0: float, x1: float, y1: float, exp:float
+                        ) -> float:
     """
     interpolate between (x0, y0) and (x1, y1) at point x
 

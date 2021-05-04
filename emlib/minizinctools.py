@@ -1,9 +1,10 @@
-from __future__ import annotations
-
 """
 Set of minizinc models to solve form problems
+
+TODO: add documentation / examples
 """
 
+from __future__ import annotations
 import minizinc as mz
 from typing import Union as U, List, Optional as Opt, Any
 
@@ -25,7 +26,8 @@ class MiniZincModel:
     def addConstraint(self, c:str) -> None:
         self.model.add_string("constraint " + c)
 
-    def solveSatisfy(self, timeout=None, numSolutions:int=0, solver="gecode") -> list[solution_t]:
+    def solveSatisfy(self, timeout=None, numSolutions:int=0, solver="gecode"
+                     ) -> list[solution_t]:
         if not self.frozen:
             self.model.add_string(f'solve satisfy;')
             self.frozen = True

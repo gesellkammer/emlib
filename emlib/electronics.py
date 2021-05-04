@@ -8,7 +8,12 @@ def voltage_divider(Vin, R1, R2):
     return the voltage resulting of the voltage divider 
     represented by R1 and R2
 
-    R1, R2: resistance in ohms
+    Args:
+        R1: resistance in ohms
+        R2: resistance in ohms
+
+    Returns:
+        the resulting voltage
     """
     R1, R2 = _normalizevalue(R1), _normalizevalue(R2)
     Vout = R2 / (R1+R2) * Vin
@@ -37,15 +42,17 @@ def opamp_amplifier_Rf(gain, Rgnd):
     calculate the feedback resistor of an opamp (non-inverting)
     for a given gain and Rgnd
 
-    Vin ---------------[+]
-                          >------+---- Vout = Vin*gain
-                    +--[-]       |
-                    |            Rf
-                    +------------+
-                                 |
-                                 Rgnd
-                                 |
-                                GND
+    ::
+
+        Vin ---------------[+]
+                              >------+---- Vout = Vin*gain
+                        +--[-]       |
+                        |            Rf
+                        +------------+
+                                     |
+                                     Rgnd
+                                     |
+                                    GND
 
     """
     Rgnd = _normalizevalue(Rgnd)

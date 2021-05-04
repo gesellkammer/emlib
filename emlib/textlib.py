@@ -1,4 +1,7 @@
-from .typehints import Seq, List, Tup
+"""
+Routines for working with text
+"""
+from .typehints import Seq, List, Tup, Callable
 import textwrap
 import re
 
@@ -6,21 +9,35 @@ import re
 def stripLines(text: str) -> str:
     """
     Like ``str.strip`` but operates on lines as a whole.
+
     Removes empty lines at the beginning or end of text,
     without touching lines in between.
     """
+    lines = splitAndStripLines(text)
+    return "\n".join(lines)
+
+
+def splitAndStripLines(text: str) -> List[str]:
+    """
+    Spits `text` into lines and removes empty lines at the beginning and end
+
+    Returns the split lines in between
+
+    Args:
+        text: the text to split
+
+    Returns:
+        the list of lines
+    """
     lines = text.splitlines()
     startidx, endidx = 0, 0
-
     for startidx, line in enumerate(lines):
         if line.strip():
             break
-
     for endidx, line in enumerate(reversed(lines)):
         if line.strip():
             break
-
-    return "\n".join(lines[startidx:len(lines)-endidx])
+    return lines[startidx:len(lines)-endidx]
 
 
 def reindent(text:str, prefix:str, stripEmptyLines=True) -> str:
@@ -114,3 +131,21 @@ def ljust(s: str, width: int, fillchar=" ") -> str:
         s = s[:width]
     return s
 
+
+def makeReplacer(conditions:dict) -> Callable:
+    """
+    Create a function to replace many subtrings at once
+
+    Args:
+        conditions: a dictionary mapping a string to its replacement
+
+    Example::
+
+        >>> replacer = makeReplacer({"&":"&amp;", " ":"_", "(":"\\(", ")":"\\)"})
+        >>> replacer("foo & (bar)")
+        "foo_&amp;_\(bar\)"
+
+    """
+    rep = {re.escape(k): v for k, v in conditions.items()}
+    pattern = re.compile("|".join(rep.keys()))
+    return lambda txt: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)

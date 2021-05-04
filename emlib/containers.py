@@ -13,6 +13,9 @@ class EmptyError(Exception): pass
 
 
 class IntPool:
+    """
+    A pool of intergers
+    """
     def __init__(self, capacity:int, start=0):
         self.capacity = capacity
         self.pool = set(range(start, start+capacity))
@@ -36,7 +39,13 @@ class IntPool:
         maxval = self.tokenrange[1]
         self.pool.update(range(maxval, maxval+n))
         self.tokenrange[1] = maxval+n
-    
+
+    def __contains__(self, item):
+        return item in self.pool
+
+    def __len__(self) -> int:
+        return len(self.pool)
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #     RecordList: a list of namedtuples
@@ -46,30 +55,34 @@ class IntPool:
 class RecordList(list):
     """
     A list of namedtuples or records 
-    """
 
-    def __init__(self, data:list, fields:Union[str, Seq[str]]=None, itemname:str=None, convert=True):
-        """
+    Args: 
+        data: A seq of namedtuples or dataclass objects
+            A seq. of tuples or lists is also possible. In that case, fields must be given
+        fields: a string as passed to namedtuple
+        itemname: The name of each row (optional), overrides the name given for the namedtuples
+        convert: True, data will be converted to namedtuples if they are not already
+
+
+    Example
+    ~~~~~~~
+
+    .. code::
+
         
-        data     : A seq of namedtuples or dataclass objects
-                   A seq. of tuples or lists is also possible. In that case,
-                   fields must be given
-        fields   : a string as passed to namedtuple
-        itemname : The name of each row (optional), overrides the name given for the namedtuples
-        convert  : True, data will be converted to namedtuples if they are not already
-
-        Example
-        ~~~~~~~
-
         # generate a RecordList of measures
         >>> Measure = _namedtuple("Measure", "tempo timesig")
         >>> measures = RecordList([Measure(*measure) for measure in (
-                (60, (3,4)),
-                (60, (4,4)),
-                (72, (5,8))
-        )])
-        """
+        ...     (60, (3,4)),
+        ...     (60, (4,4)),
+        ...     (72, (5,8))
+        ... )])
 
+    """
+
+    def __init__(self, data:list, fields:Union[str, Seq[str]]=None, itemname:str=None, 
+                 convert=True):
+        
         if not data and not fields:
             raise ValueError("data is empty, fields must be given")
 
@@ -161,6 +174,12 @@ class RecordList(list):
         Return a column by name or index as a list of values. 
         
         Raises ValueError if column is not found
+
+        Args:
+            column: the column to get, as index or column name
+
+        Returns:
+            a list with the values
         """
         if isinstance(column, int):
             index = column
@@ -175,9 +194,18 @@ class RecordList(list):
 
     def add_column(self, name:str, data, itemname:str=None, missing=None) -> RecordList:
         """
-        return a new RecordList with the added data as a column
+        Return a new RecordList with the added data as a column
 
-        If len(data) < len(self), pad data with missing 
+        If len(data) < len(self), pad data with missing
+
+        Args:
+            name: the name of the new column
+            data: the data of the column
+            itemname: the name of each item
+            missing: value to use when padding is needed
+
+        Returns:
+            the resulting RecordList 
         """
         itemname = itemname or self.item_name
         columns = tuple(self.columns) + (name,)
@@ -187,6 +215,15 @@ class RecordList(list):
         return r
 
     def remove_column(self, colname: str) -> RecordList:
+        """
+        Return a new RecordList with the column removed
+
+        Args:
+            colname: the name of the column to remove
+
+        Returns:
+            the resulting RecordList
+        """
         if colname not in self.columns:
             return self
         return self.get_columns([col for col in self.columns if col != colname])
@@ -198,9 +235,16 @@ class RecordList(list):
     def merge_with(self, other: RecordList) -> RecordList:
         """
         A new list is returned with a union of the fields of self and other
+        
         If there are fields in common, other prevails (similar to dict.update)
         If self and other have a different number of rows, the lowest 
-        is taken. 
+        is taken.
+
+        Args:
+            other: the RecordList to merge with
+
+        Returns:
+            the merged RecordList 
         """
         if not isinstance(other, list) or not hasattr(other, "columns"):
             raise TypeError("other should be a RecordList")
@@ -219,6 +263,12 @@ class RecordList(list):
     def get_columns(self, columns: list[str]) -> RecordList:
         """
         Returns a new RecordList with the selected columns
+
+        Args:
+            columns: a list of column names
+
+        Returns:
+            the resulting RecordList
         """
         data_columns = [self.get_column(column) for column in columns]
         data = zip(*data_columns)
@@ -234,16 +284,30 @@ class RecordList(list):
         return self._item_constructor
 
     def sort_by(self, column: str) -> None:
+        """
+        Sort this RecordList (in place) by the given column
+
+        Args:
+            column: the column name to use to sort this RecordList
+
+        """
         self.sort(key=lambda item: getattr(item, column))
 
     @classmethod
     def from_csv(cls, csvfile:str) -> RecordList:
+        """
+        Create a new RecordList with the data in csvfile
+
+        """
         from .csvtools import readcsv
 
         rows = readcsv(csvfile)
         return cls(rows)
 
     def to_csv(self, outfile:str) -> None:
+        """
+        Write the data in this RecordList as a csv file
+        """
         from .csvtools import writecsv
 
         writecsv(self, outfile, column_names=self.columns)
@@ -275,15 +339,21 @@ class RecordList(list):
 
 def _validate_fields(field_names: list[str]) -> list[str]:
     """
-    field_names: a list of strings to be used as attributes.
+    Validate the given field names
+    
+    Args:
+        field_names: a list of strings to be used as attributes.
     
     Example
     =======
+
+    .. code::
     
-    # Numbers are not valid identifiers
-    # an object cannot have non-unique attributes
-    >>> _validate_fields(["0", "field", "field"])
-    ['_0', 'field', '_2']
+        # Numbers are not valid identifiers
+        # an object cannot have non-unique attributes
+        >>> _validate_fields(["0", "field", "field"])
+        ['_0', 'field', '_2']
+
     """
     names = list(map(str, list(field_names)))
     seen = set()
@@ -302,30 +372,32 @@ def _validate_fields(field_names: list[str]) -> list[str]:
 
 
 class ClassDict(object):
+    """
+    An ordered dictionary with class-like access and lazy-evaluated definitions
+
+    Use normal keyword definitions to assign values, or a lambda accepting "self"
+    to delay evaluation when a value depends on a previous definition (lambdas can 
+    depend on lambdas also, see example --watch out for mutually dependign definitions!)
+
+    initdict: a dictionary to be read first (optional)
+
+    Examples
+    ~~~~~~~~
+
+    .. code::
+
+        >>> config = ClassDict(
+        ...     key1=10,
+        ...     key2=20,
+        ...     key3=lambda self:self.key1+1
+        ...     key4=lambda self:self.key3*2   # 2nd-order lambda
+        ... )
+        >>> # now you can access members like variables:
+        >>> print(config.key1 + config.key3)
+        21
+    """
+    
     def __init__(self, **kws):
-        """
-        ClassDict: an ordered dictionary with class-like access and lambda evaluated
-        definitions
-
-        Use normal keyword definitions to assign values, or a lambda accepting "self"
-        to delay evaluation when a value depends on a previous definition (lambdas can 
-        depend on lambdas also, see example --watch out for mutually dependign definitions!)
-
-        initdict: a dictionary to be read first (optional)
-
-        Examples
-        ~~~~~~~~
-
-        config = ClassDict(
-            key1=10,
-            key2=20,
-            key3=lambda self:self.key1+1
-            key4=lambda self:self.key3*2   # 2nd-order lambda
-        )
-        # now you can access members like variables:
-        print(config.key1 + config.key3)
-        # --> 10 + (10+1) = 21
-        """
         isdelayed = lambda obj: callable(obj)
         ident = 0
         kws2 = _OrderedDict()

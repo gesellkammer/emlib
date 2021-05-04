@@ -15,7 +15,7 @@ def interlace(*arrays: np.ndarray) -> np.ndarray:
         -> [a0, b0, c0, a1, b1, c1, ...]
 
     Args:
-        *arrays (): the arrays to interleave. They should be 1D arrays of the
+        *arrays: the arrays to interleave. They should be 1D arrays of the
             same length
 
     Returns:
@@ -30,32 +30,34 @@ def interlace(*arrays: np.ndarray) -> np.ndarray:
     return out
 
 
-def npzip(*arrays):
+def npzip(*arrays: np.ndarray) -> np.ndarray:
     """
     zip 1-D arrays, similar to the built-in zip
 
-    this is the same as np.column_stack but seems to be significantly faster
+    This is the same as np.column_stack but seems to be significantly faster
     all arrays should be the same shape
 
-    To unzip, use:
+    To unzip, use::
 
-    column0, column1 = a.transpose()
+        column0, column1 = a.transpose()
     """
     return np.concatenate(arrays).reshape(len(arrays), len(arrays[0])).transpose()
 
 
-def npunzip(a):
+def npunzip(a: np.ndarray) -> np.ndarray:
     """
     column0, column1, ... = a.transpose()
     """
     return a.transpose()
 
 
-def zipsort(a, b):
+def zipsort(a: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
-    equivalent to
+    Sort one array, keep the other synched
 
-    a, b = unzip(sorted(zip(a, b)))
+    Equivalent to::
+
+        a, b = unzip(sorted(zip(a, b)))
 
     If a and b are two columns of data, sort a keeping b in sync
     """
@@ -63,12 +65,18 @@ def zipsort(a, b):
     return a[indices], b[indices]
 
     
-def smooth(a, kind="running", strength=0.05):
+def smooth(a: np.ndarray, kind="running", strength=0.05) -> np.ndarray:
     """
-    kind: "running" --> running mean 
-          "gauss"   --> 1-D gaussian blur (not impl.)
+    Smooth the values in a
 
-    strength (0-1): how much smoothing to apply.
+    Args:
+        a: the array to smoothen
+        kind: the procedure used. One of "running", "gauss"
+        strength: how strong should the smoothing be?
+
+    Returns:
+        the resulting array
+
     """
     assert len(a) > 3
     if kind == "running":
@@ -80,34 +88,28 @@ def smooth(a, kind="running", strength=0.05):
     return a_smooth
 
 
-def overlapping_frames(y, frame_length, hop_length):
+def overlapping_frames(y: np.ndarray, frame_length: int, hop_length: int):
     """
     Slice a time series into overlapping frames.
 
-    y: np.ndarray [shape=(n,)]
-        Time series to frame, Must be one-dimensional
-        and contiguous in memory
+    Args:
+        y: np.ndarray - Time series to frame, Must be one-dimensional and
+            contiguous in memory
+        frame_length: int - Length of the frame in samples
+        hop_length: int - Number of samples to hop between frames
 
-    frame_length: int > 0. 
-        Length of the frame in samples
-    
-    hop_length: int > 0
-        Number of samples to hop between frames
-
-    Returns
-    ~~~~~~~
-
-    y_frames: np.ndarray [shape=(frame_length, N_FRAMES)]
+    Returns:
+        the frames, a np.ndarray of shape=(frame_length, N_FRAMES)
 
     Examples
+    --------
 
-    Extract 2048-sample frames from `y` with a hop of 64 samples
-    per frame
+        # Extract 2048-sample frames from `y` with a hop of 64 samples
+        # per frame
+        >>> samples, sr = sndread("monofile.wav")
+        >>> overlapping_frames(samples, frame_length=2048, hop_length=64)
 
-    samples, sr = sndread("monofile.wav")
-    overlapping_frames(samples, frame_length=2048, hop_length=64)
-
-    taken from librosa.util.frame
+    **NB**: Taken from librosa.util.frame
     """
     if not isinstance(y, np.ndarray):
         raise TypeError('Input must be of type np.ndarray, '
@@ -148,6 +150,8 @@ def chunks(data: np.ndarray, chunksize: int, hop:int=None, padwith=0):
         padwidth: value to pad when a chunk is not big enough
             Give None to avoid padding
 
+    Returns:
+        a generator with chunks of data of chunksize or less
     """
     numframes = len(data)
     if hop is None:
@@ -174,17 +178,17 @@ def padarray(arr, numelements, padwith=0):
     """
     Pad a 1D array to the right with 0s, or a 2D array down with zeros
 
-    Pad 1D with 2 elements
+    Pad 1D with 2 elements::
 
-    1 2 3 4   -> 1 2 3 4 0 0
+        1 2 3 4   -> 1 2 3 4 0 0
 
-    Pad 2D with 2 elements
+    Pad 2D with 2 elements::
 
-    0   1  2      0  1  2
-    10 11 12  -> 10 11 12
-    20 21 22     20 21 22
-                  0  0  0
-                  0  0  0
+        0   1  2      0  1  2
+        10 11 12  -> 10 11 12
+        20 21 22     20 21 22
+                      0  0  0
+                      0  0  0
     """
     numdims = len(arr.shape)
     if numdims == 1:

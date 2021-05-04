@@ -1,3 +1,13 @@
+"""
+Miscellaneous math utilities
+
+* base conversion
+* derivatives
+* dimension reduction
+* range alternatives
+* etc
+
+"""
 from __future__ import annotations
 import operator as _operator
 import random as _random
@@ -49,11 +59,20 @@ def intersection(u1:T, u2:T, v1:T, v2:T) -> Opt[Tup[T, T]]:
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
 
+    Args:
+        u1: lower bound of range U
+        u2: higher bound of range U
+        v1: lower bound of range V
+        v2: higher bound of range V
+
+    Returns:
+        the intersection between range U and range V, or None if
+        there is no intersection
+
     Example::
 
-        >>> intersec = intersection(0, 3, 2, 5)
-        >>> if intersec is not None:
-        ...     x0, x1 = intersec   # (2, 3)
+        >>> if intersec := intersection(0, 3, 2, 5):
+        ...     x0, x1 = intersec
 
     """
     x0 = u1 if u1 > v1 else v1
@@ -62,8 +81,25 @@ def intersection(u1:T, u2:T, v1:T, v2:T) -> Opt[Tup[T, T]]:
 
 
 def frange(start:float, stop:float=None, step:float=None) -> Iter[float]:
-    """Like xrange(), but returns list of floats instead
+    """
+    Like xrange(), but returns list of floats instead
+
     All numbers are generated on-demand using generators
+
+    Args:
+        start: start value of the range
+        stop: stop value of the range
+        step: step between values
+
+    Returns:
+        an iterator over the values
+
+    Example
+    -------
+
+    >>> list(frange(4, step=0.5))
+    [0., 0.5, 1., 1.5, 2., 2.5, 3., 3.5]
+
     """
     if stop is None:
         stop = float(start)
@@ -82,7 +118,8 @@ def asFraction(x) -> Fraction:
     return Fraction(x)
 
 
-def fraction_range(start:number_t, stop:number_t=None, step:number_t=None) -> Iter[Fraction]:
+def fraction_range(start:number_t, stop:number_t=None, step:number_t=None
+                   ) -> Iter[Fraction]:
     """ Like range, but yielding Fractions """
     if stop is None:
         stop = asFraction(start)
@@ -127,7 +164,12 @@ def lcm(*numbers: int) -> int:
     """
     Least common multiplier between a seq. of numbers
 
-    lcm(3, 4, 6) --> 12
+    Example
+    -------
+
+    >>> lcm(3, 4, 6)
+    12
+
     """
     def lcm2(a, b):
         return (a*b) // gcd(a, b)
@@ -139,11 +181,13 @@ def min_common_denominator(floats:Iter[float], limit=int(1e10)) -> int:
     """
     find the min common denominator to express floats as fractions
 
-    In [68]: common_denominator((0.1, 0.3, 0.8))
-    Out[68]: 10
+    Examples
+    --------
 
-    In [69]: common_denominator((0.1, 0.3, 0.85))
-    Out[69]: 20
+    >>> common_denominator((0.1, 0.3, 0.8))
+    10
+    >>> common_denominator((0.1, 0.3, 0.85))
+    20
     """
     fracs = [Fraction(f).limit_denominator(limit) for f in floats]
     return lcm(*[f.denominator for f in fracs])
@@ -156,6 +200,9 @@ def convert_base_10_to_any_base(x:int, base:int) -> str:
     Args:
         x: the number in base 10
         base: base to convert
+
+    Returns:
+        x expressed in base *base*, as string
     """
     assert(x >= 0)
     assert(1< base < 37)
@@ -174,6 +221,9 @@ def convert_any_base_to_base_10(s:str, base:int) -> int:
     Args:
         s: string representation of number
         base: base of given number
+
+    Returns:
+        s in base 10, as int
     """
     assert(1 < base < 37)
     return int(s, base)
@@ -182,6 +232,14 @@ def convert_any_base_to_base_10(s:str, base:int) -> int:
 def convert_base(s:str, frombase:int, tobase:int) -> str:
     """
     Converts s from base a to base b
+
+    Args:
+        s: the number to convert, expressed as str
+        frombase: the base of *s*
+        tobase: the base to convert to
+
+    Returns:
+        *s* expressed in base *tobase*
     """
     if frombase == 10:
         x = int(s)
@@ -194,8 +252,7 @@ def convert_base(s:str, frombase:int, tobase:int) -> str:
 
 def euclidian_distance(values: Seq[float], weights: Seq[float]=None) -> float:
     """
-    The euclidian distance reduces distances in multiple dimensions to one
-    dimension.
+    Reduces distances in multiple dimensions to 1 dimension.
 
     e_distance_unweighted = sqrt(sum(value**2 for value in values))
 
@@ -204,7 +261,7 @@ def euclidian_distance(values: Seq[float], weights: Seq[float]=None) -> float:
         weights: each dimension can have a weight (a scaling factor)
 
     Returns:
-
+        the euclidian distance
     """
     if weights:
         s = sum(value**2 * weight for value, weight in zip(values, weights))
@@ -212,44 +269,19 @@ def euclidian_distance(values: Seq[float], weights: Seq[float]=None) -> float:
     return sqrt(sum(value**2 for value in values))
 
 
-def weighted_euclidian_distance(pairs: List[Tup[float, float]]) -> float:
-    """
-    The euclidian distance reduces distances (vectors with 0 origin) in
-    multiple dimensions to one dimension.
-
-    e_distance_weighted = √(Σ(val² * weight))
-
-    Args:
-        pairs: a list of tuples (value, weight) for all dimensions of
-            the point
-
-    Returns:
-        The distance of the point to the origin reduced to 1 dimension
-
-    Example::
-
-        # We want to minimize error in a certain optimization problem,
-        # with multiple error sources and reduce the errors to one dimension
-        error = weighted_euclidian_distance([(errorA, weightA),
-                                             (errorB, weightB),
-                                             (errorC, weightC)])
-
-    """
-    s = sum(value**2 * weight for value, weight in pairs)
-    return sqrt(s)
-
-
 def prod(numbers: Seq[number_t]) -> number_t:
     """
-    x0 * x1 * x2 ... * xn | x in numbers
+    Returns the product of the given numbers
+    ::
+
+        x0 * x1 * x2 ... * xn | x in numbers
     """
     return reduce(_operator.mul, numbers)
 
 
 def geometric_mean(numbers: Seq[number_t]) -> float:
     """
-    The geometric mean is often used when finding the mean of data
-    which are measured in different units.
+    The geometric mean is often used to find the mean of data measured in different units.
     """
     return prod(numbers) ** (1/len(numbers))
 
@@ -311,13 +343,14 @@ def split_interval_at_values(start: number_t, end: number_t, offsets: Seq[number
 def derivative(func: Callable[[number_t], number_t], h=0) -> Callable[[number_t], float]:
     """
     Return a function which is the derivative of the given func
-    calculated via complex step finite difference
 
-    To find the derivative at x, do
+    **NB**: Calculated via complex step finite difference
 
-    derivative(func)(x)
+    To find the derivative at x, do::
 
-    VIA: https://codewords.recurse.com/issues/four/hack-the-derivative
+        derivative(func)(x)
+
+    **VIA**: https://codewords.recurse.com/issues/four/hack-the-derivative
     """
     if h <= 0:
         h = _sys.float_info.min
@@ -326,8 +359,7 @@ def derivative(func: Callable[[number_t], number_t], h=0) -> Callable[[number_t]
 
 def logrange(start:float, stop:float, num=50, base=10) -> np.ndarray:
     """
-    create an array [start, ..., stop]
-    with a logarithmic scale
+    create an array [start, ..., stop] with a logarithmic scale
     """
     log = np.log
     if start == 0:
@@ -345,6 +377,10 @@ def randspace(begin: float, end: float, numsteps: int, include_end=True
         end: end number
         numsteps: number of elements to generate
         include_end: include the last value (like np.linspace)
+
+    Returns:
+        a list of floats of size *numsteps* going from *begin* to *end*
+
     """
     if include_end:
         numsteps -= 1
@@ -376,7 +412,7 @@ def _fib2(N: float) -> Tup[float, float]:
 
 def fib(n: float) -> float:
     """
-    calculate the fibonacci number `n`, accepts fractions
+    calculate the fibonacci number *n* (accepts fractions)
     """
     # matrix code from http://blog.richardkiss.com/?p=398
     if n < 60:
@@ -390,12 +426,10 @@ def fib(n: float) -> float:
 
 def roundrnd(x: float) -> float:
     """
-    round x to its nearest integer, taking the fractional part
-    as the probability
+    Round *x* to its nearest integer, taking the fractional part as the probability
 
     3.5 will have a 50% probability of rounding to 3 or to 4
-    3.1 will have a 10% probability of rounding to 3 and 90%
-        prob. of rounding to 4
+    3.1 will have a 10% probability of rounding to 3 and 90% prob. of rounding to 4
     """
     return int(x) + int(_random.random() > (1 - (x % 1)))
 
@@ -407,24 +441,28 @@ def roundres(x, resolution=1.0):
     Example
     ~~~~~~~
 
-    roundres(0.4, 0.25) -> 0.5
-    roundres(1.3, 0.25) -> 1.25
+    >>> roundres(0.4, 0.25)
+    0.5
+    >>> roundres(1.3, 0.25)
+    1.25
     """
     return round(x / resolution) * resolution
 
 
 def modulo_shortest_distance(x, origin, mod):
     """
-    Return the shortest distance to x from origin around a circle
-    of modulo `mod`. A positive value means move clockwise,
-    negative value means anticlockwise. Use abs to calculate the
-    absolute distance
+    Return the shortest distance to x from origin around a circle of modulo `mod`.
 
-    Example: calculate the interval between two pitches, independently
-    of octaves
+    A positive value means move clockwise, negative value means anticlockwise.
+    Use abs to calculate the absolute distance
 
-    interval = modulo_shortest_distance(n2m("D5"), n2m("B4"), 12)
-    -> 3
+    Example
+    -------
+
+    Calculate the interval between two pitches, independently of octaves
+
+    >>> interval = modulo_shortest_distance(n2m("D5"), n2m("B4"), 12)
+    3
     """
     xclock = (x - origin) % mod
     xanti  = (origin - x) % mod
@@ -443,6 +481,9 @@ def rotate2d(point:Tup[float, float],
         point:   the point to rotate as a tuple (x, y)
         degrees: the angle to rotate (counterclockwise)
         origin:  the point acting as pivot to the rotation
+
+    Returns:
+        the rotated point, as a tuple (x, y)
     """
     x = point[0] - origin[0]
     yorz = point[1] - origin[1]
@@ -464,13 +505,11 @@ def periodic_float_to_fraction(s: str) -> Fraction:
     Returns:
         the fraction which results in the same periodic float
 
+    Notation::
 
-    12.3(17     2.3171717
+        12.3(17     2.3171717...
+        123.45(67   123.45676767...
 
-    12317.171717  -> 1000 10**3  (3=num. total decimals)
-    123.171717    -> 10   10**1  (1=num. periodic decimals)
-
-    1000x - 10x = 12317 - 123
     """
     s2 = s.replace("(", "")
     x = float(s.replace("(", ""))
@@ -488,15 +527,17 @@ def optimize_parameter(func, val:float, paraminit:float, maxerror=0.001,
     """
     Optimize one parameter to arrive to a desired value.
 
-    Example:
+    Example
+    -------
+
+    .. code::
 
         # find the exponent of a bpf were its value at 0.1 is 1.25
-        (within the given relative error)
-
-        expon = optimize_parameter(evalparam=lambda param: bpf.expon(0, 1, 1, 6, exp=param)(0.1),
-                                   val=1.25, paraminit=2)
-        val = bpf.expon(0, 1, 1, 6, exp=expon)(0.1)
-        print(val)
+        # (within the given relative error)
+        >>> func = lambda param: bpf.expon(0, 1, 1, 6, exp=param)(0.1)
+        >>> expon, numiter = optimize_parameter(func=func, val=1.25, paraminit=2)
+        >>> bpf.expon(0, 1, 1, 6, exp=expon)(0.1)
+        1.25
 
     Args:
         func: a function returning a value which will be compared to `val`
@@ -504,6 +545,9 @@ def optimize_parameter(func, val:float, paraminit:float, maxerror=0.001,
         paraminit: the initial value of param
         maxerror: the max. relative error (0.001 is 0.1%)
         maxiterations: max. number of iterations
+
+    Returns:
+        a tuple (value, number of iterations)
     """
     param = paraminit
     for i in range(maxiterations):

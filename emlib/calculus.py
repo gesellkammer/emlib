@@ -1,8 +1,9 @@
-from __future__ import annotations
 """
-Based on calculus.jl
+Calculus utilities, based on calculus.jl
+
 """
 
+from __future__ import annotations
 import math
 import struct as _struct
 import random as _random
@@ -21,6 +22,13 @@ def nextafter(x:float, direction=1) -> float:
     returns the next float after x in the direction indicated
 
     if not possible, returns x
+
+    Args:
+        x: the value to evaluate
+        direction: if 1, the next float is searched upwards, otherwise downwards
+
+    Returns:
+        a next representable float from `x` in the direction indicated
     """
     if math.isnan(x) or math.isinf(x):
         return x
@@ -45,7 +53,7 @@ def nextafter(x:float, direction=1) -> float:
 
 def eps(x:float) -> float:
     """
-    return the difference with the next representable float
+    Difference with the next representable float
     """
     if math.isinf(x):
         return NAN
@@ -54,7 +62,7 @@ def eps(x:float) -> float:
 
 def next_float_up(x:float) -> float:
     """
-    return the next representable float
+    Return the next representable float
     """
     # NaNs and positive infinity map to themselves.
     if math.isnan(x) or (math.isinf(x) and x > 0):

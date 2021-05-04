@@ -1,22 +1,38 @@
+"""
+Utilities to work with files and filenames
+"""
 from __future__ import annotations
 import datetime
 import os
 from typing import List, Optional as Opt
 from . import misc
 
-def modifiedDate(f: str) -> datetime.date:
+
+def modifiedDate(filename: str) -> datetime.date:
     """
     get the modified time of f as a datetime.date
+
+    Args:
+        filename: the file name for which to query the modified data
+        
+    Returns:
+        the modification date, as a datetime.date
     """
-    t = os.path.getmtime(f)
+    t = os.path.getmtime(filename)
     return datetime.date.fromtimestamp(t)
 
 
 def filesBetween(files: List[str], start, end) -> List[str]:
     """
-    files: a list of files
-    start: a tuple as would be passed to datetime.date
-    end  : %
+    Returns files between the given times
+
+    Args:
+        files: a list of files
+        start: a tuple as would be passed to datetime.date
+        end  : a tuple as would be passed to datetime.date
+
+    Returns:
+        a list of files
     """
     t0 = datetime.date(*start) if not isinstance(start, datetime.date) else start
     t1 = datetime.date(*end) if not isinstance(end, datetime.date) else end
@@ -46,9 +62,14 @@ def findFile(path: str, file: str) -> Opt[str]:
     Look for file recursively starting at path.
 
     If file is found in path or any subdir, the complete path is returned
-    ( /this/is/a/path/filename )
-
     else None
+
+    Args:
+        path: the path to start searching
+        file: the file to find
+
+    Returns:
+        the absolute path or None if the file was not found
     """
     dir_cache = set()
     for directory in os.walk(path):
@@ -62,9 +83,23 @@ def findFile(path: str, file: str) -> Opt[str]:
 
 def addSuffix(filename: str, suffix: str) -> str:
     """
-    add a suffix between the name and the extension
+    Add a suffix between the name and the extension
 
-    addSuffix("test.txt", "-OLD") == "test-OLD.txt"
+    Args:
+        filename: the filename to add a suffix to
+        suffix: the suffix to add
+
+    Returns:
+        the modified filename
+        
+    Example
+    -------
+
+        >>> name = "test.txt"
+        >>> newname = addSuffix(name, "-OLD")
+        >>> newname
+        test-OLD.txt
+        >>> os.rename(name, newname)
 
     This does NOT rename the file, it merely returns the string
     """
@@ -77,12 +112,22 @@ def withExtension(filename: str, extension: str) -> str:
     Return a new filename where the original extension has
     been replaced with `extension`
 
+    Args:
+        filename: the filename to modify
+        extension: the new extension
 
-    filename    | extension  |  output
-    ------------|------------|------------
-    foo.txt     | .md        |  foo.md
-    foo.txt     | md         |  foo.md
-    foo.bar.baz | zip        | foo.bar.zip
+    Returns:
+        a filename with the given extension in place of the old extension
+    
+
+    ============  ==========   =============
+    filename      extension     output
+    ============  ==========   =============
+    foo.txt       .md           foo.md
+    foo.txt       md            foo.md
+    foo.bar.baz   zip           foo.bar.zip
+    ============  ==========   =============
+    
     """
     if not extension.startswith("."):
         extension = "." + extension
@@ -95,11 +140,14 @@ def increaseSuffix(filename: str) -> str:
     Given a filename, return a new filename with an increased suffix if 
     the filename already has a suffix, or a suffix if it hasn't
 
+    =============  ===========
     input          output
-    --------------------------------
+    =============  ===========
     foo.txt        foo-01.txt
     foo-01.txt     foo-02.txt
     foo-2.txt      foo-03.txt
+    =============  ===========
+    
     """
     name, ext = os.path.splitext(filename)
     tokens = name.split("-")

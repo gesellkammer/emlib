@@ -3,9 +3,18 @@ import logging.handlers
 import os
 
 
-def fileLogger(path, level='DEBUG', fmt='%(levelname)s: %(message)s'):
+def fileLogger(path:str, level='DEBUG', fmt='%(levelname)s: %(message)s'
+               ) -> logging.Logger:
     """
-    Returns: a logger
+    Create a logger outputting to a file
+
+    Args:
+        path: the path of the output file
+        level: the level of the logger
+        fmt: the format used
+
+    Returns:
+        a Logger
     """
     name = os.path.splitext(os.path.split(path)[1])[0]
     logger = logging.getLogger(name)
@@ -17,7 +26,7 @@ def fileLogger(path, level='DEBUG', fmt='%(levelname)s: %(message)s'):
     return logger
 
 
-def reloadBasicConfig(level='DEBUG', otherLoggers=[]):
+def reloadBasicConfig(level='DEBUG', otherLoggers=[]) -> None:
     import importlib
     importlib.reload(logging)
     logging.basicConfig(level="DEBUG")

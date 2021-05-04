@@ -1,3 +1,8 @@
+"""
+Routines to help draw shapes / labels within a matplotlib (pyplot) plot.
+Implements the concept of a plotting profile, which makes it easier to
+define sizes, colors, etc. for a series of elements.
+"""
 from __future__ import annotations
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
@@ -34,13 +39,13 @@ def makeProfile(default=defaultprofile, **kws):
 
     A profile is used to determine multiple defaults
 
-    Example:
+    Example
+    -------
 
-    makeProfile(
-        label_font="Roboto",
-        background=(10, 10, 10),
-        linewidth=2
-    )
+    >>> makeProfile(
+    ...     label_font="Roboto",
+    ...     background=(10, 10, 10),
+    ...     linewidth=2)
     """
     out = default.copy()
     for key, value in kws.items():
@@ -61,6 +66,19 @@ def _get(profile: dict, key:str, fallback:dict=defaultprofile, value=None):
 
 def drawLabel(ax: plt.Axes, x: float, y: float, text: str, size=None, alpha=None,
               profile=None) -> None:
+    """
+    Draw a text label at the given coordinates
+
+    Args:
+        ax: the plot axes
+        x: x coordinate
+        y: y coordinate
+        text: the text
+        size: size of the label. If given, overrides the profile's "label_size"
+        alpha: if given, overrides the profile's "label_alpha"
+        profile: the profile used (None = default)
+
+    """
     family = _get(profile, 'label_font')
     size = _fallback(size, profile, 'label_size')
     alpha = _fallback(alpha, profile, 'label_alpha')
@@ -71,18 +89,29 @@ def drawLine(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float,
              color: float=None, linestyle:str = 'solid', alpha: float=None,
              linewidth:float=None, label: str=None, profile=None) -> None:
     """
-    ax: plt.Axes
-        fig, ax = plt.subplots()
+    Draw a line from ``(x0, y0)`` to ``(x1, y1)``
 
     Args:
         ax: a plt.Axes to draw on
-        x0, y0, x1, y1: the coordinates (x0, y0) - (x1, y1)
+        x0: x coord of the start point
+        y0: y coord of the start point
+        x1: x coord of the end point
+        y1: y coord of the end point
         color: the color of the line as a value 0-1 within the colormap space
-        linestyle: 'solid' / 'dashed'
+        linestyle: 'solid', 'dashed'
         alpha: a float 0-1
         label: if given, a label is plotted next to the line
         profile: the profile (created via makeProfile) to use. Leave None to
             use the default profile
+
+    Examples
+    --------
+
+    >>> import matplotlib.pyplot as plt
+    >>> from emlib import matplotting
+    >>> fig, ax = plt.subplots()
+    >>> matplotting.drawLine(ax, 0, 0, 1, 1)
+    >>> plt.show()
     """
     linewidth = _fallback(linewidth, profile, 'line_width')
     alpha = _fallback(alpha, profile, 'line_alpha')
@@ -103,7 +132,7 @@ def _aslist(obj) -> list:
     return list(obj)
 
 
-def _getcolor(color):
+def _getcolor(color: U[float, tuple]) -> Tuple[float, float, float, float]:
     if isinstance(color, tuple):
         return color
     return _colormap(color)
@@ -114,12 +143,23 @@ def _unzip(pairs):
 
 
 def drawConnectedLines(ax: plt.Axes, pairs: list[tuple[float, float]],
-                       connectEdges=False, color=None, alpha:float=None,
-                       linewidth:float=None, label:str=None, linestyle:str=None, profile:dict=None) -> None:
+                       connectEdges=False, color:U[float, tuple]=None, alpha:float=None,
+                       linewidth:float=None, label:str=None, linestyle:str=None,
+                       profile:dict=None
+                       ) -> None:
     """
-    Draw an open poligon
+    Draw an open / closed poligon
 
-    pairs: a list of (x, y) pairs
+    Args:
+        ax: the plot axes
+        pairs: a list of (x, y) pairs
+        connectEdges: close the form, connecting start end end points
+        color: the color to use. A float selects a color from the current color map
+        alpha: alpha value of the lines
+        linewidth: the line width
+        label: an optional label to attach to the start of the lines
+        linestyle: the line style, one of "solid", "dashed"
+        profile: the profile used, or None for default
     """
     linewidth = _fallback(linewidth, profile, 'line_width')
     alpha = _fallback(alpha, profile, 'line_alpha')
@@ -142,6 +182,22 @@ def drawConnectedLines(ax: plt.Axes, pairs: list[tuple[float, float]],
 def drawRect(ax: plt.Axes, x0:float, y0:float, x1:float, y1:float,
              color=None, alpha:float=None, edgecolor=None, label:str=None,
              profile:dict=None) -> None:
+    """
+    Draw a rectangle from point (x0, y0) to (x1, y1)
+
+    Args:
+        ax: the plot axe
+        x0: x coord of the start point
+        y0: y coord of the start point
+        x1: x coord of the end point
+        y1: y coord of the end point
+        color: the face color
+        edgecolor: the color of the edges
+        alpha: alpha value for the rectangle (both facecolor and edgecolor)
+        label: if given, a label is plotted at the center of the rectangle
+        profile: the profile used, or None for default
+
+    """
     facecolor = _fallback(color, profile, 'facecolor')
     edgecolor = _fallback(edgecolor, profile, 'edgecolor')
     facecolor = _getcolor(facecolor)
@@ -166,7 +222,18 @@ def _many(value, numitems:int, key:str=None, profile:dict=None) -> list:
 def drawRects(ax: plt.Axes, data, facecolor=None, alpha:float=None, edgecolor=None,
               linewidth:float=None, profile:dict=None, autolim=True) -> None:
     """
-    data: a list of (x0, y0, x1, y1)
+    Draw multiple rectangles
+
+    Args:
+        ax: the plot axes
+        data: either a 2D array of shape (num. rectangles, 4), or a list of tuples
+            (x0, y0, x1, y1), where each row is a rectangle
+        color: the face color
+        edgecolor: the color of the edges
+        alpha: alpha value for the rectangle (both facecolor and edgecolor)
+        label: if given, a label is plotted at the center of the rectangle
+        profile: the profile used, or None for default
+        autolim: autoscale view
     """
     facecolor = _fallbackColor(facecolor, profile, key='facecolor')
     edgecolor = _fallbackColor(edgecolor, profile, key='edgecolor')
@@ -187,7 +254,18 @@ def autoscaleAxis(ax: plt.Axes) -> None:
     ax.autoscale_view(True,True,True)
 
 
-def makeAxis(pixels: tuple[int, int]=None) -> plt.Axes:
+def makeAxis(pixels: tuple[int, int]=None, dpi=96) -> plt.Axes:
+    """
+    Create a plotting axes
+
+    Args:
+        pixels: the size of the plot, in pixels
+        dpi: dots per inch
+
+    Returns:
+        the plt.Axes
+
+    """
     # plt.subplots(figsize=(20, 10))
     if pixels is None:
         fig, ax = plt.subplots()
@@ -195,7 +273,6 @@ def makeAxis(pixels: tuple[int, int]=None) -> plt.Axes:
 
     if not isinstance(pixels, tuple):
         raise TypeError(f"pixels should be of the form (x, y), got {pixels}")
-    dpi = 96
     xinches = pixels_to_inches(pixels[0], dpi=dpi)
     yinches = pixels_to_inches(pixels[1], dpi=dpi)
     fig,ax = plt.subplots(figsize=(xinches, yinches), dpi=dpi)
@@ -214,6 +291,22 @@ def _fallbackColor(value, profile: dict, key: str) -> tuple[float, float, float]
 def drawBracket(ax:plt.Axes, x0:float, y0:float, x1:float, y1:float,
                 label:str=None, color=None, linewidth:float=None, alpha:float=None,
                 profile:dict=None) -> None:
+    """
+    Draw a bracket from (x0, y0) to (x1, y1)
+
+    Args:
+        ax: the plot axe
+        x0: x coord of the start point
+        y0: y coord of the start point
+        x1: x coord of the end point
+        y1: y coord of the end point
+        color: the face color
+        edgecolor: the color of the edges
+        alpha: alpha value for the rectangle (both facecolor and edgecolor)
+        label: if given, a label is plotted at the center of the rectangle
+        profile: the profile used, or None for default
+
+    """
     linewidth = _fallback(linewidth, profile, 'linewidth')
     color = _fallback(color, profile, 'edgecolor')
     alpha = _fallback(alpha, profile, 'annotation_alpha')
@@ -221,8 +314,30 @@ def drawBracket(ax:plt.Axes, x0:float, y0:float, x1:float, y1:float,
     drawConnectedLines(ax, data, color=color, linewidth=linewidth, label=label, alpha=alpha)
 
 
-def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels:list[str]=None, color=None,
-             ax=None, groupLabel:str=None, profile:dict=None, stacked=False) -> plt.Axes:
+def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels:list[str]=None,
+             color=None, ax=None, groupLabel:str=None, profile:dict=None, stacked=False
+             ) -> plt.Axes:
+    """
+    Plot durations as contiguous rectangles
+
+    Args:
+        durs: the durations expressed in seconds
+        y0: y of origin
+        x0: x of origin
+        height: the height of the drawn rectangles
+        labels: if given, a label for each rectangle
+        color: the color used for the rectangles
+        ax: the axes to draw on. If not given, a new axes is created (and returned)
+        groupLabel: a label for the group
+        profile: the profile used, or None to use a default
+        stacked: if True, the rectangles are drawn stacked vertically (the duration
+            is still drawn horizontally). The result is then similar to a bars plot
+
+    Returns:
+        the plot axes. If *ax* was given, then it is returned; otherwise the new
+        axes is returned.
+
+    """
     if ax is None:
         ax = makeAxis()
     numitems = len(durs)

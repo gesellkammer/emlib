@@ -2,44 +2,51 @@
 Utilities related to bpfs
 """
 import bpf4 as bpf
-from bpf4 import BpfInterface as _Bpf
+from bpf4 import BpfInterface
 from emlib.iterlib import pairwise
-from . import typehints as t
+from typehints import Sequence as Seq
 
-
-def zigzag(b0, b1, xs, shape='linear'):
-    # type: (_Bpf, _Bpf, t.Seq, str) -> _Bpf 
+def zigzag(b0: BpfInterface, b1: BpfInterface, xs: Seq[float], shape='linear'
+           ) -> BpfInterface:
     """
-    Crea una seq. de curvas que van de b0(x) a b1(x) por
-    cada x en xs             
-                                                                      
-     *.                                                                   
-      *...  b0                                                              
-       *  ...                                                             
-       *     ...                                                          
-        *       ....                                                      
-         *          ...                                                   
-          *         :  ...                                                
-           *        :*    ...                                             
-           *        : *      ...                                          
-            *       :  **       ...                                       
-             *      :    *         :*.                                    
-              *     :     *        : **...                                
-               *    :      *       :   *  ...                             
-               *    :       *      :    *    ...                          
-                *   :        *     :     **     .:.                       
-                 *  :         *    :       *     :**..                    
-                  * :          **  :        **   :  ****.                 
-                   *:            * :          *  :      ****              
-      -----------  *:             *:           * :          ****          
-        b1       ---*--------------*---         **:             ****      
-                                       -----------*----------      .**    
-                                                             ----------- 
-      x0            x1              x2                       x3
+    Creates a curve formed of lines from b0(x) to b1(x) for each x in xs
+    
+    Args:
+        b0: a bpf
+        b1: a bpf
+        xs: a seq. of x values to evaluate b0 and b1
+        shape: the shape of each segment
 
-     objective: a point (x, y). b0 and b1 should 
+    Returns:
+        The resulting bpf
+
+    :: 
+
+       *.                                                                   
+        *...  b0                                                              
+         *  ...                                                             
+         *     ...                                                          
+          *       ....                                                      
+           *          ...                                                   
+            *         :  ...                                                
+             *        :*    ...                                             
+             *        : *      ...                                          
+              *       :  **       ...                                       
+               *      :    *         :*.                                    
+                *     :     *        : **...                                
+                 *    :      *       :   *  ...                             
+                 *    :       *      :    *    ...                          
+                  *   :        *     :     **     .:.                       
+                   *  :         *    :       *     :**..                    
+                    * :          **  :        **   :  ****.                 
+                     *:            * :          *  :      ****              
+        -----------  *:             *:           * :          ****          
+          b1       ---*--------------*---         **:             ****      
+                                         -----------*----------      .**    
+                                                               ----------- 
+        x0            x1              x2                       x3
+
     """
-    # dibujo creado con asciipaint.com
     curves = []
     for x0, x1 in pairwise(xs):
         X = [x0, x1]
@@ -50,8 +57,7 @@ def zigzag(b0, b1, xs, shape='linear'):
     return jointcurve
 
 
-def bpfavg(b, dx):
-    # type: (_Bpf, float) -> _Bpf
+def bpfavg(b: BpfInterface, dx: float) -> BpfInterface:
     """
     Return a Bpf which is the average of b over the range `dx`
     """

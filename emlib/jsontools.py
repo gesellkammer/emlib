@@ -1,4 +1,7 @@
+"""
+Set of misc. utilities to work with json
 
+"""
 import re
 
 
@@ -10,12 +13,13 @@ def _comments_replacer(match):
 def remove_comments(json_like: str):
     """
     Removes C-style comments from *json_like* and returns the result.  Example::
-        >>> test_json = '''\
-        {
-            "foo": "bar", // This is a single-line comment
-            "baz": "blah" /* Multi-line
-            Comment */
-        }'''
+
+        >>> test_json = r'''
+        ... {
+        ...    "foo": "bar", // This is a single-line comment
+        ...    "baz": "blah" /* Multi-line
+        ...    Comment */
+        ... }'''
         >>> remove_comments('{"foo":"bar","baz":"blah",}')
         '{\n    "foo":"bar",\n    "baz":"blah"\n}'
     """
@@ -23,13 +27,13 @@ def remove_comments(json_like: str):
         r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
         re.DOTALL | re.MULTILINE
     )
-    
     return comments_re.sub(_comments_replacer, json_like)
 
 
 def remove_trailing_commas(json_like: str):
     """
     Removes trailing commas from *json_like* and returns the result.  Example::
+
         >>> remove_trailing_commas('{"foo":"bar","baz":["blah",],}')
         '{"foo":"bar","baz":["blah"]}'
     """
@@ -58,7 +62,12 @@ def json_minify(json:str, strip_space=True) -> str:
     """
     strip comments and remove space from string
 
-    json: a string representing a json object
+    Args:
+        json: a string representing a json object
+        strip_space: remove spaces
+
+    Returns:
+        the minified json
     """
     tokenizer = re.compile('"|(/\*)|(\*/)|(//)|\n|\r')
     in_string = False

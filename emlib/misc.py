@@ -12,7 +12,7 @@ import warnings
 import numpy as np
 from fractions import Fraction
 
-from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any
+from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any, Callable
 
 
 # ------------------------------------------------------------
@@ -22,8 +22,7 @@ from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func,
 
 def reverse_recursive(seq: list):
     """
-    >>> reverse_recursive([1, 2, [3, 4], [5, [6, 7]]])
-    [[[7, 6], 5], [4, 3], 2, 1]
+    Reverse seq recursively
 
     Args:
         seq: a (possibly nested) list of elements
@@ -31,7 +30,13 @@ def reverse_recursive(seq: list):
     Returns:
         a reversed version of `seq` where all sub-lists are also reversed.
 
-    NB: only lists will be reversed, other iterable collection remain untouched
+
+    .. code::
+        
+        >>> reverse_recursive([1, 2, [3, 4], [5, [6, 7]]])
+        [[[7, 6], 5], [4, 3], 2, 1]
+    
+    **NB**: only lists will be reversed, other iterable collection remain untouched
 
     """
     out = []
@@ -43,26 +48,34 @@ def reverse_recursive(seq: list):
     return out
 
 
+def _partialsum(seq):
+    accum = 0
+    for i in seq:
+        accum += i
+        out.append(accum)
+    return out
+
+
 def wrap_by_sizes(flatseq: list, packsizes: Seq[int]) -> List[list]:
     """
-    Example:
-
-    >>> flatseq = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    >>> wrap_by_sizes(flatseq, [3, 5, 2])
-    [[1, 2, 3], [4, 5, 6, 7, 8], [9, 10]]
-
+    Wrap a flat seq using the given sizes
+    
     Args:
         flatseq: a flat sequence of items
         packsizes: a list of sizes
-    """
-    def partialsum(seq):
-        accum = 0
-        for i in seq:
-            accum += i
-            out.append(accum)
-        return out
 
-    offsets = [0] + partialsum(packsizes)
+    Returns:
+        a list of groups, where each group is of size as given by packsizes
+
+    Example
+    -------
+
+        >>> flatseq = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        >>> wrap_by_sizes(flatseq, [3, 5, 2])
+        [[1, 2, 3], [4, 5, 6, 7, 8], [9, 10]]
+
+    """
+    offsets = [0] + _partialsum(packsizes)
     start = offsets[0]
     out = []
     for i in range(1, len(offsets)):
@@ -127,12 +140,23 @@ def nearest_element(item: float, seq: U[List[float], np.ndarray]) -> float:
 
 def nearest_unsorted(x:number_t, seq:List[number_t]) -> number_t:
     """
-    seq is a numerical sequence. it can be unsorted
-    x is a number or a seq of numbers
+    Find nearest item in an unsorted sequence
 
-    >>> assert nearest_unsorted(3.6, (1,2,3,4,5)) == 4
-    >>> assert nearest_unsorted(4, (2,3,4)) == 4
-    >>> assert nearest_unsorted(200, (3,5,20)) == 20
+    Args:
+        x: a number
+        seq: a seq. of numbers (assumes it is not sorted)
+
+    Returns:
+        the item in seq. which is nearest to x
+
+    **NB**: for sorted seq. use `nearest_index`
+
+    Example
+    -------
+
+        >>> assert nearest_unsorted(3.6, (1,2,3,4,5)) == 4
+        >>> assert nearest_unsorted(4, (2,3,4)) == 4
+        >>> assert nearest_unsorted(200, (3,5,20)) == 20
     """
     return min((abs(x - y), y) for y in seq)[1]
 
@@ -140,7 +164,15 @@ def nearest_unsorted(x:number_t, seq:List[number_t]) -> number_t:
 def nearest_index(item: number_t, seq: List[number_t]) -> int:
     """
     Return the index of the nearest element in seq to item
-    Assumes that seq is sorted
+
+    Args:
+        item: a number
+        seq: a sorted sequence of numbers
+
+    Returns:
+        the index of the nearest item
+
+    **NB**: Assumes that seq is sorted
 
     Example::
 
@@ -166,12 +198,15 @@ def nearest_index(item: number_t, seq: List[number_t]) -> int:
 # ------------------------------------------------------------
 
 
-def sort_natural(seq: list, key=None) -> list:
+def sort_natural(seq: List[str], list, key=None) -> list:
     """
-    sort a sequence 'l' of strings naturally, so that
-    'item1' and 'item2' are before 'item10'
+    sort a string sequence naturally
 
-    key: a function to use as sorting key
+    Sorts the sequence so that 'item1' and 'item2' are before 'item10'
+
+    Args:
+        seq: the sequence to sort
+        key: a function to use as sorting key
 
     Examples
     ~~~~~~~~
@@ -218,9 +253,19 @@ def sort_natural_dict(d: dict, recursive=True) -> dict:
 
 def issorted(seq:list, key=None) -> bool:
     """
-    returns True if seq is sorted
+    Returns True if seq is sorted
 
-    if any(x0 > x1 for x0, x1 in pairwise(seq)
+    Args:
+        seq: the seq. to query
+        key: an optional key to use
+
+    Example
+    -------
+
+    >>> seq = [(10, "a"), (0, "b"), (45, None)]
+    >>> issorted(seq, key=lambda item:item[0])
+    False
+
     """
     lastx = -float('inf')
     if key is not None:
@@ -241,14 +286,21 @@ def issorted(seq:list, key=None) -> bool:
 def firstval(*values, sentinel=None):
     """
     Get the first value in values which is not sentinel.
+
     At least one of the values should differ from sentinel, otherwise
     an exception is raised. To allow short-cirtcuit lazy evaluation,
     a callable can be given as value, in which case the function
     will only be evaluated if the previous values where `sentinel`
 
-    Example::
+    Example
+    -------
 
-        >>> default = firstval(a, lambda: computation(), config['a'])
+    .. code-block:: python
+
+        config = {'a': 10, 'b': 20}
+        def func(a=None, b=None):
+            a = firstval(a, lambda: computation(), config['a'])
+
     """
     for value in values:
         if callable(value):
@@ -265,9 +317,9 @@ def zipsort(a:Seq[T], b:Seq[T2], key:Func=None, reverse=False
     """
     Sort a and keep b in sync
 
-    - equivalent to
+    It is the equivalent of::
 
-    a, b = unzip(sorted(zip(a, b), key=key))
+        a, b = unzip(sorted(zip(a, b), key=key))
 
     Example
     ~~~~~~~
@@ -319,7 +371,8 @@ def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
     Given a list of elements, take a slice similar to seq[start:end:step],
     but allows step to be a fraction
 
-    Example:
+    Example
+    -------
 
     >>> fractional_slice(range(10), 1.5)
     >>> [0, 2, 3, 5, 6, 8]
@@ -348,6 +401,18 @@ def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
 
 
 def sec2str(seconds:float) -> str:
+    """
+    Convert seconds to a suitable string representation
+
+    Args:
+        seconds: time in seconds
+
+    Returns:
+        the equivalent time as string
+
+
+
+    """
     h = int(seconds // 3600)
     m = int((seconds - h * 3600) // 60)
     s = seconds % 60
@@ -360,6 +425,8 @@ def sec2str(seconds:float) -> str:
 
 def parse_time(t:str) -> float:
     """
+    Parse a time string HH:MM:SS.mmm and convert it to seconds
+
     Given a time in the format HH:MM:SS.mmm or any sub-form of it
     (SS.mmm, MM:SS, etc), return the time in seconds. This is the
     inverse of sec2str
@@ -392,13 +459,16 @@ def parse_time(t:str) -> float:
 
 def namedtuple_addcolumn(namedtuples, seq, column_name, classname=""):  # type: ignore
     """
+    Add a column to a sequence of named tuples
 
-    namedtuples: a list of namedtuples
-    seq: the new column
-    column_name: name of the column
-    classname: nane of the new namedtuple
+    Args:
+        namedtuples: a list of namedtuples
+        seq: the new column
+        column_name: name of the column
+        classname: nane of the new namedtuple
 
-    Returns a list of namedtuples with the added column
+    Returns:
+        a list of namedtuples with the added column
     """
     t0 = namedtuples[0]
     assert isinstance(t0, tuple) and hasattr(t0, "_fields"), "namedtuples should be a seq. of namedtuples"
@@ -412,6 +482,15 @@ def namedtuple_addcolumn(namedtuples, seq, column_name, classname=""):  # type: 
 def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # type: ignore
     """
     Rename the column of a seq of namedtuples
+
+    Args:
+        namedtuples: a list of namedtuples
+        oldname: the name of the column which will be modified
+        newname: the new name of the column
+        classname: the name of the new namedtuple class
+
+    Returns:
+        the new namedtuples with the renamed column
 
     >>> from collections import namedtuple
     >>> Person = namedtuple("Person", "firstname familyname")
@@ -431,9 +510,9 @@ def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # 
 
 def namedtuple_extend(name:str, orig, columns: U[str, Seq[str]]):
     """
-    create a new constructor with the added columns
+    Create a new namedtuple constructor with the added columns
 
-    it returns the class constructor and an ad-hoc
+    It returns the class constructor and an ad-hoc
     constructor which takes as arguments an instance
     of the original namedtuple and the additional args
 
@@ -489,11 +568,6 @@ def isiterable(obj, exceptions:Tup[type, ...]=(str, bytes)) -> bool:
     return hasattr(obj, '__iter__') and not isinstance(obj, exceptions)
 
 
-def isgenerator(obj):
-    import types
-    return isinstance(obj, types.GeneratorType)
-
-
 def isgeneratorlike(obj):
     "Does ``obj`` behave like a generator? (it can be iterated but has no length)"
     return hasattr(obj, '__iter__') and not hasattr(obj, '__len__')
@@ -539,7 +613,9 @@ def asnumber(obj, accept_fractions=True, accept_expon=False
 
 def astype(type_, obj=None, factory=None):
     """
-    Return obj as type. If obj is already of said type, obj itself is returned
+    Return obj as type.
+
+    If obj is already of said type, obj itself is returned
     Otherwise, obj is converted to type. If a special contructor is needed,
     it can be given as `construct`. If no obj is passed, a partial function
     is returned which can check for that particular type
@@ -566,7 +642,17 @@ def astype(type_, obj=None, factory=None):
 
 def str_is_number(s:str, accept_exp=False, accept_fractions=False):
     """
-    NB: fractions should have the form num/den, like 3/4, with no spaces in between
+    Returns True if the given string represents a number
+
+    Args:
+        s: the string to inspect
+        accept_exp: accept exponential notation
+        accept_fractions: accept numbers of the form "3/4"
+
+    Returns:
+        True if s represents a number, False otherwise
+
+    **NB**: fractions should have the form num/den, like 3/4, with no spaces in between
     """
     if accept_exp and accept_fractions:
         return asnumber(s) is not None
@@ -582,6 +668,7 @@ def str_is_number(s:str, accept_exp=False, accept_fractions=False):
 def dictmerge(dict1: dict, dict2: dict) -> dict:
     """
     Merge the contents of the two dicts.
+
     If they have keys in common, the value in dict1 is overwritten
     by the value in dict2
 
@@ -595,9 +682,19 @@ def dictmerge(dict1: dict, dict2: dict) -> dict:
     return out
 
 
-def moses(pred, seq: Iter[T]) -> Tup[List[T], List[T]]:
+def moses(pred: Callable[[T], bool], seq: Iter[T]
+          ) -> Tup[List[T], List[T]]:
     """
-    return two lists: filter(pred, seq), filter(not pred, seq)
+    Divides *seq* into two lists: filter(pred, seq), filter(not pred, seq)
+
+    Args:
+        pred: a function predicate
+        seq: the seq. to divide
+
+    Returns:
+        a tuple ``(true_elements, false_elements)``, where true_elements contains
+        the items in *seq* for which *pred* evaluates to true, and *false_elements*
+        contains the rest
 
     Example::
 
@@ -617,39 +714,27 @@ def moses(pred, seq: Iter[T]) -> Tup[List[T], List[T]]:
 def allequal(xs: Seq) -> bool:
     """
     Return True if all elements in xs are equal
+
+    Args:
+        xs: the seq. to query
+
+    Returns:
+        True if all elements in xs are equal
     """
     x0 = xs[0]
     return all(x==x0 for x in xs)
 
 
-def make_replacer(conditions:dict) -> Func:
+def dumpobj(obj) -> List[Tuple[str, Any]]:
     """
-    Create a function to replace many subtrings at once
-
-    conditions: a dictionary of string:replacement
-
-    Example::
-
-        >>> replacer = make_replacer({"&":"&amp;", " ":"_", "(":"\\(", ")":"\\)"})
-        >>> replacer("foo & (bar)")
-        "foo_&amp;_\(bar\)"
-
-    """
-    rep = {_re.escape(k): v for k, v in conditions.items()}
-    pattern = _re.compile("|".join(rep.keys()))
-    return lambda txt: pattern.sub(lambda m: rep[_re.escape(m.group(0))], txt)
-
-
-def dumpobj(obj) -> list:
-    """
-    return all 'public' attributes of this object
+    Return all 'public' attributes of this object
     """
     return [(item, getattr(obj, item)) for item in dir(obj) if not item.startswith('__')]
 
 
 def can_be_pickled(obj) -> bool:
     """
-    test if obj can be pickled
+    Return True if obj can be pickled
     """
     import pickle
     try:
@@ -661,11 +746,15 @@ def can_be_pickled(obj) -> bool:
 
 def snap_to_grid(x:number_t, tick:number_t, offset:number_t=0, nearest=True) -> number_t:
     """
+    Find the nearest slot in a grid
+
     Given a grid defined by offset + tick * N, find the nearest element
     of that grid to a given x
 
-    NB: the result will have the same type as x, so if x is float,
-        then the result will be float, if it is a Fraction, then the
+    .. note::
+
+        the result will have the same type as *x*, so if *x* is float,
+        the result will be float, if it is a Fraction, then the
         result will be a fraction
     """
     assert isinstance(x, (float, Fraction))
@@ -679,13 +768,24 @@ def snap_to_grid(x:number_t, tick:number_t, offset:number_t=0, nearest=True) -> 
 def snap_array(X:np.ndarray, tick:float, offset:float=0.,
                out:Opt[np.ndarray]=None, nearest=True) -> np.ndarray:
     """
-    Assuming a grid t defined by
+    Snap the values of X to the nearest slot in a grid
 
-    t(n) = offset + tick*n
+    Assuming a grid t defined by ``t(n) = offset + tick*n``, snap the values of X
+    to the nearest value of t
 
-    snap the values of X to the nearest value of t
+    **NB**: tick > 0
 
-    NB: tick > 0
+    Args:
+        X: an array
+        tick: the step value of the grid
+        offset: the offset of the grid
+        out: if given, snapped values are placed in this array
+        nearest: if True, the nearest slot is selected. Otherwise the next lower
+            (floor)
+
+    Returns:
+        an array containing the snapped values. This array will be *out* if it
+        was given
     """
     if tick <= 0:
         raise ValueError("tick should be > 0")
@@ -731,13 +831,19 @@ def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out:np.ndarray=None)
 def snap_to_grids(x: number_t, ticks: Seq[number_t], offsets:Seq[number_t]=None,
                   mode='nearest') -> number_t:
     """
-    A regular grid is defined as x = offset + tick*n, where n is an integer
+    Snap x to the nearest slot within multiple overlapping grids
+
+    A regular grid is defined as ``x = offset + tick*n``, where ``n`` is an integer
     from -inf to inf.
 
-    x: a number or a seq. of numbers
-    ticks: a seq. of ticks, each tick defines a grid
-    offsets: a seq. of offsets, or None to set offset to 0 for each grid
-    mode: one of 'floor', 'ceil', 'nearest'
+    Args:
+        x: a number or a seq. of numbers
+        ticks: a seq. of ticks, each tick defines a grid
+        offsets: a seq. of offsets, or None to set offset to 0 for each grid
+        mode: one of 'floor', 'ceil', 'nearest'
+
+    Returns:
+        the snapped value
 
     Given a list of regular grids, snap the value of x to this grid
 
@@ -786,10 +892,13 @@ def snap_to_grids(x: number_t, ticks: Seq[number_t], offsets:Seq[number_t]=None,
 
 def distribute_in_zones(x:number_t, split_points:List[number_t], side="left") -> int:
     """
-    Returns the index of a "zone" where to place x. A zone is a numeric range
-    defined by an inclusive lower boundary and a non-inclusive higher boundary
-    (NB: see distribute_in_zones_right for a non-inclusive lower and
-    inclusive upper boundary). The edge zones extend to inf.
+    Returns the index of a "zone" where to place x.
+
+    A zone is a numeric range defined by an inclusive lower boundary and a
+    non-inclusive higher boundary
+
+    **NB**: see :func:`distribute_in_zones_right` for a non-inclusive lower and
+    inclusive upper boundary. The edge zones extend to inf.
 
     Args:
         x: the number to assign a zone to
@@ -837,105 +946,10 @@ def _distribute_in_zones_right(x:number_t, split_points:Seq[number_t]) -> int:
     return imin
 
 
-def normalize_slice(slize: U[int, tuple]) -> Tup[int, Opt[int]]:
-    """
-
-    Example::
-
-        >>> normalize_slice((3,))
-        (3, None)
-        >>> normalize_slice((0, -2))
-        (0, -2)
-        >>> normalize_slice(4)
-        (4, -4)
-    """
-    if isinstance(slize, int):
-        return (slize, -slize)
-    if len(slize) == 1:
-        return (slize[0], None)
-    elif len(slize) == 2:
-        return slize
-    else:
-        raise ValueError("??")
-
-
-def replace_subseq(seq: Seq[T], subseq: Seq[T], replacement: Seq[T], slize=None
-                   ) -> Seq[T]:
-    """
-    Args:
-
-        seq: the sequence to be transformed (NOT in-place)
-        subseq: a sequence which is MAYBE a sub-sequence of seq
-        replacement: the seq. to be put instead
-        slize: a slice to be applied to seq before analysis.
-            slice-notation   argument to slize
-            [:4]             (0, 4)
-            [1:]             (1,) or (1,None)
-            [1:-2]           (1, -2)
-            [2:-2]           (2, -2) or the shorthand 2,
-                             which means "use a margin of 2 at each side"
-
-    If subseq is a subsequence of seq, replace this with transform.
-    If subseq is not found, return the original seq
-
-    You can test if the seq has been found by testing for identity:
-
-    Example
-    ~~~~~~~
-
-    >>> a = (1, 2, 1, 0, 0, 1, 1)
-    >>> replace_subseq(a, (1, 0, 0), (1, 8, 8))  # it always returns a list!
-    [1, 2, 1, 8, 8, 1, 1]
-
-    # the subseq is not part of the seq, so a2 is a
-    >>> a = "a b c d e f g".split()
-    >>> a2 = replace_subseq(a, "h h h".split(), "j j j".split())
-    >>> a2 is a
-    True
-
-    >>> a = "a b c d e f g".split()
-    >>> a2 = replace_subseq(a, "b c d".split(), "x x x".split())
-    >>> a2 is a
-    False
-    """
-    from itertools import tee, islice
-
-    def window(iterable, size=3, step=1):
-        iterators = tee(iterable, size)
-        for skip_steps, itr in enumerate(iterators):
-            for _ in islice(itr, skip_steps):
-                pass
-        window_itr = zip(*iterators)
-        if step != 1:
-            window_itr = islice(window_itr, 0, 99999999, step)
-        return window_itr
-
-    if slize is not None:
-        slize = normalize_slice(slize)
-        sliced_seq = seq[slize[0]:slize[1]]
-        seq2 = replace_subseq(sliced_seq, subseq, replacement)
-        if sliced_seq is seq2:
-            return seq
-        out = list(seq)
-        out[slize[0]:slize[1]] = seq2
-        return out
-    subseq = tuple(subseq)
-    replacement = tuple(replacement)
-    copy = list(seq)
-    N = len(subseq)
-    changed = False
-    for i, win in enumerate(window(seq, N)):
-        if win == subseq:
-            copy[i:i+N] = replacement
-            changed = True
-    return copy if changed else seq
-
-
 def seq_contains(seq, subseq) -> Opt[Tup[int, int]]:
     """
-    returns None if subseq is not contained in seq
-    returns the (start, end) indices if seq contains subseq, so that
-    
+    Returns the (start, end) indexes if seq contains subseq, or None
+
     Example::
 
         >>> seq, subseq = range(10), [3, 4, 5]
@@ -956,6 +970,7 @@ def pick_regularly(seq: U[List[T], np.ndarray], numitems:int, start_idx:int=0,
                    ) -> U[np.ndarray, List[T]]:
     """
     Given a sequence, pick `numitems` from it at regular intervals
+
     The first and the last items are always included. The behaviour
     is similar to numpy's linspace
 
@@ -1000,8 +1015,7 @@ def deepupdate(orig, updatewith):
 
 def fig2data(fig) -> np.ndarray:
     """
-    Convert a Matplotlib figure to a 4D numpy array with RGBA
-    channels and return it
+    Convert a Matplotlib figure to a 4D numpy array with RGBA channels
 
     Args:
         fig: a matplotlib figure
@@ -1022,11 +1036,14 @@ def fig2data(fig) -> np.ndarray:
 
 def pixels_to_cm(pixels: int, dpi=300) -> float:
     """
-    convert a distance in pixels to cm
+    Convert a distance in pixels to cm
 
     Args:
         pixels: number of pixels
         dpi: dots (pixels) per inch
+
+    Returns:
+        the corresponding value in cm
     """
     inches = pixels / dpi
     cm = inches * 2.54
@@ -1036,6 +1053,13 @@ def pixels_to_cm(pixels: int, dpi=300) -> float:
 def cm_to_pixels(cm: float, dpi=300) -> float:
     """
     convert a distance in cm to pixels
+
+    Args:
+        cm: a value in cm
+        dpi: dots-per-inch
+
+    Returns:
+        the corresponding value in pixels
     """
     inches = cm * 0.3937008
     pixels = inches * dpi
@@ -1052,8 +1076,7 @@ def pixels_to_inches(pixels: int, dpi=300) -> float:
 
 def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> Tup[float, float]:
     """
-    Convert a pagesize given as DIN size (A3, A4, ...) and page orientation
-    into a tuple (height, width) in mm
+    Return the (height, width) for a given DIN size and page orientation
 
     Args:
         pagesize: size as DIN string (a3, a4, etc)
@@ -1083,16 +1106,13 @@ def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> Tup[float, float]:
 
 def returns_tuple(names, recname=None):
     """
-    Decorator
-
-    Modifies the function to return a namedtuple with the given names.
+    Decorator - Makes the function return a namedtuple with the given names.
 
     Args:
         names: as passed to namedtuple, either a space-divided string,
             or a sequence of strings
         recname: a name to be given to the result as a whole. If nothing is
             given, the name of the decorated function is used.
-
 
     Example::
 
@@ -1128,8 +1148,7 @@ def returns_tuple(names, recname=None):
 
 def returns_tuples(names, recname):
     """
-    Decorator to modify a function returning a list of tuples to return
-    a RecordList instead
+    Decorator to make a function return a RecordList instead of a list of tuples
     """
     from decorator import decorator
     from .containers import RecordList
@@ -1143,9 +1162,10 @@ def returns_tuples(names, recname):
 
 def public(f):
     """
-    Use a decorator to avoid retyping function/class names.
+    decorator - keeps __all__ updated
 
-    Keeps __all__ updated
+    **NB**: it has no performance penalty at runtime since the decorator
+    just returns the passed function
 
     * Based on an idea by Duncan Booth:
       http://groups.google.com/group/comp.lang.python/msg/11cbb03e09611b8a
@@ -1162,14 +1182,19 @@ def singleton(cls):
     """
     A class decorator to create a singleton class
 
-    @singleton
-    class Logger(object):
-        pass
+    Example
+    -------
 
-    l = Logger()
-    m = Logger()
+    ::
 
-    assert m is l
+        @singleton
+        class Logger(object):
+            pass
+
+        l = Logger()
+        m = Logger()
+
+        assert m is l
     """
     instances = {}
 
@@ -1182,8 +1207,7 @@ def singleton(cls):
 
 class runonce:
     """
-    To be used as decorator. `func` will run only once, independent
-    of the arguments passed the second time
+    To be used as decorator. `func` will run only once
 
     Example::
 
@@ -1262,6 +1286,7 @@ def istype(obj, *types):
 def assert_type(x, *types) -> bool:
     """
     Returns True if x is of the given type, raises TypeError otherwise
+
     See istype for examples
 
     Can be used as::
@@ -1283,11 +1308,9 @@ def open_with_standard_app(path: str, wait:U[str, bool]=False, min_wait=0.5,
                            timeout:float=None
                            ) -> None:
     """
-    Open path with the app defined to handle it by the user
-    at the os level (xdg-open in linux, start in win, open in osx)
+    Open path with the app defined to handle it at the os level
 
-    This opens the default application in the background
-    and returns immediately
+    Uses *xdg-open* in linux, *start* in win and *open* in osx.
 
     Args:
         path: the file to open
@@ -1336,10 +1359,11 @@ def _split_command(s:str) -> List[str]:
 def open_with(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
               min_wait=0.5, timeout=None) -> None:
     """
-    Open a given file with a given app. It can either wait on the app
-    to exit or wait until the file was modified. The app can be either
-    a command as a string or a list of string arguments passed to
-    subprocess.Popen
+    Open a given file with a given app.
+
+    It can either wait on the app to exit or wait until the file
+    was modified. The app can be either a command as a string or a
+    list of string arguments passed to *subprocess.Popen*
 
     Args:
         path: the path to the file to open
@@ -1381,13 +1405,19 @@ def open_with(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
 
 def wait_for_file_modified(path:str, timeout:float=None) -> bool:
     """
-    Wait until file is modified. This is useful when editing
-    a file on an external application which runs in a daemon
-    mode, meaning that opening a file in it might return
-    immediately.
+    Wait until file is modified.
 
-    Returns True if the file was modified, False if it wasn't
-    or if the operation timed-out
+    This is useful when editing a file on an external application
+    which runs in a daemon mode, meaning that opening a file in it
+    might return immediately.
+
+    Args:
+        path: the path of the file to monitor
+        timeout: how long should we wait for
+
+    Returns:
+        True if the file was modified, False if it wasn't or if the operation
+        timed-out
     """
     from watchdog.observers import Observer
     from watchdog.events import PatternMatchingEventHandler
@@ -1434,10 +1464,12 @@ def session_type() -> str:
     What kind of python session are we in?
 
     Returns:
-        "jupyter" if running a jupyter notebook
-        "ipython-terminal" if running ipython in a terminal
-        "ipython" if running ipython outside a terminal
-        "python" if a normal python
+        The kind of session, as str
+
+    * "jupyter" if running a jupyter notebook
+    * "ipython-terminal" if running ipython in a terminal
+    * "ipython" if running ipython outside a terminal
+    * "python" if a normal python
 
     .. note::
         See also `is_interactive_session`
@@ -1516,8 +1548,7 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
 
 def replace_sigint_handler(handler):
     """
-    Replace current SIGINT hanler with the given one, return
-    the old one
+    Replace current SIGINT hanler with the given one, return the old one
 
     Args:
         handler: the new handler. A handler is a function taking no
@@ -1562,6 +1593,8 @@ def simplify_breakpoints(bps: List[T], coordsfunc: Func,
                          tolerance: number_t=0.01
                          ) -> List[T]:
     """
+    Simplify breakpoints in a breakpoint function
+
     Assuming a list of some objects building a multisegmented line
     in 2D, simplify this line by eliminating superfluous breakpoints
     which don't contribute (enough) to the resolution of this line
