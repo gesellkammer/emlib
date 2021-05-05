@@ -7,7 +7,7 @@ import sys
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (0, 8, 0)
+version = (0, 9, 0)
 
 setup(
     name='emlib',

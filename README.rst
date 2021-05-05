@@ -16,3 +16,20 @@ emlib is a set of modules with miscelaneous functionality:
 - containers: RecordList (a list of named tuples)
 - doctools: tools to generate documentation (for mkdocs particularly)
 - etc
+
+-----
+
+Documentation
+-------------
+
+https://emlib.readthedocs.io
+
+
+-----
+
+Installation
+
+.. code:: bash
+
+    pip install emlib
+
