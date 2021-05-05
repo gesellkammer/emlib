@@ -31,7 +31,8 @@ setup(
         "tabulate",
         "cachetools",
         "python-constraint",
-        "pyyaml"
+        "pyyaml",
+        "minizinc"
     ],
     license="BSD",
     zip_safe=False,
