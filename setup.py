@@ -32,7 +32,7 @@ setup(
         "cachetools",
         "python-constraint",
         "pyyaml",
-        "minizinc"
+        "mininizinc"
     ],
     license="BSD",
     zip_safe=False,

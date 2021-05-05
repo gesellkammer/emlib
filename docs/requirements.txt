@@ -1,4 +1,13 @@
-emlib
+numpy
+scipy
+bpf4
+configdict
+appdirs
+tabulate
+cachetools
+python-constraint
+pyyaml
+mininizinc
 sphinx-autodoc-typehints
 sphinx-automodapi
 sphinx_rtd_theme
