@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 
 def depth_first(start, end, neighborsfunc, maxsize=0):
     """

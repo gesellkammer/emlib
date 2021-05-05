@@ -2,6 +2,7 @@
 Set of misc. utilities to work with json
 
 """
+from __future__ import annotations
 import re
 
 

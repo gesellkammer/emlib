@@ -1,9 +1,9 @@
 """
 
-Routinges for smoothing data
+Routines for smoothing data
 
 """
-
+from __future__ import annotations
 import numpy
 from collections import deque
 from emlib.misc import isiterable

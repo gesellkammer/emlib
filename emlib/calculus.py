@@ -2,7 +2,6 @@
 Calculus utilities, based on calculus.jl
 
 """
-
 from __future__ import annotations
 import math
 import struct as _struct

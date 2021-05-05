@@ -1,10 +1,11 @@
 """
 Utilities related to bpfs
 """
+from __future__ import annotations
 import bpf4 as bpf
 from bpf4 import BpfInterface
 from emlib.iterlib import pairwise
-from typehints import Sequence as Seq
+from typing import Sequence as Seq
 
 def zigzag(b0: BpfInterface, b1: BpfInterface, xs: Seq[float], shape='linear'
            ) -> BpfInterface:

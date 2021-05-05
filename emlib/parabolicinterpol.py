@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import division as _division
+from __future__ import annotations
 import numpy as _np
 
 

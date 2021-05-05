@@ -869,6 +869,26 @@ def getModuleMembers(module) -> Dict[str, Any]:
     return ownmembers
 
 
+def externalModuleMembers(module, include_private=False) -> List[str]:
+    """
+    Returns a list of member names which appear in dir(module) but are not
+    defined there
+
+    Args:
+        module: the module to query
+
+    Returns:
+        a list of member names
+
+    """
+    members = inspect.getmembers(module)
+    external = [name for name, item in members
+                if inspect.getmodule(item) is not module or name.startswith("_")]
+    if not include_private:
+        external = [n for n in external if not n.startswith("_")]
+    return external
+
+
 def groupMembers(members: Dict[str, Any]) -> Tuple[dict, dict, dict]:
     """
     Sorts the members into three groups: functions, classes and modules

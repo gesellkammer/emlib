@@ -1,3 +1,6 @@
+"""
+More itertools
+"""
 from __future__ import annotations
 from itertools import *
 import operator as _operator
@@ -104,6 +107,18 @@ def ncycles(seq: Iter[T], n: int) -> Iter[T]:
 
 
 def dotproduct(vec1: Iter[T], vec2: Iter[T]) -> T:
+    """
+    Returns the dot product (the sum of the product between each pair)
+    between vec1 and vec2
+
+    Args:
+        vec1: a seq. of T
+        vec2: a seq. of T
+
+    Returns:
+        the sum of the product of vec1_n * vec2_n for each n
+
+    """
     return sum(map(_operator.mul, vec1, vec2))
 
 
@@ -218,6 +233,7 @@ def chunks(start:int, stop:int=None, step:int=None) -> Iter[Tup[int, int]]:
 
 
 def isiterable(obj, exclude=(str,)) -> bool:
+    """Returns True if obj is iterable"""
     if exclude:
         return hasattr(obj, '__iter__') and (not isinstance(obj, exclude))
     return hasattr(obj, '__iter__')
@@ -361,7 +377,16 @@ def flatdict(d: dict) -> list:
     return out
 
 
-def flattened(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf, out=None) -> List[T]:
+def flattened(s: Iter[U[T, Iter[T]]], exclude=(str,), levels=inf, out:list=None) -> List[T]:
+    """
+    Like flatten, but returns a list instead of an iterator
+
+    Args:
+        s: the seq to flatten.
+        exclude: types to exclude
+        levels: how many levels to flatten
+        out: if given, the flattened result is appended to this list
+    """
     if out is None:
         out = []
     _flattened2(s, out, exclude, levels)
@@ -374,32 +399,8 @@ def _flattened2(s, out:list, exclude, levels:int) -> None:
             out.append(item)
         else:
             _flattened2(item, out, exclude, levels-1)
-        
 
 
-# as a reference, a non-recursive version. It is slower than flatten
-def _flatten_nonrec(iterable):
-    iterator, sentinel, stack = iter(iterable), object(), []
-    pop = stack.pop
-    append = stack.append
-    while True:
-        value = next(iterator, sentinel)
-        if value is sentinel:
-            if not stack:
-                break
-            iterator = pop()
-        elif isinstance(value, str):
-            yield value
-        else:
-            try:
-                new_iterator = iter(value)
-            except TypeError:
-                yield value
-            else:
-                append(iterator)
-                iterator = new_iterator
-
-            
 def flattenonly(l, types):
     """
     Flatten only if subsequences are of type 'type' 
@@ -477,11 +478,6 @@ def intercalate(seq: Iter[T], item) -> Iter[T]:
     [0, 'X', 1, 'X', 2, 'X', 3, 'X', 4]
     """
     return butlast(zipflat(seq, repeat(item)))
-
-
-def apply_funcs(seq, *funcs):
-    tees = tee(seq, len(funcs))
-    return [func(t) for t, func in zip(tees, funcs)]
 
 
 def reductions(seq: Iter[T], func: Callable, start=0) -> Iter[T]:
@@ -608,4 +604,4 @@ if __name__ == '__main__':
     doctest.testmod()
 
 
-del Set, Any, List, TypeVar, Callable, U, Opt, Iter, Tup
+del Set, Any, List, TypeVar, Callable, U, Opt, Tup

@@ -1,3 +1,7 @@
+"""
+Miscellaneous utilities for working with numpy arrays
+"""
+from __future__ import annotations
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 

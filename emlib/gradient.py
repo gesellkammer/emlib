@@ -1,3 +1,4 @@
+from __future__ import annotations
 import bpf4 as bpf
 import bisect
 from emlib.interpol import interpol_linear

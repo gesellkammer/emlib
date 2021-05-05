@@ -1,3 +1,7 @@
+"""
+Simple dialogs for use at the repl
+"""
+from __future__ import annotations
 
 _DEFAULT_FONT = ("Helvetica", 11)
 

@@ -1,4 +1,8 @@
-"""
+
+emlib
+=====
+
+
 **emlib** is a set of modules with miscelaneous functionality:
 
 Repository: https://github.com/gesellkammer/emlib
@@ -19,4 +23,32 @@ Features
 - containers: RecordList (a list of named tuples)
 - doctools: tools to generate documentation (for mkdocs particularly)
 - etc
-"""
+
+
+-----
+
+Modules
+=======
+
+.. toctree::
+    :maxdepth: 1
+
+    misc
+    textlib
+    filetools
+    iterlib
+    doctools
+    csvtools
+    jsontools
+    containers
+    dialogs
+    mathlib
+    numpytools
+    matplotting
+    calculus
+    combinatorics
+    numberseries
+    graphlib
+    bpfx
+    minizinctools
+    net

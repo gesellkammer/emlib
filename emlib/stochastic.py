@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import annotations
 from emlib.misc import isiterable
 from itertools import product
 import numpy

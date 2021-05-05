@@ -1,8 +1,16 @@
+"""
+Generate diverse number series (fibonacci, lucas, tribonacci, ...)
+"""
+from __future__ import annotations
+from typing import List, Generator
 
 PHI = 1.618033988749894848204586834
 
 
-def fibonacci(n:int, a=1, b=1):
+def fibonacci(n:int, a=1, b=1) -> List[int]:
+    """
+    Calculate the first *n* numbers of the the fibonacci series
+    """
     out = [a, b]
     for _ in range(n - 2):
         c = a + b
@@ -11,7 +19,10 @@ def fibonacci(n:int, a=1, b=1):
     return out
 
 
-def ifibonacci(a=1, b=1):
+def ifibonacci(a=1, b=1) -> Generator[int, None, None]:
+    """
+    Returns an iterator over the numbers of the fibonacci series
+    """
     yield a
     yield b
     while True:
@@ -20,11 +31,17 @@ def ifibonacci(a=1, b=1):
         a, b = b, c
 
 
-def lucas(n, a=2, b=1):
+def lucas(n: int, a=2, b=1) -> List[int]:
+    """
+    Calculate the first *n* numbers of the luca series
+    """
     return fibonacci(n, a, b)
 
 
-def tribonacci(n:int, a=0, b=0, c=1):
+def tribonacci(n:int, a=0, b=0, c=1) -> List[int]:
+    """
+    Calculate the first *n* numbers of the tribonacci series
+    """
     out = [a, b, c]
     for _ in range(n-3):
         d = a + b + c
@@ -33,15 +50,11 @@ def tribonacci(n:int, a=0, b=0, c=1):
     return out
 
 
-def padovan(n:int, a=1, b=1, c=1):
+def padovan(n:int, a=1, b=1, c=1) -> List[int]:
     """
-    https://en.wikipedia.org/wiki/Padovan_sequence
+    Generate *n* elements of the padovan sequence
 
-    Args:
-        n: the number of elements to generate
-        a: first value of the seq.
-        b: second value of the seq.
-        c: third value of the seq
+    https://en.wikipedia.org/wiki/Padovan_sequence
     """
     out = [a, b, c]
     for _ in range(n-3):
@@ -51,9 +64,9 @@ def padovan(n:int, a=1, b=1, c=1):
     return out
 
 
-def geometric(n:int, start=1, expon=PHI):
+def geometric(n:int, start=1, expon=PHI) -> List[int]:
     """
-    Generaes a geometric series. With expon==PHI, results in a fibonacci series
+    Generates a geometric series. With expon==PHI, results in a fibonacci series
 
     Args:
         n: number of items to generate

@@ -1,3 +1,16 @@
+"""
+
+Miscellaneous functionality
+
+* **Search**: `nearest_element`, `nearest_unsorted`, `nearest_index`
+* **Sort**: `sort_natural`, `zipsort`, `issorted`
+* **Namedtuples**: `namedtupled_addcolumn`, `namedtuple_extend`, etc.
+* **IPython / Jupyter**: `inside_jupyter`, `is_interactive_session`, `session_type`
+* **Open files**: `open_with_standard_app`, `wait_for_file_modified`, `open_with`
+* **Unit conversions**: `cm_to_pixels`, `page_dinsize_to_mm`, etc.
+* **Other**: `runonce`, `singleton`
+
+"""
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 import os as _os
@@ -1067,10 +1080,12 @@ def cm_to_pixels(cm: float, dpi=300) -> float:
 
 
 def inches_to_pixels(inches: float, dpi=300) -> float:
+    """ Convert inches to pixels """
     return inches * dpi
 
 
 def pixels_to_inches(pixels: int, dpi=300) -> float:
+    """Convert pixels to inches"""
     return pixels / dpi
 
 

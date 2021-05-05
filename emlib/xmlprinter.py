@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 help write out XML documents
 
@@ -52,6 +51,7 @@ License, or (at your option) any later version.
 
 The idea for this module was taken from Perl's XML::Writer.
 """
+from __future__ import annotations
 
 __version__ = "0.3.0"
 

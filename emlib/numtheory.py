@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 A subset of NZMATH to detect and calculate primes without having
 MZMATH as a dependency
@@ -7,6 +6,7 @@ I don't claim to understand any of this code, but I often need
 to check for primes and find a coprime or next prime to a given
 number
 """
+from __future__ import annotations
 import math
 from math import gcd
 from typing import Iterator as Iter, Tuple

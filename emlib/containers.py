@@ -1,3 +1,6 @@
+"""
+Diverse containers (IntPool, RecordList, ClassDict)
+"""
 from __future__ import annotations
 from collections import namedtuple as _namedtuple
 import dataclasses

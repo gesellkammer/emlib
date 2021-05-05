@@ -1,4 +1,7 @@
-from __future__ import division as _division
+"""
+Functions for combinatorics (combinations with repetitions, derangements, etc.)
+"""
+from __future__ import annotations
 from operator import mul
 import random
 from . import iterlib as _iterlib
@@ -9,16 +12,21 @@ import itertools
 from itertools import combinations, permutations
 from functools import reduce
 import time as _time
+from collections.abc import Iterator
+from typing import Union as U, Generator, Sequence as Seq, TypeVar
 
+seq_t = U[list, tuple, _np.ndarray]
 
-def all_combinations(seq, size=2):
+T = TypeVar("T")
+
+def all_combinations(seq: seq_t, size=2):
     _warnings.warn("Use combinations")
     return combinations(seq, size)
 
 
-def combinations_with_repetition(seq, size):
+def combinations_with_repetition(seq: Iterator[T], size: int) -> Iterator[T]:
     """
-    Yield all combinations of the elements of seq where:
+    Yield all combinations of the elements of seq
 
     * items can be repeated: (0, 1, 1) is a valid answer
     * position is relevant: (0, 1, 2) is not the same as (2, 1, 0)
@@ -27,7 +35,7 @@ def combinations_with_repetition(seq, size):
         yield group
 
 
-def derangements(seq):
+def derangements(seq: Seq[T]) -> Iterator[T]:
     """compute permutations of seq where each element is not in its original position"""
     queue = [-1]
     lenlst = len(seq)
@@ -44,7 +52,7 @@ def derangements(seq):
             queue[-1] = i
 
 
-def _distance_from_original(seqa, seqb):
+def _distance_from_original(seqa: Seq[T], seqb: Seq[T]) -> float:
     distance = 0
     for ia, a in enumerate(seqa):
         ib = seqb.index(a)
@@ -52,20 +60,26 @@ def _distance_from_original(seqa, seqb):
     return distance / len(seqa)
 
 
-def _max_distance(xs):
+def _max_distance(xs: Seq) -> float:
     return _distance_from_original(xs, list(reversed(xs)))
 
 
-def random_range(length):
+def random_range(length: int) -> _np.ndarray:
     """
-    Return an array of ints from 0 to length-1, in random order
+    Return an array of of ints from 0 to length-1, in random order
+
+    Args:
+        length: the length of the generated sequence
+
+    Returns:
+        the generated array
     """
     s = _np.arange(length)
     _np.random.shuffle(s)
     return s
 
 
-def distance_from_sorted(seq, offset=0) -> int:
+def distance_from_sorted(seq: U[list, tuple, _np.ndarray], offset=0) -> int:
     """
     Distance between seq and a sorted seq. of the same length
     """
@@ -91,10 +105,10 @@ _cached_random_distances = [0,   0,  1,  2,  4,  8, 11, 15, 21, 26,
                             3200, 3266]
 
 
-def random_distance(length, numseqs=1000):
+def random_distance(length: int, numseqs=1000) -> float:
     """
-    Calculate the ditance between a fully sorted seq. and a random seq.
-    for the given length. This is used to measure entropy in a seq.
+    Calculate the distance between a sorted seq. and a random seq. for the given length.
+    This is used to measure entropy in a seq.
     """
     if length < len(_cached_random_distances):
         return _cached_random_distances[length]
@@ -107,12 +121,16 @@ def random_distance(length, numseqs=1000):
     return avg
 
 
-def unsortedness(seq):
+def unsortedness(seq: Seq) -> float:
     """
     The entropy of the ordering in this seq.
 
-    1: random ordering
-    0: sorted
+    Args:
+        seq: the seq to evaluate
+
+    Returns:
+        a value between 0 and 1, where 0 means sorted and 1 means random order
+
     """
     return distance_from_sorted(seq) / float(random_distance(len(seq)))
 
@@ -175,35 +193,37 @@ def _unsortx(seq, entropy, margin=0, debug=False, calculate_rating=False):
     return out, rating
 
 
-def unsort(seq, entropy, margin=0, tolerance=0.05, numiter=100, timeout=None):
+def unsort(seq: Seq, entropy:float, margin=0, tolerance=0.05, numiter=100, timeout:float=None
+           ) -> _np.ndarray:
     """
-    generate a permutation of xs unsorted according to the given
-    entropy.
+    Generate a permutation of xs unsorted according to the given entropy.
 
-    seq: a sequence to be unsorted
-    entropy: 0 --> the original sequence is returned
-             1 --> a random sequence is returned
-    margin: a number or tuple (left, right). These elements are left untouched
-    numiter: the number of times the algorithm is run. The best result will be returned
-    timeout: alternatively, you can specify a timeout (numiter will be disregarded)
+    Args:
+        seq: a sequence to be unsorted
+        entropy: 0=the original sequence is returned; 1=random sequence is returned
+        margin: a number or tuple (left, right). These elements are left untouched
+        numiter: the number of times the algorithm is run. The best result will be returned
+        timeout: alternatively, you can specify a timeout (numiter will be disregarded)
 
-    if entropy == 0: the original sequence is returned
-    if entropy == 1: a sequence is generated which is as random as possible
-        (this does not mean that there cannot be any fixed points, it refers
-         to the general result)
+    Returns:
+        un unsorted version of *seq*, as numpy array
 
-    Returns: a numpy array with the unsorted sequence
 
-    Examples:
+    * If entropy == 0: the original sequence is returned
+    * If entropy == 1: a sequence is generated which is as random as possible (this does
+    not mean that there cannot be any fixed points, it refers to the general result)
 
-    # unsort the first 10 numbers, leave 0 and 9 untouched at their places
-    unsort(range(10), 0.5, margin=1)
+    Examples
+    --------
 
-    # unsort the given seq., do not touch the first too elements
-    unsort((1,3, 5, 4, 0), 0.2, margin=(2, 0))
+    .. code::
 
-    The difference with unsort is the implementation. unsortx is able to
-    calculate a rating and select the best from a number of iterations.
+        # unsort the first 10 numbers, leave 0 and 9 untouched at their places
+        unsort(range(10), 0.5, margin=1)
+
+        # unsort the given seq., do not touch the first too elements
+        unsort((1,3, 5, 4, 0), 0.2, margin=(2, 0))
+
     """
     minentropy = entropy - tolerance*0.5
     maxentropy = entropy + tolerance*0.5
@@ -330,16 +350,21 @@ def _unsort(xs, entropy=1, margin=0):
     return xs[indices]
 
 
-def permutation_further_than(xs, min_distance, rand=True, return_distance=False):
+def permutation_further_than(xs: Seq[T], min_distance: float, rand=True) -> list[T]:
     """
-    return a permutation of xs so that the relative
-    distance between the new seq. and xs is higher than
-    min_distance is an indication of entropy, where:
+    Return a permutation of xs with a min. distance to it
 
-    if min_distance == 0: the seq should be xs
-    if min_distance == 1 (maximum distance): the elements are ordered
-                                             as far away from the originals
-                                             as poss.
+    min_distance is an indication of entropy, where if min_distance == 0 then the seq
+    should be xs and if min_distance == 1 then the elements are ordered as far away
+    from the originals as poss.
+
+    Args:
+        xs: the seq. to permutate
+        min_distance: a min. distance (a value between 0 and 1)
+        rand: ???
+
+    Returns:
+        the permutated seq.
     """
     acceptable_difference = _max_distance(xs) / len(xs) * 0.5
 
@@ -376,10 +401,10 @@ def permutation_further_than(xs, min_distance, rand=True, return_distance=False)
     if not perm:
         print("solution not found!")
         perm = best_result0 if best_distance0 < best_distance1 else best_result1
-    if return_distance:
-        return map(xs.__getitem__, perm), distance
     return map(xs.__getitem__, perm)
 
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
+
+del mul

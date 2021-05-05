@@ -1,6 +1,7 @@
 """
 Routines for working with text
 """
+from __future__ import annotations
 from .typehints import Seq, List, Tup, Callable
 import textwrap
 import re
