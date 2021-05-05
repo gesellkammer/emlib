@@ -35,7 +35,6 @@ For other examples, see:
 from __future__ import annotations
 import os
 import textwrap
-import docstring_parser
 import inspect
 import dataclasses
 import subprocess
