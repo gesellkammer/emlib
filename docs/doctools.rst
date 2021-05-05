@@ -14,7 +14,6 @@ doctools: Tools to parse and generate documentation
     :skip: Type
     :skip: annotations
     :skip: dataclasses
-    :skip: docstring_parser
     :skip: enum
     :skip: inspect
     :skip: io

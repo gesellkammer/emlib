@@ -2,6 +2,8 @@ import emlib
 from emlib import doctools
 import importlib
 import textwrap
+import os
+from pathlib import Path
 
 modules = [
     "misc",
@@ -24,6 +26,8 @@ modules = [
     "minizinctools",
     "net",
 ]
+
+docsfolder = Path(__file__).parent
 
 def get_abstract(docstr):
     for line in docstr.splitlines():
@@ -65,7 +69,7 @@ f"""
     {skipstr}
 
 """
-    open(module + ".rst", "w").write(s)
+    open(docsfolder / (module + ".rst"), "w").write(s)
 
 for module in modules:
     generate_template(module)
@@ -92,4 +96,4 @@ Modules
 {submodulestr}
 """
 
-open("index.rst", "w").write(indexstr)
+open(docsfolder / "index.rst", "w").write(indexstr)

@@ -7,7 +7,7 @@ tabulate
 cachetools
 python-constraint
 pyyaml
-mininizinc
+minizinc
 sphinx-autodoc-typehints
 sphinx-automodapi
 sphinx_rtd_theme
