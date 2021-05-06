@@ -211,7 +211,7 @@ def unsort(seq: Seq, entropy:float, margin=0, tolerance=0.05, numiter=100, timeo
 
     * If entropy == 0: the original sequence is returned
     * If entropy == 1: a sequence is generated which is as random as possible (this does
-    not mean that there cannot be any fixed points, it refers to the general result)
+      not mean that there cannot be any fixed points, it refers to the general result)
 
     Examples
     --------

@@ -14,7 +14,8 @@ import dataclasses
 from .misc import asnumber
 
 
-def _as_number_if_possible(s, fallback=None, accept_fractions=True, accept_expon=False):
+def _as_number_if_possible(s: str, fallback=None, accept_fractions: bool = True,
+                           accept_expon=False):
     n = asnumber(s, accept_fractions=accept_fractions, accept_expon=accept_expon)
     return n if n is not None else fallback
 
@@ -90,10 +91,13 @@ class _Rows(list):
         list.append(self, namedtup)
 
 
-def readcsv(csvfile, columns:list[str]=None, asnumber=True,
-            accept_exponential_numbers=False,
-            typeconversions=None,
-            prefer_fractions=False, dialect='excel'
+def readcsv(csvfile: str,
+            columns: list[str] = None,
+            asnumber: bool = True,
+            accept_exponential_numbers: bool = False,
+            typeconversions: dict = None,
+            prefer_fractions: bool = False,
+            dialect: str = 'excel'
             ) -> RecordList:
     """
     Read a CSV file into a namedtuple
@@ -110,7 +114,7 @@ def readcsv(csvfile, columns:list[str]=None, asnumber=True,
             otherwise, as str. 
     
     Returns:
-        a RecordList
+        a :class:`~emlib.containers.RecordList`
     """
     assert dialect in _csv.list_dialects()
     mode = "U"
@@ -189,7 +193,7 @@ def write_records_as_csv(records: list, outfile: str) -> None:
     f.close()
 
 
-def writecsv(rows: list, outfile:str, column_names:Seq[str]=None) -> None:
+def writecsv(rows: list, outfile: str, column_names: Seq[str] = None) -> None:
     """
     write a sequence of tuples/named tuples/dataclasses to outfile as CSV
 

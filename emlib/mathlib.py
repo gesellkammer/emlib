@@ -175,7 +175,7 @@ def lcm(*numbers: int) -> int:
     return reduce(lcm2, numbers, 1)
 
 
-def min_common_denominator(floats:Iter[float], limit=int(1e10)) -> int:
+def min_common_denominator(floats: Iter[float], limit:int = int(1e10)) -> int:
     """
     find the min common denominator to express floats as fractions
 

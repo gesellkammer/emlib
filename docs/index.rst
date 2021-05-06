@@ -3,7 +3,7 @@ emlib
 =====
 
 
-**emlib** is a set of modules with miscelaneous functionality:
+**emlib** is a set of modules with miscellaneous functionality:
 
 Repository: https://github.com/gesellkammer/emlib
 
