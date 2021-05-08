@@ -7,7 +7,7 @@ import sys
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (0, 9, 0)
+version = (0, 9, 1)
 
 setup(
     name='emlib',
@@ -32,7 +32,8 @@ setup(
         "cachetools",
         "python-constraint",
         "pyyaml",
-        "mininizinc"
+        "mininizinc",
+        "watchdog"
     ],
     license="BSD",
     zip_safe=False,

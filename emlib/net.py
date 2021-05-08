@@ -6,21 +6,23 @@ import socket
 from typing import Optional as Opt
 
 
-def findport() -> Opt[int]:
+def findport() -> int:
     """
     Find a free port (for UDP communication)
 
     Returns:
-        the port number or None if no ports are available
+        the port number
+
+    Raises XXX if no ports available
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         s.bind(('', 0))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
-    except:
+    except Exception as e:
         s.close()
-        return None
+        raise e
 
 
 def udpsocket() -> socket.socket:

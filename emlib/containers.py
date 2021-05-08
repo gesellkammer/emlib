@@ -12,6 +12,7 @@ from typing import Union, Sequence as Seq, Optional as Opt
 
 
 class FullError(Exception): pass
+
 class EmptyError(Exception): pass
 
 
@@ -41,7 +42,7 @@ class IntPool:
     def grow(self, n:int) -> None:
         maxval = self.tokenrange[1]
         self.pool.update(range(maxval, maxval+n))
-        self.tokenrange[1] = maxval+n
+        self.tokenrange = (self.tokenrange[0], maxval+n)
 
     def __contains__(self, item):
         return item in self.pool

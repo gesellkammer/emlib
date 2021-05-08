@@ -39,7 +39,7 @@ import inspect
 import dataclasses
 import subprocess
 import tempfile
-from typing import Any, List, Optional as Opt, Callable, Set, Type, Dict
+from typing import Any, List, Optional as Opt, Callable, Set, Type, Dict, Tuple
 import logging
 from emlib import iterlib, textlib
 import io
@@ -161,15 +161,19 @@ class ParseError(Exception):
 
 
 def _parseProperty(p) -> ParsedDef:
-    getterDocstr = inspect.getdoc()
-    setterDocstr = inspect.getdoc()
     docStr = inspect.getdoc(p)
-    if docStr:
-        docStr = textwrap.dedent(docStr.strip())
-    if (setterDocstr := inspect.getdoc(p.fset)) is not None:
-        docStr += " / " + setterDocstr
-    return ParsedDef(name=obj.__name__, kind=ObjectKind.Property,
-                     shortDescr=docStr)
+    parts = []
+    if docStr is not None:
+        parts.append(textwrap.dedent(docStr.strip()))
+    setterDocstr = inspect.getdoc(p.fset)
+    if setterDocstr is not None:
+        parts.append(setterDocstr)
+    if parts:
+        docs = " / ".join(parts)
+    else:
+        docs = ""
+    return ParsedDef(name=p.__name__, kind=ObjectKind.Property,
+                     shortDescr=docs)
 
 
 _mdreplacer = textlib.makeReplacer({'_': '\_',
@@ -241,7 +245,7 @@ def parseDef(obj) -> ParsedDef:
         raise ParseError(f"Could not parse {obj}")
 
     objName = obj.__qualname__
-
+    sig: Opt[inspect.Signature]
     try:
         sig = inspect.signature(obj)
     except ValueError:
@@ -284,9 +288,10 @@ def parseDef(obj) -> ParsedDef:
             params.append(Param(name=paramName, type=paramType, descr=paramDescr,
                                 default=paramDefault, hasDefault=hasDefault))
     elif docstring.params:
-        for param in docstring.params:
-            params.append(param)
+        for p in docstring.params:
+            params.append(p)
 
+    returns: Opt[Param]
     if not docstring.returns:
         if sig and sig.return_annotation != inspect._empty:
             returns = Param(name='returns', type=sig.return_annotation)
@@ -339,7 +344,7 @@ def parseDocstring(docstr: str, fmt='google') -> ParsedDef:
     descrLines = []
     context = None
     params: List[Param] = []
-    returnLines = []
+    returnLines: List[str] = []
     for line in lines:
         linestrip = line.strip()
         if context and not linestrip:
@@ -370,18 +375,19 @@ def parseDocstring(docstr: str, fmt='google') -> ParsedDef:
                 assert len(params) > 0
                 params[-1].descr += "\n" + line
             else:
-                raise ParseError(f"Error parsing docstring {s0} at line {lline}")
+                raise ParseError(f"Error parsing docstring {s0} at line {line}")
         elif context == "returns":
             returnLines.append(linestrip)
 
     longDescr = "\n".join(descrLines)
+    returns: Opt[Param]
     if returnLines:
         if match := re.search(r"\s*\(\s*(.*)\s*\)\s+(\w.*)", returnLines[0]):
             returnType = match.group(1)
             returnLines[0] = match.group(2)
         else:
-            returnType = None
-        returns = Param(name="returns", descr=" ".join(returnLines), type=returnType)
+            returnType = ""
+        returns = Param(name="returns", descr=" ".join(returnLines), type="")
     else:
         returns = None
     return ParsedDef(shortDescr=shortDescr,
@@ -536,7 +542,7 @@ def markdownReplaceHeadings(s: str, startLevel=1, normalize=True) -> str:
         the modified markdown text
     """
     lines = s.splitlines()
-    out = []
+    out: List[str] = []
     roothnum = 100
     skip = False
     lines.append("")
@@ -703,7 +709,7 @@ def renderDocumentation(parsed: ParsedDef, renderConfig: RenderConfig, startLeve
     if renderConfig.fmt == 'markdown':
         return _renderDocMarkdown(parsed, startLevel=startLevel, renderConfig=renderConfig)
     else:
-        raise ValueError(f"format {fmt} not supported)")
+        raise ValueError(f"format {renderConfig.fmt} not supported)")
 
 
 def fullname(obj, includeModule=True) -> str:
@@ -747,7 +753,7 @@ def generateDocsForFunctions(funcs: List[Callable], renderConfig: RenderConfig=N
     """
     if renderConfig is None:
         renderConfig = RenderConfig()
-    lines = []
+    lines: List[str] = []
     sep = "\n----------\n"
     _ = lines.append
     if title:
@@ -844,7 +850,8 @@ def hasEmbeddedSignature(objname: str, doc: str) -> bool:
 
 def _splitFirstLine(s: str) -> Tuple[str, str]:
     if "\n" in s:
-        return s.split("\n", maxsplit=1)
+        l0, l1 = s.split("\n", maxsplit=1)
+        return l0, l1
     return s, ''
 
 
@@ -944,7 +951,7 @@ def generateDocsForModule(module, renderConfig:RenderConfig=None, exclude:Set[st
         raise ValueError("grouped output not supported yet")
     membersd = getModuleMembers(module)
     for name, member in membersd.items():
-        if name in exclude:
+        if exclude and name in exclude:
             continue
         if inspect.isclass(member):
             blocks.append(generateDocsForClass(member, renderConfig=renderConfig,

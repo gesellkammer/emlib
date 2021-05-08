@@ -13,7 +13,7 @@ from itertools import combinations, permutations
 from functools import reduce
 import time as _time
 from collections.abc import Iterator
-from typing import Union as U, Generator, Sequence as Seq, TypeVar
+from typing import Union as U, Generator, Sequence as Seq, TypeVar, Tuple, List
 
 seq_t = U[list, tuple, _np.ndarray]
 
@@ -24,7 +24,7 @@ def all_combinations(seq: seq_t, size=2):
     return combinations(seq, size)
 
 
-def combinations_with_repetition(seq: Iterator[T], size: int) -> Iterator[T]:
+def combinations_with_repetition(seq: Iterator[T], size: int) -> Generator[Tuple[T, ...], None, None]:
     """
     Yield all combinations of the elements of seq
 
@@ -35,7 +35,7 @@ def combinations_with_repetition(seq: Iterator[T], size: int) -> Iterator[T]:
         yield group
 
 
-def derangements(seq: Seq[T]) -> Iterator[T]:
+def derangements(seq: Seq[T]) -> Generator[List[T], None, None]:
     """compute permutations of seq where each element is not in its original position"""
     queue = [-1]
     lenlst = len(seq)
@@ -79,16 +79,18 @@ def random_range(length: int) -> _np.ndarray:
     return s
 
 
-def distance_from_sorted(seq: U[list, tuple, _np.ndarray], offset=0) -> int:
+def distance_from_sorted(seq: seq_t, offset=0) -> int:
     """
     Distance between seq and a sorted seq. of the same length
     """
     if isinstance(seq, (list, tuple)):
         dist = sum(abs(x - i) for i, x in enumerate(seq, start=offset))
-    else:
+    elif isinstance(seq, _np.ndarray):
         indices = _np.arange(offset, offset+len(seq))
-        seq = _np.asarray(seq)
-        dist = _np.abs(seq - indices).sum()
+        arr = _np.asarray(seq)
+        dist = _np.abs(arr - indices).sum()
+    else:
+        raise TypeError(f"Expected a seq or a np.ndarray, got {type(seq)}")
     return dist
 
 
@@ -121,7 +123,7 @@ def random_distance(length: int, numseqs=1000) -> float:
     return avg
 
 
-def unsortedness(seq: Seq) -> float:
+def unsortedness(seq: seq_t) -> float:
     """
     The entropy of the ordering in this seq.
 
@@ -206,7 +208,7 @@ def unsort(seq: Seq, entropy:float, margin=0, tolerance=0.05, numiter=100, timeo
         timeout: alternatively, you can specify a timeout (numiter will be disregarded)
 
     Returns:
-        un unsorted version of *seq*, as numpy array
+        un unsorted version of *seq*, as numpy array, or None if
 
 
     * If entropy == 0: the original sequence is returned
@@ -242,7 +244,7 @@ def unsort(seq: Seq, entropy:float, margin=0, tolerance=0.05, numiter=100, timeo
                 break
         results.append((result, rating))
     if not results:
-        return None
+        raise ValueError("Could not unsort")
     results.sort(key=lambda result: abs(unsortedness(result[0]) - entropy))
     return results[0][0]
 

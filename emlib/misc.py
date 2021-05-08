@@ -25,7 +25,7 @@ import warnings
 import numpy as np
 from fractions import Fraction
 
-from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any, Callable
+from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any, Callable, Dict
 
 
 # ------------------------------------------------------------
@@ -141,7 +141,7 @@ def nearest_element(item: float, seq: U[List[float], np.ndarray]) -> float:
     if item >= seq1:
         return seq1
     if isinstance(seq, np.ndarray):
-        ir = seq.searchsorted(item, 'right')
+        ir = int(seq.searchsorted(item, 'right'))
     else:
         ir = _bisect(seq, item)
     element_r = seq[ir]
@@ -211,7 +211,7 @@ def nearest_index(item: number_t, seq: List[number_t]) -> int:
 # ------------------------------------------------------------
 
 
-def sort_natural(seq: List[str], list, key=None) -> list:
+def sort_natural(seq: list, key:Callable[[Any], str]=None) -> list:
     """
     sort a string sequence naturally
 
@@ -219,7 +219,7 @@ def sort_natural(seq: List[str], list, key=None) -> list:
 
     Args:
         seq: the sequence to sort
-        key: a function to use as sorting key
+        key: a function to convert an item in seq to a string
 
     Examples
     ~~~~~~~~
@@ -236,18 +236,18 @@ def sort_natural(seq: List[str], list, key=None) -> list:
     """
     import re
 
-    def convert(text):
+    def convert(text: str):
         return int(text) if text.isdigit() else text.lower()
 
-    def alphanum_key(key):
+    def alphanum_key(key:str):
         return [convert(c) for c in re.split('([0-9]+)', key)]
 
-    if key:
+    if key is not None:
         return sorted(seq, key=lambda x: alphanum_key(key(x)))
     return sorted(seq, key=alphanum_key)
 
 
-def sort_natural_dict(d: dict, recursive=True) -> dict:
+def sort_natural_dict(d: Dict[str, Any], recursive=True) -> dict:
     """
     sort dict d naturally and recursively
     """
@@ -257,7 +257,7 @@ def sort_natural_dict(d: dict, recursive=True) -> dict:
             if isinstance(value, dict):
                 value = sort_natural_dict(value, recursive=recursive)
             rows.append((key, value))
-        sorted_rows = sort_natural(rows)
+        sorted_rows = sort_natural(rows, key=lambda row: row[0])
     else:
         keys = list(d.keys())
         sorted_rows = [(key, d[key]) for key in sort_natural(keys)]
@@ -296,6 +296,19 @@ def issorted(seq:list, key=None) -> bool:
         return True
 
 
+def some(x, otherwise=False):
+    """
+    This allows code like::
+
+        myvar = some(myvar) or default
+
+    instead of::
+
+        myvar = myvar if myvar is not None else default
+    """
+    return x if x is not None else otherwise
+
+    
 def firstval(*values, sentinel=None):
     """
     Get the first value in values which is not sentinel.
@@ -345,7 +358,7 @@ def zipsort(a:Seq[T], b:Seq[T2], key:Func=None, reverse=False
     """
     zipped = sorted(zip(a, b), key=key, reverse=reverse)
     a, b = zip(*zipped)
-    return (a, b)
+    return (list(a), list(b))
 
 
 def duplicates(seq:Seq[T], mincount=2) -> List[T]:
@@ -738,7 +751,7 @@ def allequal(xs: Seq) -> bool:
     return all(x==x0 for x in xs)
 
 
-def dumpobj(obj) -> List[Tuple[str, Any]]:
+def dumpobj(obj) -> List[Tup[str, Any]]:
     """
     Return all 'public' attributes of this object
     """
@@ -826,19 +839,19 @@ def _snap_array_nearest(X:np.ndarray, tick:number_t, offset=0, out=None) -> np.n
 
 def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out:np.ndarray=None) -> \
         np.ndarray:
-    if out is None:
-        out = X.copy()
+    arr = out if out is not None else X.copy()
     if offset != 0:
-        out -= offset
-        out /= tick
-        out = np.floor(out, out=out)
-        out *= tick
-        out += offset
+
+        arr -= offset
+        arr /= tick
+        arr = np.floor(arr, out=arr)
+        arr *= tick
+        arr += offset
     else:
-        out /= tick
-        out = np.floor(out, out=out)
-        out *= tick
-    return out
+        arr /= tick
+        arr = np.floor(arr, out=arr)
+        arr *= tick
+    return arr
 
 
 def snap_to_grids(x: number_t, ticks: Seq[number_t], offsets:Seq[number_t]=None,
