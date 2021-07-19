@@ -41,7 +41,7 @@ def splitAndStripLines(text: str) -> List[str]:
     return lines[startidx:len(lines)-endidx]
 
 
-def reindent(text:str, prefix:str, stripEmptyLines=True) -> str:
+def reindent(text:str, prefix:str="", stripEmptyLines=True) -> str:
     """
     Reindent a given text. Replaces the indentation with a new prefix.
 
@@ -150,3 +150,8 @@ def makeReplacer(conditions:dict) -> Callable:
     rep = {re.escape(k): v for k, v in conditions.items()}
     pattern = re.compile("|".join(rep.keys()))
     return lambda txt: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
+
+
+def escapeAnsi(line: str) -> str:
+    return re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]').sub('', line)
+

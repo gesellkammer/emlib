@@ -234,13 +234,12 @@ def sort_natural(seq: list, key:Callable[[Any], str]=None) -> list:
     >>> sort_natural(seq, key=lambda tup:tup[1])
     [(10, 'e2'), (2, 'e10')]
     """
-    import re
 
     def convert(text: str):
         return int(text) if text.isdigit() else text.lower()
 
     def alphanum_key(key:str):
-        return [convert(c) for c in re.split('([0-9]+)', key)]
+        return [convert(c) for c in _re.split('([0-9]+)', key)]
 
     if key is not None:
         return sorted(seq, key=lambda x: alphanum_key(key(x)))
@@ -426,7 +425,7 @@ def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
     return out
 
 
-def sec2str(seconds:float) -> str:
+def sec2str(seconds:float, msdigits=3) -> str:
     """
     Convert seconds to a suitable string representation
 
@@ -442,11 +441,15 @@ def sec2str(seconds:float) -> str:
     h = int(seconds // 3600)
     m = int((seconds - h * 3600) // 60)
     s = seconds % 60
+    sint = int(s)
+    sfrac = round((s - sint), msdigits)
+    fmt = f"%.{msdigits}g"
+    msstr = (fmt % sfrac)[1:2+msdigits]
+
     if h > 0:
-        fmt = "{h}:{m:02}:{s:06.3f}"
+        return f"{h}:{m:02}:{sint:02}{msstr}"
     else:
-        fmt = "{m:02}:{s:06.3f}"
-    return fmt.format(**locals())
+        return f"{m}:{sint:02}{msstr}"
 
 
 def parse_time(t:str) -> float:
@@ -1326,8 +1329,26 @@ def assert_type(x, *types) -> bool:
         assert assert_type(x, [int])
     """
     if not istype(x, *types):
-        raise TypeError(f"Expected type {types}, got {type(x).__name__}: {x}")
+        raise TypeError(type_error_msg(x, *types))
     return True
+
+
+def type_error_msg(x, *expected_types):
+    """
+    To be used when raising a TypeError
+
+    Example::
+
+        if isinstance(x, int):
+            ...
+        else:
+            raise TypeError(type_error_msg(x, int))
+
+        # This will raise a TypeError with the message
+        # 'Expected type (int,), got str: "foo"'
+
+    """
+    return f"Expected type {expected_types}, got {type(x).__name__}: {x}"
 
 
 # --- crossplatform ---
@@ -1529,6 +1550,46 @@ def ipython_qt_eventloop_started() -> bool:
         return False
 
 
+def html_table(rows: list, headers: List[str], maxwidths:Opt[List[int]]=None,
+               rowstyles:Opt[Listr[str]]=None) -> str:
+    """
+    Create a html table
+
+    Args:
+        rows: the rows of the table, where each row is a sequence of cells
+        headers: a list of column names
+        maxwidths: if given, a list of max widths for each column
+        rowstyles: if given, a list of styles, one for each column
+
+    Returns:
+        a string with the generated HTML
+    """
+    parts = []
+    _ = parts.append
+    _("<table>")
+    _("<thead>")
+    _("<tr>")
+    if maxwidths is None:
+        maxwidths = [0] * len(headers)
+    if rowstyles is None:
+        rowstyles = [None] * len(headers)
+    for colname in headers:
+        _(f'<th style="text-align:left">{colname}</th>')
+    _("</tr></thead><tbody>")
+    for row in rows:
+        _("<tr>")
+        for cell, maxwidth, rowstyle in zip(row, maxwidths, rowstyles):
+            if rowstyle is not None:
+                cell = f'<span style="{rowstyle}">{cell}</span>'
+            if maxwidth > 0:
+                _(f'<td style="text-align:left;max-width:{maxwidth}px;">{cell}</td>')
+            else:
+                _(f'<td style="text-align:left">{cell}</td>')
+        _("</tr>")
+    _("</tbody></table>")
+    return "".join(parts)
+
+
 def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
     """
     Print rows as table
@@ -1550,7 +1611,7 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
         if not headers:
             headers = [field.name for field in dataclasses.fields(row0)]
         rows = [dataclasses.astuple(row) for row in rows]
-    elif isinstance(row0, tuple):
+    elif isinstance(row0, (tuple, list)):
         if not headers:
             fields = getattr(row0, '_fields', None)
             headers = fields or [f"col{i}" for i in range(len(row0))]

@@ -32,8 +32,9 @@ setup(
         "cachetools",
         "python-constraint",
         "pyyaml",
-        "mininizinc",
-        "watchdog"
+        "minizinc",
+        "watchdog",
+        "send2trash"
     ],
     license="BSD",
     zip_safe=False,

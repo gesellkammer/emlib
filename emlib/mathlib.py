@@ -13,7 +13,7 @@ import operator as _operator
 import random as _random
 from functools import reduce
 from fractions import Fraction
-from math import gcd, sqrt, cos, sin, radians
+from math import gcd, sqrt, cos, sin, radians, ceil
 import sys as _sys
 import numpy as np
 
@@ -42,6 +42,7 @@ __all__ = ("PHI",
            "fib",
            "roundrnd",
            "roundres",
+           "next_in_grid",
            "modulo_shortest_distance",
            "rotate2d",
            "optimize_parameter"
@@ -267,6 +268,23 @@ def euclidian_distance(values: Seq[float], weights: Seq[float]=None) -> float:
     return sqrt(sum(value**2 for value in values))
 
 
+def weighted_euclidian_distance(pairs: List[Tuple(float, float)]) -> float:
+    """
+    Reduces distances in multiple dimensions to 1 dimension.
+
+    e_distance_unweighted = sqrt(sum(value**2 for value in values))
+
+    Args:
+        pairs: a list of pairs (value, weight)
+
+    Returns:
+        the euclidian distance
+    """
+
+    values, weights = zip(*pairs)
+    return euclidian_distance(values=values, weights=weights)
+
+
 def prod(numbers: Seq[number_t]) -> number_t:
     """
     Returns the product of the given numbers
@@ -422,6 +440,8 @@ def fib(n: float) -> float:
         return _fib2(n)[0]
 
 
+
+
 def roundrnd(x: float) -> float:
     """
     Round *x* to its nearest integer, taking the fractional part as the probability
@@ -445,6 +465,10 @@ def roundres(x, resolution=1.0):
     1.25
     """
     return round(x / resolution) * resolution
+
+
+def next_in_grid(x: float, step: float, offset=0.) -> float:
+    return offset + ceil((x - offset) / step) * step
 
 
 def modulo_shortest_distance(x, origin, mod):
