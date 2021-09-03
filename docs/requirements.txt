@@ -8,6 +8,9 @@ cachetools
 python-constraint
 pyyaml
 minizinc
+ttkthemes
+send2trash
+
 sphinx-autodoc-typehints
 sphinx-automodapi
 sphinx_rtd_theme
