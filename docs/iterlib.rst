@@ -5,8 +5,8 @@ iterlib: More itertools
 .. automodapi:: emlib.iterlib
     :no-inheritance-diagram:
     :no-heading:
-    
-        :skip: TYPE_CHECKING
+
+    :skip: TYPE_CHECKING
     :skip: accumulate
     :skip: annotations
     :skip: chain

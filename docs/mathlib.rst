@@ -5,8 +5,8 @@ mathlib: Miscellaneous math utilities
 .. automodapi:: emlib.mathlib
     :no-inheritance-diagram:
     :no-heading:
-    
-        :skip: Callable
+
+    :skip: Callable
     :skip: Fraction
     :skip: Iter
     :skip: List

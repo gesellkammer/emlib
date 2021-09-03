@@ -5,8 +5,8 @@ minizinctools: Set of minizinc models to solve form problems
 .. automodapi:: emlib.minizinctools
     :no-inheritance-diagram:
     :no-heading:
-    
-        :skip: Any
+
+    :skip: Any
     :skip: List
     :skip: Opt
     :skip: U

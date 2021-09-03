@@ -9,7 +9,7 @@ import random as _random
 from math import inf
 from typing import TYPE_CHECKING
 import sys
-if TYPE_CHECKING or 'sphinx' in sys.modules:
+if TYPE_CHECKING:
     from typing import *
     T = TypeVar("T")
     T2 = TypeVar("T2")

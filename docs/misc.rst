@@ -5,8 +5,8 @@ misc: Miscellaneous functionality
 .. automodapi:: emlib.misc
     :no-inheritance-diagram:
     :no-heading:
-    
-        :skip: Fraction
+
+    :skip: Fraction
     :skip: TYPE_CHECKING
     :skip: annotations
     :skip: dataclasses

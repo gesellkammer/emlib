@@ -1,4 +1,6 @@
 import emlib
+from typing import TYPE_CHECKING
+
 from emlib import doctools
 import importlib
 import textwrap
@@ -66,8 +68,8 @@ f"""
 .. automodapi:: emlib.{module}
     :no-inheritance-diagram:
     :no-heading:
-    
-    {skipstr}
+
+{skipstr}
 
 """
     open(docsfolder / (module + ".rst"), "w").write(s)

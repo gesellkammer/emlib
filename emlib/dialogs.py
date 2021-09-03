@@ -10,7 +10,7 @@ import tkinter as tk
 import tkinter.font
 from tkinter import ttk
 
-if TYPE_CHECKING or 'sphinx' in sys.modules:
+if TYPE_CHECKING:
     from typing import *
 
 _DEFAULT_FONT = ("Helvetica", 11)
@@ -33,14 +33,14 @@ def _popupmsg_tk(msg, title="", buttontxt="Ok", font=_DEFAULT_FONT):
     root.mainloop()
 
 
-def popupmsg(msg:str, title="", buttontxt="Ok") -> None:
+def popupMsg(msg:str, title="", buttontxt="Ok") -> None:
     """
     Open a pop-up dialog with a message
     """
     return _popupmsg_tk(msg=msg, title=title, buttontxt=buttontxt, font=_DEFAULT_FONT)
 
 
-def showinfo(msg:str, title:str="Info", font=None) -> None:
+def showInfo(msg:str, title:str="Info", font=None) -> None:
     """
     Show a pop up dialog with some info
     """

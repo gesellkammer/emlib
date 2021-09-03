@@ -5,8 +5,8 @@ combinatorics: Functions for combinatorics
 .. automodapi:: emlib.combinatorics
     :no-inheritance-diagram:
     :no-heading:
-    
-        :skip: Generator
+
+    :skip: Generator
     :skip: Iterator
     :skip: List
     :skip: Seq
