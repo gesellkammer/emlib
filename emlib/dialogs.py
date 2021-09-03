@@ -3,13 +3,14 @@ Simple dialogs for use at the repl
 """
 from __future__ import annotations
 import os
+import sys
 import emlib.misc
 from typing import TYPE_CHECKING
 import tkinter as tk
 import tkinter.font
 from tkinter import ttk
 
-if TYPE_CHECKING:
+if TYPE_CHECKING or 'sphinx' in sys.modules:
     from typing import *
 
 _DEFAULT_FONT = ("Helvetica", 11)
@@ -68,7 +69,7 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file") -> str
 
     Args:
         filter: a string of the form "<Mask> (<glob>)". Multiple filters can be
-            used, for example: "Image (*.png, *.jpg);; Video (*.mp4, *.mov)"
+            used, for example: ``"Image (*.png, *.jpg);; Video (*.mp4, *.mov)"``
         title: the title of the dialog
         directory: the initial directory
 
@@ -144,7 +145,7 @@ def saveDialog(filter="All (*.*)", title="Save file", directory:str="~", backend
 
     Args:
         filter: a string of the form "<Mask> (<glob>)". Multiple filters can be
-            used, for example: "Image (*.png, *.jpg);; Video (*.mp4, *.mov)"
+            used, for example: ``"Image (*.png, *.jpg);; Video (*.mp4, *.mov)"``
         title: the title of the dialog
         directory: the initial directory
         backend: one of 'qt', 'tkinter' or None to select the backend based on available

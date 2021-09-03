@@ -8,7 +8,8 @@ import collections as _collections
 import random as _random
 from math import inf
 from typing import TYPE_CHECKING
-if TYPE_CHECKING:
+import sys
+if TYPE_CHECKING or 'sphinx' in sys.modules:
     from typing import *
     T = TypeVar("T")
     T2 = TypeVar("T2")
@@ -250,7 +251,7 @@ def grouper(seq: Iterable, n: int, fillvalue=None) -> Iterable:
     return zip_longest(fillvalue=fillvalue, *args)
 
 
-def random_combination(iterable: Iter, r):
+def random_combination(iterable: Iterable, r):
     """Random selection from itertools.combinations(iterable, r)"""
     pool = tuple(iterable)
     n = len(pool)
