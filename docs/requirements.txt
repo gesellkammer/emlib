@@ -12,5 +12,5 @@ ttkthemes
 send2trash
 
 sphinx-autodoc-typehints
-sphinx-automodapi
+sphinx-automodapi>=0.13
 sphinx_rtd_theme
