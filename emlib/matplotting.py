@@ -12,7 +12,9 @@ from matplotlib.collections import PatchCollection
 from matplotlib import cm
 import numpy as np
 from emlib.misc import isiterable, pixels_to_inches
-import typing as t
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import *
 
 
 defaultprofile = {
@@ -55,7 +57,7 @@ def makeProfile(default=defaultprofile, **kws):
     return out
 
 
-_colormap = cm.cmap_d['jet']   # type: t.Callable[[float], tuple[float, float, float, float]]
+_colormap = plt.get_cmap('jet')  
 
 
 def _get(profile: dict, key:str, fallback:dict=defaultprofile, value=None):
@@ -132,7 +134,7 @@ def _aslist(obj) -> list:
     return list(obj)
 
 
-def _getcolor(color: U[float, tuple]) -> Tuple[float, float, float, float]:
+def _getcolor(color: Union[float, tuple]) -> Tuple[float, float, float, float]:
     if isinstance(color, tuple):
         return color
     return _colormap(color)
@@ -142,10 +144,15 @@ def _unzip(pairs):
     return zip(*pairs)
 
 
-def drawConnectedLines(ax: plt.Axes, pairs: list[tuple[float, float]],
-                       connectEdges=False, color:U[float, tuple]=None, alpha:float=None,
-                       linewidth:float=None, label:str=None, linestyle:str=None,
-                       profile:dict=None
+def drawConnectedLines(ax: plt.Axes, 
+                       pairs: List[Tuple[float, float]],
+                       connectEdges=False, 
+                       color: Union[float, tuple] = None, 
+                       alpha: float = None,
+                       linewidth: float = None, 
+                       label: str = None, 
+                       linestyle: str = None,
+                       profile: dict = None
                        ) -> None:
     """
     Draw an open / closed poligon
@@ -254,7 +261,7 @@ def autoscaleAxis(ax: plt.Axes) -> None:
     ax.autoscale_view(True,True,True)
 
 
-def makeAxis(pixels: tuple[int, int]=None, dpi=96) -> plt.Axes:
+def makeAxis(pixels: Tuple[int, int]=None, dpi=96) -> plt.Axes:
     """
     Create a plotting axes
 
@@ -278,11 +285,12 @@ def makeAxis(pixels: tuple[int, int]=None, dpi=96) -> plt.Axes:
     fig,ax = plt.subplots(figsize=(xinches, yinches), dpi=dpi)
     return ax
 
+
 def _fallback(value, profile: dict, key: str):
     return value if value is not None else _get(profile, key)
 
 
-def _fallbackColor(value, profile: dict, key: str) -> tuple[float, float, float]:
+def _fallbackColor(value, profile: dict, key: str) -> Tuple[float, float, float]:
     if value is not None:
         return _getcolor(value)
     return _getcolor(_get(profile, key))
@@ -314,7 +322,7 @@ def drawBracket(ax:plt.Axes, x0:float, y0:float, x1:float, y1:float,
     drawConnectedLines(ax, data, color=color, linewidth=linewidth, label=label, alpha=alpha)
 
 
-def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels:list[str]=None,
+def plotDurs(durs: List[float], y0=0.0, x0=0.0, height=1.0, labels:List[str]=None,
              color=None, ax=None, groupLabel:str=None, profile:dict=None, stacked=False
              ) -> plt.Axes:
     """
