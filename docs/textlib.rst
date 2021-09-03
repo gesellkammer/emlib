@@ -9,5 +9,6 @@ textlib: Routines for working with text
         :skip: TYPE_CHECKING
     :skip: annotations
     :skip: re
+    :skip: sys
     :skip: textwrap
 

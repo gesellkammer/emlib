@@ -17,4 +17,5 @@ matplotting: Routines to help draw shapes / labels within a matplotlib
     :skip: np
     :skip: pixels_to_inches
     :skip: plt
+    :skip: sys
 

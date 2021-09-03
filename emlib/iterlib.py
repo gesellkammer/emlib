@@ -582,7 +582,7 @@ def interleave(seqs, pass_exceptions=()):
         
 
 
-def splitInChunks(s: Sequence[T], chunksize: int) -> List[Sequence[T]]:
+def split_in_chunks(s: Sequence[T], chunksize: int) -> List[Sequence[T]]:
     """
     splits *s* into chunks
 
@@ -590,7 +590,7 @@ def splitInChunks(s: Sequence[T], chunksize: int) -> List[Sequence[T]]:
     -------
 
     >>> s = "FooBarBaz"
-    >>> splitInChunks(s, 3)
+    >>> split_in_chunks(s, 3)
     ["Foo", "Bar", "Baz"]
     """
     return [s[i:i+chunksize] for i in range(0, len(s), chunksize)]

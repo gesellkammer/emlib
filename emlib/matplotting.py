@@ -4,6 +4,7 @@ Implements the concept of a plotting profile, which makes it easier to
 define sizes, colors, etc. for a series of elements.
 """
 from __future__ import annotations
+import sys
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 from matplotlib.patches import Rectangle
@@ -13,7 +14,7 @@ from matplotlib import cm
 import numpy as np
 from emlib.misc import isiterable, pixels_to_inches
 from typing import TYPE_CHECKING
-if TYPE_CHECKING:
+if TYPE_CHECKING or 'sphinx' in sys.modules:
     from typing import *
 
 

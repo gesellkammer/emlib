@@ -2,11 +2,13 @@
 Routines for working with text
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from typing import *
+import sys
 import textwrap
 import re
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING or 'sphinx' in sys.modules:
+    from typing import *
 
 
 def stripLines(text: str) -> str:
@@ -75,7 +77,7 @@ def getIndentation(code:str) -> int:
     return 0
 
 
-def joinPreservingIndentation(fragments: Seq[str]) -> str:
+def joinPreservingIndentation(fragments: Sequence[str]) -> str:
     """
     Like join, but preserving indentation
 
@@ -94,7 +96,7 @@ def joinPreservingIndentation(fragments: Seq[str]) -> str:
     return code
 
 
-def fuzzymatch(pattern:str, strings:List[str]) -> List[Tup[float, str]]:
+def fuzzymatch(pattern:str, strings:List[str]) -> List[Tuple[float, str]]:
     """
     Find possible matches to pattern in ``strings``. Returns a subseq. of
     strings sorted by best score. Only strings representing possible matches

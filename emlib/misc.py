@@ -24,8 +24,9 @@ import warnings
 
 import numpy as np
 from fractions import Fraction
-
-from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any, Callable, Dict
+from typing import TYPE_CHECKING
+if TYPE_CHECKING or 'sphinx' in _sys.modules:
+    from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any, Callable, Dict
 
 
 # ------------------------------------------------------------
@@ -1578,7 +1579,7 @@ def ipython_qt_eventloop_started() -> bool:
 
 
 def html_table(rows: list, headers: List[str], maxwidths:Opt[List[int]]=None,
-               rowstyles:Opt[Listr[str]]=None) -> str:
+               rowstyles:Opt[List[str]]=None) -> str:
     """
     Create a html table
 

@@ -6,23 +6,11 @@ misc: Miscellaneous functionality
     :no-inheritance-diagram:
     :no-heading:
     
-        :skip: Any
-    :skip: Callable
-    :skip: Dict
-    :skip: Fraction
-    :skip: Func
-    :skip: Iter
-    :skip: List
-    :skip: Opt
-    :skip: Seq
-    :skip: T
-    :skip: T2
-    :skip: Tup
-    :skip: U
+        :skip: Fraction
+    :skip: TYPE_CHECKING
     :skip: annotations
     :skip: dataclasses
     :skip: math
     :skip: np
-    :skip: number_t
     :skip: warnings
 

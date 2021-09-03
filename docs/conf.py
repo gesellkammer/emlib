@@ -71,4 +71,4 @@ typehints_document_rtype = True
 # Autodoc
 autodoc_member_order = 'bysource'
 
-automodsumm_inherited_members = True
+# automodsumm_inherited_members = True
