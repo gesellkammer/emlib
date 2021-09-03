@@ -5,6 +5,7 @@ calculus: Calculus utilities, based on calculus.jl
 .. automodapi:: emlib.calculus
     :no-inheritance-diagram:
     :no-heading:
+    
         :skip: Callable
     :skip: NAN
     :skip: annotations

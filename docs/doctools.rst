@@ -5,12 +5,14 @@ doctools: Tools to parse and generate documentation
 .. automodapi:: emlib.doctools
     :no-inheritance-diagram:
     :no-heading:
+    
         :skip: Any
     :skip: Callable
     :skip: Dict
     :skip: List
     :skip: Opt
     :skip: Set
+    :skip: Tuple
     :skip: Type
     :skip: annotations
     :skip: dataclasses

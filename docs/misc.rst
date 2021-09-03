@@ -5,8 +5,10 @@ misc: Miscellaneous functionality
 .. automodapi:: emlib.misc
     :no-inheritance-diagram:
     :no-heading:
+    
         :skip: Any
     :skip: Callable
+    :skip: Dict
     :skip: Fraction
     :skip: Func
     :skip: Iter

@@ -5,6 +5,7 @@ mathlib: Miscellaneous math utilities
 .. automodapi:: emlib.mathlib
     :no-inheritance-diagram:
     :no-heading:
+    
         :skip: Callable
     :skip: Fraction
     :skip: Iter
@@ -16,6 +17,7 @@ mathlib: Miscellaneous math utilities
     :skip: T2
     :skip: Tup
     :skip: annotations
+    :skip: ceil
     :skip: cos
     :skip: gcd
     :skip: np

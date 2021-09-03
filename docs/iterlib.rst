@@ -5,7 +5,8 @@ iterlib: More itertools
 .. automodapi:: emlib.iterlib
     :no-inheritance-diagram:
     :no-heading:
-        :skip: Iter
+    
+        :skip: TYPE_CHECKING
     :skip: accumulate
     :skip: annotations
     :skip: chain
@@ -23,6 +24,7 @@ iterlib: More itertools
     :skip: product
     :skip: repeat
     :skip: starmap
+    :skip: sys
     :skip: takewhile
     :skip: tee
     :skip: zip_longest

@@ -5,5 +5,13 @@ dialogs: Simple dialogs for use at the repl
 .. automodapi:: emlib.dialogs
     :no-inheritance-diagram:
     :no-heading:
-        :skip: annotations
+    
+        :skip: TYPE_CHECKING
+    :skip: annotations
+    :skip: emlib
+    :skip: os
+    :skip: sys
+    :skip: tk
+    :skip: tkinter
+    :skip: ttk
 
