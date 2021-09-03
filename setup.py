@@ -7,7 +7,7 @@ import sys
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (0, 10, 0)
+version = (1, 0, 0)
 
 setup(
     name='emlib',
@@ -34,7 +34,8 @@ setup(
         "pyyaml",
         "minizinc",
         "watchdog",
-        "send2trash"
+        "send2trash",
+        "ttkthemes"
     ],
     license="BSD",
     zip_safe=False,

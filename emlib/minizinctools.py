@@ -69,7 +69,7 @@ class MiniZincModel:
             return None
         return self.postprocessSolution(result.solution)
 
-    def solve(self, objective, solver="gecode", **kws):
+    def solve(self, objective:str, solver="gecode", **kws):
         objectiveKind = objective.split()[0]
         if objectiveKind == "satisfy":
             return self.solveSatisfy(solver=solver, **kws)

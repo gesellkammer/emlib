@@ -2,8 +2,8 @@
 help write out XML documents
 
 >>> import xmlprinter
->>> import StringIO
->>> fp = StringIO.StringIO()
+>>> from io import StringIO
+>>> fp = StringIO()
 >>> xp = xmlprinter.xmlprinter(fp) # The fp need only have a write() method
 >>> xp.startDocument()
 >>> xp.notationDecl("html", "-//W3C//DTD XHTML 1.1//EN", "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd")
@@ -25,7 +25,7 @@ help write out XML documents
 >>> xp.data("\\n")
 >>> xp.emptyElement('hr', {'style': 'color: red'})
 >>> xp.data("\\n")
->>> xp.endDocument()       # by default closes remaining tags
+>>> xp.endDocument()       # closes remaining tags
 
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
@@ -36,13 +36,11 @@ help write out XML documents
 <hr style="color: red" />
 </body></html>
 
-This module does nothing fancy like indenting.
-
 Distributions for this module can be downloaded at
 https://sourceforge.net/project/showfiles.php?group_id=60881
 
 
-Copyright (C) 2002 Frank J. Tobin, ftobin@neverending.org
+Based on work by Frank J. Tobin, ftobin@neverending.org
 
 This library is free software; you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as
@@ -53,8 +51,6 @@ The idea for this module was taken from Perl's XML::Writer.
 """
 from __future__ import annotations
 
-__version__ = "0.3.0"
-
 _TAB = '  '
 _SEPARATOR = "--=======================================================--"
 
@@ -64,7 +60,8 @@ class WellFormedError(Exception):
 
 
 class xmlprinter(object):
-    """We try to ensure a well-formed document, but won't check
+    """
+    We try to ensure a well-formed document, but won't check
     things like the validity of element names.
     Method raise WellFormedError if there are well-formed-ness problems.
     """
@@ -79,7 +76,7 @@ class xmlprinter(object):
         self._elstack = []
         self._inroot = True
         self._tabify = True
-        self._last = "start"
+        self._last = ''
 
     def __call__(self, *args) -> bool:
         self.data(*args)
@@ -113,9 +110,10 @@ class xmlprinter(object):
     def __exit__(self, *args):
         self.endElement()
 
-
     def startDocument(self, encoding='UTF-8') -> None:
-        """Begin writing out a document, including the XML declaration.
+        """
+        Begin writing out a document, including the XML declaration.
+
         Currently the encoding header can be changed from the default,
         but it won't affect how the rest of the document is encoded.
         """
@@ -126,6 +124,7 @@ class xmlprinter(object):
     def notationDecl(self, name:str, public_id:str=None, system_id:str=None):
         """
         Can only be added right after document start.
+
         Optional for a well-formed document.
         At least a public_id or system_id must be specified if called."""
         if self._past_doctype:
@@ -152,10 +151,10 @@ class xmlprinter(object):
         if self._tabify or self._last == "end":
             self.fp.write('\n')
         self.fp.write(_TAB * len(self._elstack))
-        self.fp.write("<%s" % name)
+        self.fp.write(f"<{name}")
         for attr, val in attrs.items():
             val = str(val)
-            self.fp.write(" %s=%s" % (attr, quoteattr(val)))
+            self.fp.write(f" {attr}={quoteattr(val)}")
         self.fp.write(">")
         self._elstack.append(name)
         self._inroot = True
@@ -172,25 +171,27 @@ class xmlprinter(object):
 
     def separator(self, s=_SEPARATOR) -> None:
         self.fp.write(_TAB*len(self._elstack))
-        self.fp.write('\n<!'+s+'>\n')
+        self.fp.write(f'\n<!{s}>\n')
 
     def empty(self, name:str, **attrs) -> None:
         """Add an empty element (<example />)"""
+        _ = self.fp.write
         if not self._inroot:
             raise WellFormedError("attempt to add element outside of root")
-        self.fp.write('\n'+_TAB*len(self._elstack))
-        self.fp.write("<%s" % name)
+        _('\n'+_TAB*len(self._elstack))
+        _("<")
+        _(name)
         for attr, val in attrs.items():
             val = str(val)
-            self.fp.write(" %s=%s" % (attr, quoteattr(val)))
-        self.fp.write("/>")
+            _(" %s=%s" % (attr, quoteattr(val)))
+        _("/>")
 
     def endElement(self, name:str=None) -> None:
-        """End the element 'name'.
+        """
+        End the element 'name'.
+
         If 'name' is None, then end the most recently-opened element.
         (</example>).
-
-        If the last element is being closed, then it
         """
         popel = self._elstack.pop()
         if name is not None and name != popel:
@@ -201,9 +202,9 @@ class xmlprinter(object):
             self.fp.write("\n")
         if self._tabify or self._last == "end":
             self.fp.write(_TAB*len(self._elstack))
-            self.fp.write("</%s>" % name)
+            self.fp.write(f"</{name}>")
         else:
-            self.fp.write("</%s>" % name)
+            self.fp.write(f"</{name}>")
 
         if len(self._elstack) == 0:
             self._inroot = False
@@ -213,7 +214,9 @@ class xmlprinter(object):
         self._last = "end"
 
     def endDocument(self, autoclose=True) -> None:
-        """Finish up a document.
+        """
+        Finish up a document.
+
         If autoclose is True, then also close any unclosed elements.
         Else, all elements must already be closed.
         """
@@ -239,10 +242,10 @@ def quoteattr(data:str) -> str:
     # if possible to retain the 'look' better.
     if '"' in data:
         if "'" in data:
-            data = '"%s"' % data.replace('"', "&quot;")
+            data = data.replace('"', "&quot;")
+            data = f'"{data}"'
         else:
-            data = "'%s'" % data
+            data = f"'{data}'"
     else:
-        data = '"%s"' % data
-
+        data = f'"{data}"'
     return data

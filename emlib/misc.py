@@ -1493,12 +1493,41 @@ def wait_for_file_modified(path:str, timeout:float=None) -> bool:
     return modified
 
 
+def first_existing_path(*paths: str, default="~") -> str:
+    """
+    Returns the first path in paths which exists
+
+    Args:
+        *paths: the paths to test
+        default: a default path returned when all other paths do not exist. It is
+            not checked that this default path exists.
+
+    Returns:
+        the first existing path within the values given
+
+    """
+    for p in paths:
+        p = _os.path.expanduser(p)
+        if _os.path.exists(p):
+            return p
+    return _os.path.expanduser(default)
+
+
 @runonce
 def inside_jupyter() -> bool:
     """
     Are we running inside a jupyter notebook?
     """
     return session_type() == 'jupyter'
+
+@runonce
+def inside_ipython() -> bool:
+    """
+    Are we running inside ipython?
+
+    This includes any ipython session (ipython in terminal, jupyter, etc.)
+    """
+    return session_type() in ('jupyter', 'ipython', 'ipython-terminal')
 
 
 @runonce
@@ -1510,18 +1539,16 @@ def is_interactive_session() -> bool:
 @runonce
 def session_type() -> str:
     """
-    What kind of python session are we in?
-
-    Returns:
-        The kind of session, as str
-
-    * "jupyter" if running a jupyter notebook
-    * "ipython-terminal" if running ipython in a terminal
-    * "ipython" if running ipython outside a terminal
-    * "python" if a normal python
+    Returns the kind of python session
 
     .. note::
-        See also `is_interactive_session`
+        See also `is_interactive_session` to check if we are inside a REPL
+
+    Returns:
+        Returns one of "jupyter", "ipython-terminal" (if running ipython
+        in a terminal), "ipython" (if running ipython outside of a terminal),
+        "python" if running normal python.
+
     """
     try:
         # get_ipython should be available within an ipython/jupyter session

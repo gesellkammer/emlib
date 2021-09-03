@@ -2,7 +2,9 @@
 Routines for working with text
 """
 from __future__ import annotations
-from .typehints import Seq, List, Tup, Callable
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import *
 import textwrap
 import re
 
