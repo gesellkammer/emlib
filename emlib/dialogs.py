@@ -63,7 +63,8 @@ def showInfo(msg:str, title:str="Info", font=None) -> None:
     root.mainloop()
 
 
-def selectFile(directory:str=None, filter="All (*.*)", title="Open file") -> str:
+def selectFile(directory:str=None, filter="All (*.*)", title="Open file",
+               backend:str=None) -> str:
     """
     Create a dialog to open a file and returns the file selected
 
@@ -72,12 +73,26 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file") -> str
             used, for example: ``"Image (*.png, *.jpg);; Video (*.mp4, *.mov)"``
         title: the title of the dialog
         directory: the initial directory
+        backend: one of qt, tk, or None to select a default
 
     Returns:
         the selected filename, or an empty string if the dialog is dismissed
     """
-    return _opendialog_qt(directory=directory, filter=filter, title=title)
+    if _has_qt() and (backend == 'qt' or backend is None):
+        return _opendialog_qt(directory=directory, filter=filter, title=title)
 
+    from ttkthemes import ThemedTk
+    from tkinter import filedialog
+
+    filetypes = _tkParseFilter(filter)
+    root = ThemedTk(theme='breeze')
+    root.withdraw()
+
+    path = filedialog.askopenfilename(initialdir=directory, title=title,
+                                      filetypes=filetypes)
+
+    root.destroy()
+    return path
 
 def _opendialog_qt(directory:str=None, filter="All (*.*)", title="Open file") -> str:
     from PyQt5 import QtWidgets
@@ -131,8 +146,8 @@ def _savedialog_tk(filter="All (*.*)", title="Save file", directory:str="~") -> 
 
     filetypes = _tkParseFilter(filter)
     root = ThemedTk(theme='breeze')
-    root.geometry("10x10")
-
+    root.withdraw()
+    
     path = filedialog.asksaveasfilename(initialdir=directory, title=title, filetypes=filetypes)
     root.destroy()
     return path
@@ -157,7 +172,7 @@ def saveDialog(filter="All (*.*)", title="Save file", directory:str="~", backend
     if not directory:
         directory = "~"
     directory = os.path.expanduser(directory)
-    if _has_qt() and backend == 'qt' or backend is None:
+    if _has_qt() and (backend == 'qt' or backend is None):
         return _savedialog_qt(filter=filter, title=title, directory=directory)
     else:
         return _savedialog_tk(filter=filter, title=title, directory=directory)
