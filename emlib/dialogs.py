@@ -9,6 +9,11 @@ from typing import TYPE_CHECKING
 import tkinter as tk
 import tkinter.font
 from tkinter import ttk
+import logging
+
+
+logger = logging.getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from typing import *
@@ -16,34 +21,41 @@ if TYPE_CHECKING:
 _DEFAULT_FONT = ("Helvetica", 11)
 
 
-def _popupmsg_tk(msg, title="", buttontxt="Ok", font=_DEFAULT_FONT):
-    from ttkthemes import ThemedTk
-    root = ThemedTk(theme="breeze")
-    root.title(title)
-    s = ttk.Style()
-    bg = "#f5f5f5"
-    s.configure('new.TFrame', background=bg)
-    ttk.Style().configure("TButton", padding=8, relief="flat",
-                          background="#e0e0e0")
-    frame = ttk.Frame(root, style="new.TFrame")
-    dx, dy = 8, 8
-    ttk.Label(frame, text=msg, font=font, background=bg).grid(column=0, row=0, padx=dx*3, pady=dy*2)
-    ttk.Button(frame, text=buttontxt, command=root.destroy).grid(column=0, row=1, padx=dx, pady=dy)
-    frame.grid(column=0, row=0)
-    root.mainloop()
+@emlib.misc.runonce
+def _has_qt() -> bool:
+    try:
+        from PyQt5 import QtWidgets
+        return True
+    except ImportError:
+        return False
 
 
-def popupMsg(msg:str, title="", buttontxt="Ok") -> None:
-    """
-    Open a pop-up dialog with a message
-    """
-    return _popupmsg_tk(msg=msg, title=title, buttontxt=buttontxt, font=_DEFAULT_FONT)
+@emlib.misc.runonce
+def _resolveBackend(backend: str = None):
+    if sys.platform == 'darwin':
+        backend = 'qt'
+    elif backend is None:
+        backend = 'qt' if _has_qt() else 'tk'
+    if backend == 'qt' and not _has_qt():
+        raise RuntimeError("pyqt5 is needed not installed. Install it via 'pip install pyqt5'")
+    return backend
 
 
-def showInfo(msg:str, title:str="Info", font=None) -> None:
+def showInfo(msg:str, title:str="Info", font=None, icon:str=None, backend:str=None) -> None:
     """
     Show a pop up dialog with some info
+
+    Args:
+        msg: the text to display (one line)
+        title: the title of the dialog
+        font: if given, a tuple (fontfamily, size)
+        icon: either None or one of 'question', 'information', 'warning', 'critical'
     """
+    backend = _resolveBackend(backend)
+    if backend == 'qt':
+        from . import _dialogsqt
+        return _dialogsqt.showInfo(msg=msg, title=title, font=font, icon=icon)
+
     from ttkthemes import ThemedTk
     root = ThemedTk(theme="breeze")
     root.title(title)
@@ -78,8 +90,11 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file",
     Returns:
         the selected filename, or an empty string if the dialog is dismissed
     """
-    if _has_qt() and (backend == 'qt' or backend is None):
-        return _opendialog_qt(directory=directory, filter=filter, title=title)
+    backend = _resolveBackend(backend)
+
+    if backend == 'qt':
+        from . import _dialogsqt
+        return _dialogsqt.selectFile(directory=directory, filter=filter, title=title)
 
     from ttkthemes import ThemedTk
     from tkinter import filedialog
@@ -89,46 +104,11 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file",
         filetypes = [('All', '(*.*)')]
 
     root = ThemedTk(theme='breeze')
-    # root.withdraw()
-    print("*****************", filetypes)
-
+    root.withdraw()
     path = filedialog.askopenfilename(initialdir=directory, title=title,
                                       filetypes=filetypes)
-
     root.destroy()
     return path
-
-def _opendialog_qt(directory:str=None, filter="All (*.*)", title="Open file") -> str:
-    from PyQt5 import QtWidgets
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        app = QtWidgets.QApplication([])
-    options = QtWidgets.QFileDialog.Options()
-    options |= QtWidgets.QFileDialog.DontUseNativeDialog
-    filter = filter.replace(",", " ")
-    name, mask = QtWidgets.QFileDialog.getOpenFileName(None, title, directory=directory, 
-                                                       filter=filter)
-    return name
-
-
-@emlib.misc.runonce
-def _has_qt() -> bool:
-    try:
-        from PyQt5 import QtWidgets
-        return True
-    except ImportError:
-        return False
-
-
-def _savedialog_qt(filter="All (*.*)", title="Save file", directory:str=None) -> str:
-    from PyQt5 import QtWidgets
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        app = QtWidgets.QApplication([])
-    filter = filter.replace(",", " ")
-    name, mask = QtWidgets.QFileDialog.getSaveFileName(None, title, filter=filter, 
-                                                       directory=directory)
-    return name
 
 
 def _tkParseFilter(filter:str) -> List[Tuple[str, str]]:
@@ -149,7 +129,7 @@ def _tkParseFilter(filter:str) -> List[Tuple[str, str]]:
     return out
 
 
-def _savedialog_tk(filter="All (*.*)", title="Save file", directory:str="~") -> str:
+def _saveDialogTk(filter="All (*.*)", title="Save file", directory:str= "~") -> str:
     from ttkthemes import ThemedTk
     from tkinter import filedialog
 
@@ -167,6 +147,10 @@ def saveDialog(filter="All (*.*)", title="Save file", directory:str="~", backend
     """
     Open a dialog to save a file.
 
+    .. note::
+
+        At the moment macos only supports the 'qt' backend
+
     Args:
         filter: a string of the form "<Mask> (<glob>)". Multiple filters can be
             used, for example: ``"Image (*.png, *.jpg);; Video (*.mp4, *.mov)"``
@@ -178,160 +162,23 @@ def saveDialog(filter="All (*.*)", title="Save file", directory:str="~", backend
     Returns:
         the save filename, or an empty string if the dialog is dismissed
     """
+    backend = _resolveBackend(backend)
     if not directory:
         directory = "~"
     directory = os.path.expanduser(directory)
-    if _has_qt() and (backend == 'qt' or backend is None):
-        return _savedialog_qt(filter=filter, title=title, directory=directory)
+    if backend == 'qt':
+        from . import _dialogsqt
+        return _dialogsqt.saveDialog(filter=filter, title=title, directory=directory)
     else:
-        return _savedialog_tk(filter=filter, title=title, directory=directory)
-
-
-def _combowin_qt(options: List[str], title="Select", width=300, height=40) -> Opt[str]:
-    from PyQt5 import QtCore, QtGui, QtWidgets
-    from PyQt5.QtCore import Qt, QSortFilterProxyModel
-    from PyQt5.QtWidgets import QCompleter, QComboBox
-
-    class ExtendedComboBox(QComboBox):
-        def __init__(self, parent=None):
-            super(ExtendedComboBox, self).__init__(parent)
-            self.dismissed = False
-            self.setWindowTitle(title)
-
-            self.setFocusPolicy(Qt.StrongFocus)
-            self.setEditable(True)
-
-            # add a filter model to filter matching items
-            self.pFilterModel = QSortFilterProxyModel(self)
-            self.pFilterModel.setFilterCaseSensitivity(Qt.CaseInsensitive)
-            self.pFilterModel.setSourceModel(self.model())
-
-            # add a completer, which uses the filter model
-            self.completer = QCompleter(self.pFilterModel, self)
-            # always show all (filtered) completions
-            self.completer.setCompletionMode(QCompleter.UnfilteredPopupCompletion)
-            self.setCompleter(self.completer)
-
-            # connect signals
-            self.lineEdit().textEdited.connect(self.pFilterModel.setFilterFixedString)
-            self.completer.activated.connect(self.on_completer_activated)
-
-        # on selection of an item from the completer, select the corresponding item from combobox
-        def on_completer_activated(self, text):
-            if text:
-                index = self.findText(text)
-                self.setCurrentIndex(index)
-                self.activated[str].emit(self.itemText(index))
-
-        # on model change, update the models of the filter and completer as well
-        def setModel(self, model):
-            super(ExtendedComboBox, self).setModel(model)
-            self.pFilterModel.setSourceModel(model)
-            self.completer.setModel(self.pFilterModel)
-
-        # on model column change, update the model column of the filter and completer as well
-        def setModelColumn(self, column):
-            self.completer.setCompletionColumn(column)
-            self.pFilterModel.setFilterKeyColumn(column)
-            super(ExtendedComboBox, self).setModelColumn(column)
-
-        def keyPressEvent(self, e):
-            if e.key() == Qt.Key_Escape:
-                self.dismissed = True
-                self.close()
-            elif e.key() == Qt.Key_Enter or e.key() == Qt.Key_Return:
-                self.close()
-            else:
-                super().keyPressEvent(e)
-
-    from PyQt5.QtWidgets import QApplication
-    from PyQt5.QtCore import QStringListModel
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        app = QtWidgets.QApplication([])
-
-    combo = ExtendedComboBox()
-
-    # either fill the standard model of the combobox
-    # combo.addItems(options)
-
-    # or use another model
-    combo.setModel(QStringListModel(options))
-
-    combo.resize(300, 40)
-    combo.show()
-    app.exec_()
-    return None if combo.dismissed else combo.currentText()
-
-
-def selectFromCombobox(items: List[str], title:str= '', prompt:str= 'Select',
-                       promptFontSize=13, comboFontSize=11, dropdownFontSize=11
-                       ) -> Optional[int]:
-    """
-    Select one option from a combo-box
-
-    Args:
-        items: list of options
-        title: title of the window
-        prompt: label to indicate what the selection is for
-        promptFontSize: font size of the prompt
-        comboFontSize: font size of the combo-box
-        dropdownFontSize: font size of the drop-down
-
-    Returns:
-        the index of the option selected, if a selection was made, or None otherwise
-    """
-    from ttkthemes import ThemedTk
-
-    # root = tk.Tk()
-    root = ThemedTk(theme='breeze')
-
-    root.resizable(False, False)
-    root.title(title)
-
-    pad = {'padx':10, 'pady':5}
-
-    label = ttk.Label(text=prompt, font=('Arial', promptFontSize))
-    label.grid(row=0, column=0, sticky=tk.W + tk.E, columnspan=2, **pad)
-
-    selectedOption = tk.StringVar()
-    width = int(max(len(o) for o in items) * 0.9)
-    combobox = ttk.Combobox(root, textvariable=selectedOption, font=('Arial', comboFontSize),
-                            width=width)
-    combobox['values'] = items if isinstance(items, (list, tuple)) else list(items)
-    combobox['state'] = 'readonly'  # normal
-    combobox.current(0)
-    combobox.grid(row=1, column=0, sticky=tk.W + tk.E, columnspan=2, **pad)
-
-    root.option_add("*TCombobox*Listbox*Font", ('Arial', dropdownFontSize))
-
-    out = None
-
-    def ok():
-        nonlocal out
-        value = combobox.get()
-        out = items.index(value)
-        root.destroy()
-
-    def cancel():
-        root.destroy()
-
-    ttk.Button(root, text="Cancel", command=cancel
-              ).grid(row=2, column=0, sticky=tk.E, **pad)
-
-    ttk.Button(root, text="OK", command=ok
-               ).grid(row=2, column=1, sticky=tk.W, **pad)
-
-    root.bind("<Escape>", lambda *args:cancel())
-    root.bind("<Return>", lambda *args:ok())
-
-    root.mainloop()
-    return out
+        if sys.platform == 'darwin':
+            raise RuntimeError("tk backend not supported in macos")
+        return _saveDialogTk(filter=filter, title=title, directory=directory)
 
 
 def selectItem(items:Sequence[str], title="Select", entryFont=('Arial', 15),
                listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
-               caseSensitive=False, ensureSelection=False
+               caseSensitive=False, ensureSelection=False,
+               backend:str=None
                ) -> Optional[str]:
     """
     Select one item from a list
@@ -355,7 +202,8 @@ def selectItem(items:Sequence[str], title="Select", entryFont=('Arial', 15),
                               listFont=listFont, scrollbar=scrollbar,
                               width=width, numlines=numlines,
                               caseSensitive=caseSensitive,
-                              ensureSelection=ensureSelection)
+                              ensureSelection=ensureSelection,
+                              backend=backend)
     return selected[0] if selected else None
 
 
@@ -364,7 +212,50 @@ def _tkMeasureTextWidth(font: Tuple[str, int], text: str, correctionFactor=1.1) 
     return int(tkfont.measure(text) * correctionFactor)
 
 
-def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
+def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 14),
+                   listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
+                   caseSensitive=False, ensureSelection=False,
+                   backend:str=None
+                   ) -> List[str]:
+    """
+    Select one or multiple items from a list
+
+    Args:
+        items: the list of options
+        title: the title of the dialog
+        entryFont: the font of the filter text entry (a tuple (font, size))
+        listFont: the font of the list (a tuple (font, size))
+        scrollbar: if True, add a scrollbar
+        width: the width in pixels
+        numlines: the number of lines to display at a time
+        caseSensitive: if True, filtering is case sensitive
+        ensureSelection: if True, raises a ValueError exception is no selection
+            was done
+        backend: one of 'qt', 'tk' or None to use a default
+
+    Returns:
+        a list of selected items, or an empty list if the user aborted
+        (via Escape or closing the window)
+    """
+    if backend is None:
+        backend = 'qt' if sys.platform == 'darwin' else 'tk'
+    if backend == 'tk':
+        return _selectFromListTk(items=items, title=title, entryFont=entryFont,
+                                 listFont=listFont, scrollbar=scrollbar, width=width,
+                                 numlines=numlines, caseSensitive=caseSensitive,
+                                 ensureSelection=ensureSelection)
+    elif backend == 'qt':
+        if not _has_qt():
+            raise RuntimeError("pyqt5 not installed. Install it via 'pip install pyqt5'")
+        from . import _dialogsqt
+        out = _dialogsqt.selectItem(items=items, title=title, listFont=listFont,
+                                    entryFont=entryFont)
+        return [out]
+    else:
+        raise ValueError("Backends supported: 'qt', 'tk'")
+
+
+def _selectFromListTk(items:Sequence[str], title="Select", entryFont=('Arial', 15),
                    listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
                    caseSensitive=False, ensureSelection=False
                    ) -> List[str]:
@@ -388,10 +279,10 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
         (via Escape or closing the window)
     """
     if sys.platform == 'darwin':
-        root = tk.Tk()
-    else:
-        from ttkthemes import ThemedTk
-        root = ThemedTk(theme="breeze")
+        logger.error("macOS is not supported")
+
+    from ttkthemes import ThemedTk
+    root = ThemedTk(theme="breeze")
 
     if len(items) < numlines:
         scrollbar = False
@@ -457,7 +348,6 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
     out = [None]
 
     def accept(*args):
-        print("*************** accept")
         sels = tree.selection()
         values = [id2item[sel] for sel in sels]
         out[0] = values
@@ -506,8 +396,6 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
     entry.focus_set()
 
     root.mainloop()
-    root.quit()
-    print("************* exited mainloop")
     sel = out[0]
     if not sel and ensureSelection:
         raise ValueError("No selection was done")
