@@ -142,7 +142,7 @@ def _tkParseFilter(filter:str) -> List[Tuple[str, str]]:
             name, wildcardstr = part[:-1].split("(")
             wildcardstr.replace(',', ' ')
             wildcards = wildcardstr.split()
-            out.append((name, ' '.join(wildcards)))
+            out.append((name.strip(), ' '.join(wildcards)))
         else:
             # <wildcard>
             out.append(('', part))
@@ -387,11 +387,15 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
         a list of selected items, or an empty list if the user aborted
         (via Escape or closing the window)
     """
-    from ttkthemes import ThemedTk
+    if sys.platform == 'darwin':
+        root = tk.Tk()
+    else:
+        from ttkthemes import ThemedTk
+        root = ThemedTk(theme="breeze")
+
     if len(items) < numlines:
         scrollbar = False
     numlines = min(numlines, len(items))
-    root = ThemedTk(theme="breeze")
     root.title(title)
     root.columnconfigure(0, weight=1)
 
@@ -400,8 +404,7 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
     width = max(width, minwidth)
 
     filterval = tk.StringVar()
-    entry = ttk.Entry(root, textvariable=filterval, font=entryFont
-                      )
+    entry = ttk.Entry(root, textvariable=filterval, font=entryFont)
     entry.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
     treestyle = ttk.Style()
@@ -454,6 +457,7 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
     out = [None]
 
     def accept(*args):
+        print("*************** accept")
         sels = tree.selection()
         values = [id2item[sel] for sel in sels]
         out[0] = values
@@ -502,6 +506,7 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
     entry.focus_set()
 
     root.mainloop()
+    print("************* exited mainloop")
     sel = out[0]
     if not sel and ensureSelection:
         raise ValueError("No selection was done")
