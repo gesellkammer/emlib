@@ -85,6 +85,9 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file",
     from tkinter import filedialog
 
     filetypes = _tkParseFilter(filter)
+    if not filetypes:
+        filetypes = [('All', '(*.*)')]
+
     root = ThemedTk(theme='breeze')
     root.withdraw()
 
@@ -128,14 +131,19 @@ def _savedialog_qt(filter="All (*.*)", title="Save file", directory:str=None) ->
 
 
 def _tkParseFilter(filter:str) -> List[Tuple[str, str]]:
+    # A filter has the form <name1> (<wildcard1>, <wildcard2>, ...);; name2...
     parts = filter.split(";;")
     out = []
     for part in parts:
         part = part.strip()
         if "(" in part and part[-1] == ")":
-            name, wildcard = part[:-1].split("(")
-            out.append((name, wildcard))
+            # <name> (wildcards)
+            name, wildcardstr = part[:-1].split("(")
+            wildcardstr.replace(',', ' ')
+            wildcards = wildcardstr.split()
+            out.append((name, ' '.join(wildcards)))
         else:
+            # <wildcard>
             out.append(('', part))
     return out
 
@@ -147,7 +155,7 @@ def _savedialog_tk(filter="All (*.*)", title="Save file", directory:str="~") -> 
     filetypes = _tkParseFilter(filter)
     root = ThemedTk(theme='breeze')
     root.withdraw()
-    
+
     path = filedialog.asksaveasfilename(initialdir=directory, title=title, filetypes=filetypes)
     root.destroy()
     return path
