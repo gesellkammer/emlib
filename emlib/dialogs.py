@@ -89,7 +89,8 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file",
         filetypes = [('All', '(*.*)')]
 
     root = ThemedTk(theme='breeze')
-    root.withdraw()
+    # root.withdraw()
+    print("*****************", filetypes)
 
     path = filedialog.askopenfilename(initialdir=directory, title=title,
                                       filetypes=filetypes)
