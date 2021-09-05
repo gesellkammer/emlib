@@ -506,6 +506,7 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 15),
     entry.focus_set()
 
     root.mainloop()
+    root.quit()
     print("************* exited mainloop")
     sel = out[0]
     if not sel and ensureSelection:
