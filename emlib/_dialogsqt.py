@@ -230,7 +230,7 @@ def showInfo(msg:str, title:str='Info', font:Tuple[str,int]=None, icon:str=None)
 
 
 # init
-if sys.platform == 'darwin' and emlib.misc.inside_ipython():
+if sys.platform == 'darwin' and emlib.misc.inside_ipython() and not emlib.misc.inside_jupyter():
     print("Inside ipython")
     # macos needs loop integration inside ipython
     ip = get_ipython()
