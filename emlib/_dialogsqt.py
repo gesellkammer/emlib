@@ -20,6 +20,7 @@ __all__ = (
 def _makeApp():
     app = QtWidgets.QApplication.instance()
     if app is None:
+        print("making new app")
         app = QtWidgets.QApplication([])
     return app
 
@@ -106,6 +107,7 @@ def selectItem(items: Sequence[str], title='Select',
     w = FilteredList(items, title=title, listFont=listFont, entryFont=entryFont)
     w.show()
     app.exec_()
+    print("exiting mainloop")
     return w.out
 
 
