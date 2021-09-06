@@ -1,25 +1,32 @@
 """
-Simple dialogs for use at the repl
+Simple dialogs for use at the repl / ipython / jupyter
+
+At the moment the better supported backend is qt5, which works
+in all three major platforms.
 """
 from __future__ import annotations
 import os
 import sys
 import emlib.misc
-from typing import TYPE_CHECKING
 import tkinter as tk
 import tkinter.font
 from tkinter import ttk
 import logging
-
-
-logger = logging.getLogger(__name__)
-
-
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import *
 
 _DEFAULT_FONT = ("Helvetica", 11)
 
+logger = logging.getLogger(__name__)
+
+__all__ = (
+        'showInfo',
+        'selectFile',
+        'saveDialog',
+        'selectItem',
+        'selectItems'
+)
 
 @emlib.misc.runonce
 def _has_qt() -> bool:
@@ -198,12 +205,12 @@ def selectItem(items:Sequence[str], title="Select", entryFont=('Arial', 15),
     Returns:
         either the selected item or None
     """
-    selected = selectFromList(items=items, title=title, entryFont=entryFont,
-                              listFont=listFont, scrollbar=scrollbar,
-                              width=width, numlines=numlines,
-                              caseSensitive=caseSensitive,
-                              ensureSelection=ensureSelection,
-                              backend=backend)
+    selected = selectItems(items=items, title=title, entryFont=entryFont,
+                           listFont=listFont, scrollbar=scrollbar,
+                           width=width, numlines=numlines,
+                           caseSensitive=caseSensitive,
+                           ensureSelection=ensureSelection,
+                           backend=backend)
     return selected[0] if selected else None
 
 
@@ -212,11 +219,11 @@ def _tkMeasureTextWidth(font: Tuple[str, int], text: str, correctionFactor=1.1) 
     return int(tkfont.measure(text) * correctionFactor)
 
 
-def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 14),
-                   listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
-                   caseSensitive=False, ensureSelection=False,
-                   backend:str=None
-                   ) -> List[str]:
+def selectItems(items:Sequence[str], title="Select", entryFont=('Arial', 14),
+                listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
+                caseSensitive=False, ensureSelection=False,
+                backend:str=None
+                ) -> List[str]:
     """
     Select one or multiple items from a list
 
@@ -237,8 +244,7 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 14),
         a list of selected items, or an empty list if the user aborted
         (via Escape or closing the window)
     """
-    if backend is None:
-        backend = 'qt' if sys.platform == 'darwin' else 'tk'
+    backend = _resolveBackend(backend)
     if backend == 'tk':
         return _selectFromListTk(items=items, title=title, entryFont=entryFont,
                                  listFont=listFont, scrollbar=scrollbar, width=width,
@@ -247,6 +253,7 @@ def selectFromList(items:Sequence[str], title="Select", entryFont=('Arial', 14),
     elif backend == 'qt':
         if not _has_qt():
             raise RuntimeError("pyqt5 not installed. Install it via 'pip install pyqt5'")
+        logger.info("Multiple item selection is not supported in qt at the moment")
         from . import _dialogsqt
         out = _dialogsqt.selectItem(items=items, title=title, listFont=listFont,
                                     entryFont=entryFont)
