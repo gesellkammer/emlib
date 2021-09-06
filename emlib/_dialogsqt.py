@@ -229,9 +229,11 @@ def showInfo(msg:str, title:str='Info', font:Tuple[str,int]=None, icon:str=None)
 
 # init
 if sys.platform == 'darwin' and emlib.misc.inside_ipython():
+    print("Inside ipython")
     # macos needs loop integration inside ipython
     ip = get_ipython()
     if ip.active_eventloop is None:
+        logging.getLogger(__name__).warning("Starting qt eventloop integration")
         ip.run_line_magic('gui', 'qt')
     elif ip.active_eventloop not in ('qt', 'qt5'):
         logging.getLogger(__name__).warning(
