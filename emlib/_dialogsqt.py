@@ -1,10 +1,21 @@
 from __future__ import annotations
+import sys
+import logging
+import emlib.misc
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import Qt
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import *
 
+
+__all__ = (
+    'FilteredList',
+    'selectItem',
+    'selectFile',
+    'saveDialog',
+    'showInfo'
+)
 
 def _makeApp():
     app = QtWidgets.QApplication.instance()
@@ -14,7 +25,7 @@ def _makeApp():
 
 
 class _FilterEdit(QtWidgets.QLineEdit):
-    def __init__(self, parent: _FilteredList, font:Tuple[str, int]=None):
+    def __init__(self, parent: FilteredList, font:Tuple[str, int]=None):
         self.parent = parent
         super().__init__()
         if font:
@@ -33,7 +44,7 @@ class _FilterEdit(QtWidgets.QLineEdit):
 
 
 class _FilteredListView(QtWidgets.QListView):
-    def __init__(self, parent: _FilteredList, font:Tuple[str, int]=None):
+    def __init__(self, parent: FilteredList, font:Tuple[str, int]=None):
         self.parent = parent
         super().__init__()
         if font:
@@ -49,7 +60,7 @@ class _FilteredListView(QtWidgets.QListView):
             super().keyPressEvent(keyEvent)
 
 
-class _FilteredList(QtWidgets.QMainWindow):
+class FilteredList(QtWidgets.QMainWindow):
     def __init__(self, items:Sequence[str], title:str,
                  listFont:Tuple[str, int]=None,
                  entryFont:Tuple[str, int]=None):
@@ -92,7 +103,7 @@ def selectItem(items: Sequence[str], title='Select',
                entryFont: Tuple[str, int]=None
                ) -> Optional[str]:
     app = _makeApp()
-    w = _FilteredList(items, title=title, listFont=listFont, entryFont=entryFont)
+    w = FilteredList(items, title=title, listFont=listFont, entryFont=entryFont)
     w.show()
     app.exec_()
     return w.out
@@ -214,4 +225,18 @@ def showInfo(msg:str, title:str='Info', font:Tuple[str,int]=None, icon:str=None)
         elif icon == 'critical':
             mbox.setIcon(QtWidgets.QMessageBox.Critical)
     mbox.exec_()
+
+
+# init
+if sys.platform == 'darwin' and emlib.misc.inside_ipython():
+    # macos needs loop integration inside ipython
+    ip = get_ipython()
+    if ip.active_eventloop is None:
+        ip.run_line_magic('gui', 'qt')
+    elif ip.active_eventloop not in ('qt', 'qt5'):
+        logging.getLogger(__name__).warning(
+                f"IPython has an active eventloop for {ip.active_eventloop}, but "
+                f"emlib.dialogs needs the qt eventloop to be able to open qt dialogs"
+                f" without blocking the shell. ")
+        ip.run_line_magic('gui', 'qt')
 
