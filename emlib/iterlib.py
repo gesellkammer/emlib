@@ -103,6 +103,27 @@ def ncycles(seq: Iterable[T], n: int) -> Iterable[T]:
     return chain(*repeat(seq, n))
 
 
+class Accum:
+    """
+    Simple accumulator
+
+    Example
+    ~~~~~~~
+
+    Iterate over seq until the sum of the items exceeds a given value
+
+        >>> seq = range(999999)
+        >>> takewhile((lambda item, accum=Accum(): accum(item) < 100), seq)
+    """
+
+    def __init__(self, init:T=0):
+        self.value:T = init
+
+    def __call__(self, value:T) -> T:
+        self.value += value
+        return self.value
+
+
 def dotproduct(vec1: Iterable[T], vec2: Iterable[T]) -> T:
     """
     Returns the dot product (the sum of the product between each pair)
@@ -177,6 +198,49 @@ def window(iterable: Iterable[T], size=3, step=1) -> Iterable[Tuple[T, ...]]:
     if step != 1:
         window_itr = islice(window_itr, 0, 99999999, step)
     return window_itr
+
+
+def window_fixed_size(seq: Iterable[T], size: int, maxstep: int
+                           ) -> Iterable[Tuple[T, ...]]:
+    """
+    A sliding window over subseqs of seq
+
+    Each returned subseq has the given size and the step between
+    each subseq is at most 'maxstep'. If the last window does not
+    fit evenly, a smaller step is taken.
+    If seq has less elements than `size`, a ValueError is raised
+
+    .. note::
+
+        The difference with `window` is that `window` drops the last
+        elements if they don't fit evenly in the window size
+
+    Example
+    =======
+
+    >>> list(window_fixed_size(range(10)), 5,2)
+    [[0, 1, 2, 3, 4], [2, 3, 4, 5, 6], [4, 5, 6, 7, 8], [5, 6, 7, 8, 9]]
+    # Notice that the step of the last window is 1 and not 2
+
+    >>> list(window(range(10), 5, 2))
+    [(0, 1, 2, 3, 4), (2, 3, 4, 5, 6), (4, 5, 6, 7, 8)]
+    # element 9 is missing
+    """
+    cursor = 0
+    try:
+        seqlen = len(seq)
+    except TypeError:
+        seq = list(seq)
+        seqlen = len(seq)
+    if seqlen < size:
+        raise ValueError("seq too small")
+    while True:
+        yield seq[cursor:cursor+size]
+        step = min(maxstep, seqlen-size-cursor)
+        if step == 0:
+            break
+        cursor += step
+
 
 
 def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
@@ -464,7 +528,7 @@ def butn(seq: Iterable[T], n: int) -> Iterable[T]:
         d.append(x)
 
         
-def intercalate(seq: Iterable[T], item) -> Iterable[T]:
+def intercalate(seq: Iterable[T], item:T2) -> Iterable[Union[T, T2]]:
     """
     Intercalate *item* between elements of *seq*
 
@@ -581,21 +645,61 @@ def interleave(seqs, pass_exceptions=()):
         iters = newiters
         
 
-
-def split_in_chunks(s: Sequence[T], chunksize: int) -> List[Sequence[T]]:
+def split_in_chunks(seq: Iterable[T], chunksize: int) -> Iterable[List[T]]:
     """
-    splits *s* into chunks
+    splits a sequence into chunks
 
     Example
     -------
 
-    >>> s = "FooBarBaz"
-    >>> split_in_chunks(s, 3)
-    ["Foo", "Bar", "Baz"]
+    >>> s = [0, 1, 2, 3, 4, 5, 6, 8, 9]
+    >>> list(split_in_chunks(s, 3))
+    [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
     """
-    return [s[i:i+chunksize] for i in range(0, len(s), chunksize)]
+    chunk = []
+    for i, item in enumerate(seq):
+        chunk.append(item)
+        if i % chunksize == chunksize-1:
+            yield chunk
+            chunk = []
+    # return [seq[i:i+chunksize] for i in range(0, len(seq), chunksize)]
 
-    
+
+def classify(s: Sequence[T], keyfunc: Callable[[T], T2]) -> Dict[T2, List[T]]:
+    """
+    Split `s` according to `keyfunc`
+
+    Args:
+        s: the sequence to split
+        keyfunc: a function taking an item of s and returning the key under which
+            all similar items will be grouped
+
+    Example
+    ~~~~~~~
+
+        >>> s = [
+        ...     {'name': 'John', 'city': 'New York'},
+        ...     {'name': 'Otto', 'city': 'Berlin'},
+        ...     {'name': 'Jakob', 'city': 'Berlin'},
+        ...     {'name': 'Bob', 'city': 'New York'}
+        ... ]
+        >>> groups = classify(s, lambda record: record['city'])
+        {'Berlin': [{'name': 'Otto', 'city': 'Berlin'},
+                    {'name': 'Jakob', 'city': 'Berlin'}],
+         'New York': [{'name': 'John', 'city': 'New York'},
+                      {'name': 'Bob', 'city': 'New York'}]}
+    """
+    groups = {}
+    for item in s:
+        key = keyfunc(item)
+        group = groups.get(key)
+        if group:
+            group.append(item)
+        else:
+            groups[key] = [item]
+    return groups
+
+
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

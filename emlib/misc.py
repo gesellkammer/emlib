@@ -479,6 +479,18 @@ def parse_time(t:str) -> float:
         raise ValueError("Format not understood")
 
 
+def sumlist(seq: Iterable[List[T]]) -> List[T]:
+    """
+    Concatenate multiple lists to one big list
+    
+    Args:
+        seq: a list or iterable of lists
+
+    Returns:
+        the concatenated list
+    """
+    return sum(seq, [])
+
 
 # ------------------------------------------------------------
 #
@@ -1354,9 +1366,9 @@ def type_error_msg(x, *expected_types):
 
 # --- crossplatform ---
 
-def open_with_standard_app(path: str, wait:U[str, bool]=False, min_wait=0.5,
-                           timeout:float=None
-                           ) -> None:
+def _open_with_standard_app(path: str, wait:U[str, bool]=False, min_wait=0.5,
+                            timeout:float=None
+                            ) -> None:
     """
     Open path with the app defined to handle it at the os level
 
@@ -1376,6 +1388,7 @@ def open_with_standard_app(path: str, wait:U[str, bool]=False, min_wait=0.5,
     """
     import subprocess, time
     platform = _sys.platform
+    proc = None
     if platform == 'linux':
         proc = subprocess.Popen(["xdg-open", path])
     elif platform == "win32":
@@ -1391,13 +1404,13 @@ def open_with_standard_app(path: str, wait:U[str, bool]=False, min_wait=0.5,
     if wait == "modified":
         wait_for_file_modified(path, timeout=timeout or 36000)
     elif wait:
+        from emlib import dialogs
         if platform == "win32":
-            dialogs.popupmsg("Close this dialog when finished")
+            dialogs.showInfo("Close this dialog when finished")
         else:
             proc.wait()
             if time.time()-t0 < min_wait:
-                from emlib import dialogs
-                dialogs.popupmsg("Close this dialog when finished")
+                dialogs.showInfo("Close this dialog when finished")
 
 
 def _split_command(s:str) -> List[str]:
@@ -1406,8 +1419,8 @@ def _split_command(s:str) -> List[str]:
     return parts
 
 
-def open_with(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
-              min_wait=0.5, timeout=None) -> None:
+def open_with_app(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
+                  min_wait=0.5, timeout=None) -> None:
     """
     Open a given file with a given app.
 
@@ -1420,7 +1433,7 @@ def open_with(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
         app: a command-line string or a list of string arguments. If no app is given,
             we ask the os to open this file with its standard app
         wait: if True, wait until the app stops. If the app is a daemon
-            up, meaning that it returns immediately, this situation
+            app (it returns immediately), this situation
             is detected and a dialog is created which needs to be
             clicked in order for the function to return. Alternatively, wait can take
             the value "modified", in which case we wait until ``path`` has been modified
@@ -1431,7 +1444,7 @@ def open_with(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
     """
     if app is None:
         assert not shell
-        open_with_standard_app(path, wait=wait, min_wait=min_wait, timeout=timeout)
+        _open_with_standard_app(path, wait=wait, min_wait=min_wait, timeout=timeout)
         return
 
     import subprocess, time
@@ -1448,9 +1461,9 @@ def open_with(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
         wait_for_file_modified(path, timeout=timeout)
     elif wait:
         proc.wait()
-        if time.time()-t0 < min_wait:
+        if time.time() - t0 < min_wait:
             from emlib import dialogs
-            dialogs.popupmsg("Close this dialog when finished")
+            dialogs.showInfo("Close this dialog when finished")
 
 
 def wait_for_file_modified(path:str, timeout:float=None) -> bool:
@@ -1654,7 +1667,7 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
         if not tablefmt:
             tablefmt = 'html'
         s = tabulate.tabulate(rows, headers=headers, disable_numparse=True,
-                              tablefmt=tablefmt, showindex=showindex)
+                              tablefmt=tablefmt, showindex=showindex, stralign='left')
         if tablefmt == 'html':
             display(HTML(s))
         else:

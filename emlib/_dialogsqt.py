@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from typing import *
 
 
+logger = logging.getLogger(__name__)
+
 __all__ = (
     'FilteredList',
     'selectItem',
@@ -17,11 +19,14 @@ __all__ = (
     'showInfo'
 )
 
+
 def _makeApp():
     app = QtWidgets.QApplication.instance()
     if app is None:
-        print("making new app")
+        logger.debug("Making new qt QApplication")
         app = QtWidgets.QApplication([])
+    else:
+        logger.debug("Using existing QApplication instance")
     return app
 
 
@@ -219,7 +224,7 @@ def showInfo(msg:str, title:str='Info', font:Tuple[str,int]=None, icon:str=None)
         mbox.setFont(QtCore.QFont(*font))
     if icon:
         if icon == 'question':
-            mbox.setIcon(QtWidgets.QMessageBox.Question);
+            mbox.setIcon(QtWidgets.QMessageBox.Question)
         elif icon == 'information':
             mbox.setIcon(QtWidgets.QMessageBox.Information)
         elif icon == 'warning':
@@ -231,14 +236,13 @@ def showInfo(msg:str, title:str='Info', font:Tuple[str,int]=None, icon:str=None)
 
 # init
 if sys.platform == 'darwin' and emlib.misc.inside_ipython() and not emlib.misc.inside_jupyter():
-    print("Inside ipython")
     # macos needs loop integration inside ipython
     ip = get_ipython()
     if ip.active_eventloop is None:
-        logging.getLogger(__name__).warning("Starting qt eventloop integration")
+        logger.debug("Starting ipython/qt eventloop integration")
         ip.run_line_magic('gui', 'qt')
     elif ip.active_eventloop not in ('qt', 'qt5'):
-        logging.getLogger(__name__).warning(
+        logger.warning(
                 f"IPython has an active eventloop for {ip.active_eventloop}, but "
                 f"emlib.dialogs needs the qt eventloop to be able to open qt dialogs"
                 f" without blocking the shell. ")

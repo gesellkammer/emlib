@@ -12,6 +12,7 @@ import tkinter as tk
 import tkinter.font
 from tkinter import ttk
 import logging
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import *
@@ -25,8 +26,17 @@ __all__ = (
         'selectFile',
         'saveDialog',
         'selectItem',
-        'selectItems'
+        'selectItems',
+        'filters'
 )
+
+
+filters = {
+    'All': 'All (*.*)',
+    'Sound': 'Sound (*.wav, *.aiff, *.flac, *.mp3)',
+    'Image': 'Image (*.jpg, *.png)'
+}
+
 
 @emlib.misc.runonce
 def _has_qt() -> bool:
@@ -68,7 +78,6 @@ def showInfo(msg:str, title:str="Info", font=None, icon:str=None, backend:str=No
     root.title(title)
 
     bg = "#f5f5f5"
-    # frame = ttk.Frame(root, style=".showinfo.TFrame")
     frame = ttk.Frame(root)
     dx, dy = 8, 8
     if font is None:
