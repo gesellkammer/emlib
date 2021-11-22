@@ -361,12 +361,12 @@ def permutation_further_than(xs: Seq[T], min_distance: float, rand=True) -> list
     from the originals as poss.
 
     Args:
-        xs: the seq. to permutate
+        xs: the seq. to permute
         min_distance: a min. distance (a value between 0 and 1)
         rand: ???
 
     Returns:
-        the permutated seq.
+        the permuted seq.
     """
     acceptable_difference = _max_distance(xs) / len(xs) * 0.5
 

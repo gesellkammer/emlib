@@ -12,6 +12,7 @@ import tkinter as tk
 import tkinter.font
 from tkinter import ttk
 import logging
+from functools import cache
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -145,12 +146,22 @@ def _tkParseFilter(filter:str) -> List[Tuple[str, str]]:
     return out
 
 
+@cache
+def _tkOk() -> bool:
+    try:
+        from ttkthemes import ThemedTk
+        from tkinter import filedialog
+        root = ThemedTk(theme='breeze')
+        return True
+    except:
+        return False
+
+
 def _saveDialogTk(filter="All (*.*)", title="Save file", directory:str= "~") -> str:
     from ttkthemes import ThemedTk
     from tkinter import filedialog
-
-    filetypes = _tkParseFilter(filter)
     root = ThemedTk(theme='breeze')
+    filetypes = _tkParseFilter(filter)
     root.withdraw()
 
     path = filedialog.asksaveasfilename(initialdir=directory, title=title, filetypes=filetypes)

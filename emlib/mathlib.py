@@ -487,15 +487,15 @@ def modulo_shortest_distance(x, origin, mod):
     3
     """
     xclock = (x - origin) % mod
-    xanti  = (origin - x) % mod
+    xanti = (origin - x) % mod
     if xclock < xanti:
         return xclock
     return -xanti
 
 
-def rotate2d(point:Tup[float, float],
-             degrees:float,
-             origin=(0,0)) -> Tup[float, float]:
+def rotate2d(point: Tup[float, float],
+             degrees: float,
+             origin=(0, 0)) -> Tup[float, float]:
     """
     A rotation function that rotates a point around an origin
 
@@ -521,7 +521,8 @@ def periodic_float_to_fraction(s: str) -> Fraction:
     Convert a float with a periodic part to its fraction
 
     Args:
-        s: the numer as string. Notate the periodic part (for example 1/3=0.333...)
+        s: the numer as string. Notate the periodic part 
+           (for example 1/3=0.333...)
            as 0.(3, without repetitions. For example, 2.83333... as 2.8(3
 
     Returns:
@@ -544,7 +545,7 @@ def periodic_float_to_fraction(s: str) -> Fraction:
     return Fraction(num, den)
 
 
-def optimize_parameter(func, val:float, paraminit:float, maxerror=0.001,
+def optimize_parameter(func, val: float, paraminit: float, maxerror=0.001,
                        maxiterations=100) -> Tup[float, int]:
     """
     Optimize one parameter to arrive to a desired value.

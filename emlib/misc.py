@@ -46,10 +46,10 @@ def reverse_recursive(seq: list):
 
 
     .. code::
-        
+
         >>> reverse_recursive([1, 2, [3, 4], [5, [6, 7]]])
         [[[7, 6], 5], [4, 3], 2, 1]
-    
+
     **NB**: only lists will be reversed, other iterable collection remain untouched
 
     """
@@ -73,7 +73,7 @@ def _partialsum(seq):
 def wrap_by_sizes(flatseq: list, packsizes: Seq[int]) -> List[list]:
     """
     Wrap a flat seq using the given sizes
-    
+
     Args:
         flatseq: a flat sequence of items
         packsizes: a list of sizes
@@ -308,7 +308,7 @@ def some(x, otherwise=False):
     """
     return x if x is not None else otherwise
 
-    
+
 def firstval(*values, sentinel=None):
     """
     Get the first value in values which is not sentinel.
@@ -1634,11 +1634,11 @@ def html_table(rows: list, headers: List[str], maxwidths:Opt[List[int]]=None,
 def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
     """
     Print rows as table
-    
+
     Args:
-        rows: a list of namedtuples or dataclass objects, all of the same kind 
+        rows: a list of namedtuples or dataclass objects, all of the same kind
         headers: override the headers defined in rows
-        tablefmt: if None, a suitable default for the current situation will be used 
+        tablefmt: if None, a suitable default for the current situation will be used
             (depending on if we are running inside jupyter or in a terminal, etc)
             Otherwise it is passed to tabulate.tabulate
         showindex: if True, add a column with the index of each row

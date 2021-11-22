@@ -96,7 +96,8 @@ def readcsv(csvfile: str,
             accept_exponential_numbers: bool = False,
             typeconversions: dict = None,
             prefer_fractions: bool = False,
-            dialect: str = 'excel'
+            dialect: str = 'excel',
+            first_row_header=True
             ) -> RecordList:
     """
     Read a CSV file into a namedtuple
@@ -120,26 +121,13 @@ def readcsv(csvfile: str,
     f = open(csvfile, mode)
     r = _csv.reader(f, dialect=dialect)
     firstrow = next(r)
-    attributes = {}
-    if firstrow[0].startswith('#'):
-        # the first row contains attributes
-        f.close()
-        f = open(csvfile, mode)
-        attribute_line = f.readline()
-        attrs = attribute_line[1:].split()
-        for attr in attrs:
-            key, value = attr.split(':')
-            attributes[key] = value
-        r = _csv.reader(f, dialect=dialect)
-        firstrow = next(r)
     if columns is not None:
         assert isinstance(columns, (tuple, list))
     else:
-        if not any(misc.asnumber(x) is not None for x in firstrow) or firstrow[0].startswith('#'):
+        if first_row_header and all(misc.asnumber(x) is None for x in firstrow):
             columns = firstrow
         else:
-            raise TypeError("Can't assume column names. Pass the column names as arguments."
-                            "Number-like cells found in the first-row")
+            raise TypeError("Can't infer column names. Pass the column names as arguments.")
     normalized_columns = [_normalize_column_name(col) for col in columns]
     columns = _treat_duplicates(normalized_columns)
     Row = _namedtuple('Row', ' '.join(columns))
