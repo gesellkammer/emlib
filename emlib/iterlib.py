@@ -600,11 +600,12 @@ def mesh3(A, B, C):
                 yield (a, b, c)
 
                 
-def unique(seq: Iterable[T]) -> Set[T]:
+def unique(seq: Iterable[T]) -> Iterable[T]:
     """
-    Return only unique elements of a sequence.
+    Return only unique elements of a sequence (keeps order)
 
-    If seq is not an iterator, it is better to call set instead
+    If seq is not an iterator or order is not important
+    it is better to call set instead. Elements must be hashable
 
     >>> tuple(unique((1, 2, 3)))
     (1, 2, 3)

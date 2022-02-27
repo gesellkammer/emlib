@@ -137,7 +137,7 @@ def ljust(s: str, width: int, fillchar=" ") -> str:
     return s
 
 
-def makeReplacer(conditions:dict) -> Callable:
+def makeReplacer(conditions: dict) -> Callable:
     """
     Create a function to replace many subtrings at once
 
@@ -158,4 +158,23 @@ def makeReplacer(conditions:dict) -> Callable:
 
 def escapeAnsi(line: str) -> str:
     return re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]').sub('', line)
+
+
+def splitInChunks(s: str, maxlen: int) -> List[str]:
+    """
+    Split `s` into strings of max. size `maxlen`
+
+    Args:
+        s: the string to split
+        maxlen: the max. length of each substring
+    """
+    out = []
+    idx = 0
+    L = len(s)
+    while idx < L:
+        n = min(L-idx, maxlen)
+        subs = s[idx:idx+n]
+        out.append(subs)
+        idx += n
+    return out
 
