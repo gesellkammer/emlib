@@ -160,7 +160,7 @@ def escapeAnsi(line: str) -> str:
     return re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]').sub('', line)
 
 
-def splitInChunks(s: str, maxlen: int) -> List[str]:
+def splitInChunks(s: Union[str, bytes], maxlen: int) -> list:
     """
     Split `s` into strings of max. size `maxlen`
 
