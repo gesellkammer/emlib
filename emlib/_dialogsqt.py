@@ -46,6 +46,10 @@ class _FilterEdit(QtWidgets.QLineEdit):
         elif k == Qt.Key_Escape:
             self.parent.dismiss()
         else:
+            # re = QRegularExpression(pattern, QRegularExpression.CaseInsensitiveOption | QRegularExpression.DotMatchesEverythingOption)
+            rx = QtCore.QRegularExpression(self.text(), QtCore.QRegularExpression.CaseInsensitiveOption | QtCore.QRegularExpression.DotMatchesEverythingOption)
+            self.parent.proxy_model.setFilterRegularExpression(rx)
+            self.parent.proxy_model.setFilterWildcard("*" + self.text() + "*")
             super().keyPressEvent(keyEvent)
 
 
@@ -66,6 +70,13 @@ class _FilteredListView(QtWidgets.QListView):
             super().keyPressEvent(keyEvent)
 
 
+def _calculateTextWidth(s: str, fontfamily: str, size: int) -> float:
+    f = QtGui.QFont(fontfamily, size)
+    fm = QtGui.QFontMetrics(f)
+    width = fm.horizontalAdvance(s)
+    return width
+
+
 class FilteredList(QtWidgets.QMainWindow):
     def __init__(self, items:Sequence[str], title:str,
                  listFont:Tuple[str, int]=None,
@@ -76,12 +87,15 @@ class FilteredList(QtWidgets.QMainWindow):
         self.model = QtCore.QStringListModel(items)
         self.proxy_model = QtCore.QSortFilterProxyModel()
         self.proxy_model.setSourceModel(self.model)
+        self.proxy_model.setSortCaseSensitivity(Qt.CaseInsensitive)
         self.view.setModel(self.proxy_model)
         self.setWindowTitle(title)
         self.searchbar = _FilterEdit(self, font=entryFont)  # QLineEdit()
         # choose the type of search by connecting to a different slot here.
         # see https://doc.qt.io/qt-5/qsortfilterproxymodel.html#public-slots
         self.searchbar.textChanged.connect(self.proxy_model.setFilterFixedString)
+        minw = _calculateTextWidth(max(items, key=lambda s:len(s)), listFont[0], listFont[1])
+        self.setMinimumWidth(int(minw + 60))
 
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(self.searchbar)
@@ -112,7 +126,6 @@ def selectItem(items: Sequence[str], title='Select',
     w = FilteredList(items, title=title, listFont=listFont, entryFont=entryFont)
     w.show()
     app.exec_()
-    print("exiting mainloop")
     return w.out
 
 

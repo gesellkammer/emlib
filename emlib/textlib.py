@@ -165,7 +165,7 @@ def splitInChunks(s: Union[str, bytes], maxlen: int) -> list:
     Split `s` into strings of max. size `maxlen`
 
     Args:
-        s: the string to split
+        s: the str/bytes to split
         maxlen: the max. length of each substring
     """
     out = []
