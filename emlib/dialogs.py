@@ -12,7 +12,6 @@ import tkinter as tk
 import tkinter.font
 from tkinter import ttk
 import logging
-from functools import cache
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -148,7 +147,7 @@ def _tkParseFilter(filter: str) -> List[Tuple[str, str]]:
     return out
 
 
-@cache
+@emlib.misc.runonce
 def _tkOk() -> bool:
     try:
         from ttkthemes import ThemedTk
