@@ -16,19 +16,19 @@ from functools import cache
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import *
+    from typing import List, Tuple, Sequence, Optional
 
 _DEFAULT_FONT = ("Helvetica", 11)
 
 logger = logging.getLogger(__name__)
 
 __all__ = (
-        'showInfo',
-        'selectFile',
-        'saveDialog',
-        'selectItem',
-        'selectItems',
-        'filters'
+    'showInfo',
+    'selectFile',
+    'saveDialog',
+    'selectItem',
+    'selectItems',
+    'filters'
 )
 
 
@@ -59,7 +59,8 @@ def _resolveBackend(backend: str = None):
     return backend
 
 
-def showInfo(msg:str, title:str="Info", font=None, icon:str=None, backend:str=None) -> None:
+def showInfo(msg: str, title: str = "Info", font=None, icon: str = None, backend: str = None
+             ) -> None:
     """
     Show a pop up dialog with some info
 
@@ -92,8 +93,9 @@ def showInfo(msg:str, title:str="Info", font=None, icon:str=None, backend:str=No
     root.mainloop()
 
 
-def selectFile(directory:str=None, filter="All (*.*)", title="Open file",
-               backend:str=None) -> str:
+def selectFile(directory: str = None, filter="All (*.*)", title="Open file",
+               backend: str = None
+               ) -> str:
     """
     Create a dialog to open a file and returns the file selected
 
@@ -128,7 +130,7 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file",
     return path
 
 
-def _tkParseFilter(filter:str) -> List[Tuple[str, str]]:
+def _tkParseFilter(filter: str) -> List[Tuple[str, str]]:
     # A filter has the form <name1> (<wildcard1>, <wildcard2>, ...);; name2...
     parts = filter.split(";;")
     out = []
@@ -157,7 +159,7 @@ def _tkOk() -> bool:
         return False
 
 
-def _saveDialogTk(filter="All (*.*)", title="Save file", directory:str= "~") -> str:
+def _saveDialogTk(filter="All (*.*)", title="Save file", directory: str = "~") -> str:
     from ttkthemes import ThemedTk
     from tkinter import filedialog
     root = ThemedTk(theme='breeze')
@@ -169,7 +171,7 @@ def _saveDialogTk(filter="All (*.*)", title="Save file", directory:str= "~") -> 
     return path
 
 
-def saveDialog(filter="All (*.*)", title="Save file", directory:str="~", backend:str=None
+def saveDialog(filter="All (*.*)", title="Save file", directory: str = "~", backend: str = None
                ) -> str:
     """
     Open a dialog to save a file.
@@ -185,7 +187,7 @@ def saveDialog(filter="All (*.*)", title="Save file", directory:str="~", backend
         directory: the initial directory
         backend: one of 'qt', 'tkinter' or None to select the backend based on available
             packages
-        
+
     Returns:
         the save filename, or an empty string if the dialog is dismissed
     """
@@ -202,10 +204,10 @@ def saveDialog(filter="All (*.*)", title="Save file", directory:str="~", backend
         return _saveDialogTk(filter=filter, title=title, directory=directory)
 
 
-def selectItem(items:Sequence[str], title="Select", entryFont=('Arial', 15),
+def selectItem(items: Sequence[str], title="Select", entryFont=('Arial', 15),
                listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
                caseSensitive=False, ensureSelection=False,
-               backend:str=None
+               backend: str = None
                ) -> Optional[str]:
     """
     Select one item from a list
@@ -239,10 +241,10 @@ def _tkMeasureTextWidth(font: Tuple[str, int], text: str, correctionFactor=1.1) 
     return int(tkfont.measure(text) * correctionFactor)
 
 
-def selectItems(items:Sequence[str], title="Select", entryFont=('Arial', 14),
+def selectItems(items: Sequence[str], title="Select", entryFont=('Arial', 14),
                 listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
                 caseSensitive=False, ensureSelection=False,
-                backend:str=None
+                backend: str = None
                 ) -> List[str]:
     """
     Select one or multiple items from a list
@@ -282,10 +284,10 @@ def selectItems(items:Sequence[str], title="Select", entryFont=('Arial', 14),
         raise ValueError("Backends supported: 'qt', 'tk'")
 
 
-def _selectFromListTk(items:Sequence[str], title="Select", entryFont=('Arial', 15),
-                   listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
-                   caseSensitive=False, ensureSelection=False
-                   ) -> List[str]:
+def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 15),
+                      listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
+                      caseSensitive=False, ensureSelection=False
+                      ) -> List[str]:
     """
     Select one or multiple items from a list
 
@@ -329,7 +331,7 @@ def _selectFromListTk(items:Sequence[str], title="Select", entryFont=('Arial', 1
     treestyle.configure("selectFromList.Treeview", highlightthickness=0, bd=0,
                         font=listFont)
     treestyle.layout("selectFromList.Treeview", [
-        ('selectFromList.Treeview.treearea', {'sticky':'nswe'})])
+        ('selectFromList.Treeview.treearea', {'sticky': 'nswe'})])
     tree = ttk.Treeview(root, height=numlines, show='tree', style='selectFromList.Treeview'
                         )
     tree.grid(row=1, column=0, sticky='nsew')
@@ -339,7 +341,7 @@ def _selectFromListTk(items:Sequence[str], title="Select", entryFont=('Arial', 1
     itemids = [tree.insert('', tk.END, text=item, open=False)
                for item in items]
 
-    id2item = {i:c for i, c in zip(itemids, items)}
+    id2item = {i: c for i, c in zip(itemids, items)}
 
     # add a scrollbar
 
@@ -350,7 +352,7 @@ def _selectFromListTk(items:Sequence[str], title="Select", entryFont=('Arial', 1
     else:
         tree.configure(yscroll=None)
 
-    id2visible = {i:True for i in itemids}
+    id2visible = {i: True for i in itemids}
 
     def applyfilter(text, caseSensitive):
         idx = 0
@@ -407,15 +409,15 @@ def _selectFromListTk(items:Sequence[str], title="Select", entryFont=('Arial', 1
         entry.icursor(len(s))
         entry.focus_set()
 
-    root.bind("<Escape>", lambda *args:root.destroy())
+    root.bind("<Escape>", lambda *args: root.destroy())
     root.bind("<Return>", accept)
     entry.bind("<KeyRelease>",
-               lambda *args:applyfilter(filterval.get(), caseSensitive=caseSensitive))
-    entry.bind("<Down>", lambda *args:entrymove(1))
-    entry.bind("<Up>", lambda *args:entrymove(-1))
+               lambda *args: applyfilter(filterval.get(), caseSensitive=caseSensitive))
+    entry.bind("<Down>", lambda *args: entrymove(1))
+    entry.bind("<Up>", lambda *args: entrymove(-1))
     for k in "abcdefghijklmnopqrstuvwxyzABCEFGHIJKLMNOPQRSTUVWXYZ0123456789":
         tree.bind(k, entrykey)
-    tree.bind("<BackSpace>", lambda *args:entryback())
+    tree.bind("<BackSpace>", lambda *args: entryback())
     tree.bind('<Double-Button-1>', accept)
 
     tree.focus(itemids[0])
