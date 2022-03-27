@@ -1780,6 +1780,11 @@ def simplify_breakpoints(bps: List[T], coordsfunc: Func,
     return simplified
 
 
+def rgb_to_hex(r: int, g: int, b: int) -> str:
+    "Convert a color in rgb to its hex representation"
+    return '#%02x%02x%02x'% (r, g, b)
+        
+
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #                             END
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
