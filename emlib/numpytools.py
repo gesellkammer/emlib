@@ -231,4 +231,55 @@ def astype(a: np.ndarray, typedescr):
     
     """
     return a if a.dtype == typedescr else a.astype(typedescr)
-    
+
+
+def _nearestlr(items: np.ndarray, seq: np.ndarray) -> np.ndarray:
+    irs = np.searchsorted(seq, items, 'left')
+    np.clip(irs, 0, len(seq) - 1, out=irs)
+    ils = irs - 1
+    rdiff = np.abs(seq[irs] - items)
+    ldiff = np.abs(seq[ils] - items)
+    out = np.choose(rdiff < ldiff, [ils, irs])
+    return out
+
+
+def _nearestl(items: np.ndarray, seq: np.ndarray) -> np.ndarray:
+    idxs = np.searchsorted(seq, items, 'right')
+    idxs -= 1
+    if np.any(idxs < 0):
+        raise ValueError("No values to the left!")
+    return idxs
+
+
+def _nearestr(items: np.ndarray, seq: np.ndarray) -> np.ndarray:
+    idxs = np.searchsorted(seq, items, 'left')
+    if np.any(idxs >= len(seq)):
+        raise ValueError("No values to the right!")
+    return idxs
+
+
+def nearestindex(a: np.ndarray, grid: np.ndarray, left=True, right=True
+                  ) -> np.ndarray:
+    """
+    For each value in `a` return the index into `grid` nearest to it
+
+    To get the nearest element, do::
+
+        indexes = nearest_index(a, grid)
+        nearest_elements = grid[indexes]
+
+    Args:
+        a: events to match from. Does not need to be sorted
+        grid: events to match against. Does not need to be sorted
+        left: match events lower than the event from
+        right: match events higher than the event from
+    """
+    if left and right:
+        return _nearestlr(a, grid)
+    elif left:
+        return _nearestl(a, grid)
+    elif right:
+        return _nearestr(a, grid)
+    else:
+        raise ValueError("At least left or right must be true")
+

@@ -8,9 +8,8 @@ import collections as _collections
 import random as _random
 from math import inf
 from typing import TYPE_CHECKING
-import sys
 if TYPE_CHECKING:
-    from typing import *
+    from typing import List, Iterable, Optional, Union, TypeVar, Tuple, Callable, Sequence
     T = TypeVar("T")
     T2 = TypeVar("T2")
 
@@ -267,6 +266,9 @@ def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
 
 
 def parse_range(start, stop:int=None, step:int=None) -> Tuple[int, int, int]:
+    """
+    Given arguments as passed to `range`, resolved them in `(start, stop, step)`
+    """
     if stop is None:
         stop = int(start)
         start = 0
@@ -286,7 +288,7 @@ def chunks(start:int, stop:int=None, step:int=None) -> Iterable[Tuple[int, int]]
     [(0, 3), (3, 3), (6, 3), (9, 1)]
 
     """
-    start, stop, step = _parse_range(start, stop, step)
+    start, stop, step = parse_range(start, stop, step)
     while start < stop:
         size = min(stop - start, step)
         yield start, size

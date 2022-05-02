@@ -1,6 +1,51 @@
 """
 Tools to parse and generate documentation
 
+This framework was particularly conceived to document cython projects
+which are badly supported with sphinx, but can be used to document
+pure python projects just as well.
+
+The main backend is mkdocs and at the moment the documentation
+format supported is markdown, using docstring in google style
+
+.. code::
+
+    def func(a: type, b: type) -> rettype:
+        '''
+        Short description of func
+
+        Longer description spanning
+        multiple lines - Admonitions are allowed if
+        enabled in mkdocs :
+
+        !!! note
+
+            My note admonition
+
+        Args:
+            * a: …
+            * b: …
+
+        Returns:
+            My return value
+        '''
+
+One of the main advantages of this framework is that the documentation does not
+need to be built by the host (readthedocs, for example). Used together with mkdocs
+the documentation (markdown) is built locally and It can be built locally and
+checked into the git repo
+
+Projects using this framework for documentation:
+
+- bpf4: https://github.com/gesellkammer/bpf4
+  (build script: https://github.com/gesellkammer/bpf4/blob/master/docs/generatedocs.py)
+
+- rtmidi2: https://github.com/gesellkammer/rtmidi2
+  (build script: https://github.com/gesellkammer/rtmidi2/blob/master/docs/generatedocs.py)
+
+- loristrck: https://github.com/gesellkammer/loristrck/blob/master/docs/generatedocs.py
+
+
 A possible build script for a project's documentation:
 
 .. code::
@@ -27,10 +72,6 @@ A possible build script for a project's documentation:
         os.chdir(root)
         os.system("mkdocs build")
 
-For other examples, see:
-
-* https://github.com/gesellkammer/loristrck/blob/master/docs/generatedocs.py
-
 """
 from __future__ import annotations
 import os
@@ -52,6 +93,9 @@ logger = logging.getLogger("emlib.doctools")
 
 @dataclasses.dataclass
 class Param:
+    """
+    Represents a parameter in a function/method
+    """
     name: str
     type: str = ''
     descr: str = ''
@@ -96,6 +140,7 @@ class ParsedDef:
     returns: Opt[Param] = None
     shortDescr: str = ''
     longDescr: str = ''
+    embeddedSignature: str = ''
 
     def __post_init__(self):
         if self.longDescr:
@@ -112,6 +157,7 @@ class ParsedDef:
         return "def"
 
     def generateSignature(self, includeName=True, includePrefix=False) -> str:
+        """Generated the signature of this func/method based on its paremeters"""
         name = self.name
         if "." in name:
             name = self.name.split(".")[-1]
@@ -137,6 +183,9 @@ class ParsedDef:
 
 @dataclasses.dataclass
 class RenderConfig:
+    """
+    A RenderConfig determines how the documentation is rendered
+    """
     maxwidth: int = 80
     """The max width of a line"""
 
@@ -154,6 +203,9 @@ class RenderConfig:
 
     attributesAreHeadings: bool = False
     """If True, attributes are rendered as headings instead of using bold"""
+
+    includeInheritedMethods: bool = False
+    """If True, add inherited methods to the documentation of each class"""
 
 
 class ParseError(Exception):
@@ -223,6 +275,7 @@ def parseDef(obj) -> ParsedDef:
         return _parseProperty(obj)
 
     docstr = obj.__doc__
+    embeddedSignature = ''
 
     if inspect.isfunction(obj) or inspect.isbuiltin(obj):
         kind = ObjectKind.Function
@@ -238,7 +291,7 @@ def parseDef(obj) -> ParsedDef:
                 firstline, rest = _splitFirstLine(docstr)
                 basename = obj.__qualname__.split(".")[-1]
                 if hasEmbeddedSignature(basename, docstr):
-                    _, docstr = docstr.split("\n", maxsplit=1)
+                    embeddedSignature, docstr = docstr.split("\n", maxsplit=1)
             except ValueError:
                 pass
     else:
@@ -258,6 +311,9 @@ def parseDef(obj) -> ParsedDef:
         logger.error(obj.__doc__)
         raise e
 
+    if sig and any(p for p in sig.parameters if p != 'self') and not docstring.params:
+        logger.warning(f"{objName}: No parameters declared in the docstring")
+
     paramNameToParam: Dict[str, Param] = {p.name: p for p in docstring.params}
     shortDescr = docstring.shortDescr
     longDescr = docstring.longDescr
@@ -270,7 +326,7 @@ def parseDef(obj) -> ParsedDef:
             hasDefault = param.default != param.empty
             paramDefault = param.default if hasDefault else None
             if (annot := param.annotation) != param.empty:
-                assert isinstance(param.annotation, str), "Use `from __future__ import annotation`"
+                assert isinstance(param.annotation, str), f"Use `from __future__ import annotation`, {param.annotation=} in {obj}"
                 annot = annot.strip()
                 if annot[0] == "'" and annot[-1] == "'":
                     annot = annot[1:-1]
@@ -315,7 +371,8 @@ def parseDef(obj) -> ParsedDef:
         returns = Param(name='returns', type=returnType, descr=returnDescr)
 
     return ParsedDef(name=objName, kind=kind, params=params, returns=returns,
-                     shortDescr=shortDescr, longDescr=longDescr)
+                     shortDescr=shortDescr, longDescr=longDescr,
+                     embeddedSignature=embeddedSignature)
 
 
 def parseDocstring(docstr: str, fmt='google') -> ParsedDef:
@@ -381,13 +438,15 @@ def parseDocstring(docstr: str, fmt='google') -> ParsedDef:
 
     longDescr = "\n".join(descrLines)
     returns: Opt[Param]
+    returnLines = [l for l in returnLines
+                   if l.strip()]
     if returnLines:
-        if match := re.search(r"\s*\(\s*(.*)\s*\)\s+(\w.*)", returnLines[0]):
+        if match := re.search(r"\(\s*(.*)\s*\)\s+(\w.*)", returnLines[0]):
             returnType = match.group(1)
             returnLines[0] = match.group(2)
         else:
             returnType = ""
-        returns = Param(name="returns", descr=" ".join(returnLines), type="")
+        returns = Param(name="returns", descr=" ".join(returnLines), type=returnType)
     else:
         returns = None
     return ParsedDef(shortDescr=shortDescr,
@@ -504,7 +563,7 @@ def _mdParam(param:Param, maxwidth=70, indent=4) -> List[str]:
         s += f" (`{param.type}`)"
     s += ": " + param.descr
     if param.hasDefault:
-        s += f" (default: {param.default})"
+        s += f" (*default*: `{param.default}`)"
     return textwrap.wrap(s, maxwidth, subsequent_indent=" "*(indent*1))
 
 
@@ -620,7 +679,7 @@ def _guessDocFormat(docstring: str) -> str:
 
 def _renderAttributeMarkdown(parsed: ParsedDef, startLevel=0):
     if startLevel == 0:
-        s = f"**{parsed.name}**"
+        s = f"* **{parsed.name}**"
     else:
         s = markdownHeader(parsed.name, startLevel)
 
@@ -638,11 +697,11 @@ def _renderDocMarkdown(parsed: ParsedDef, startLevel:int, renderConfig: RenderCo
         level = startLevel if renderConfig.attributesAreHeadings else 0
         return _renderAttributeMarkdown(parsed, startLevel=level)
     arglines = []
-    if parsed.params and parsed.params[0].name != "self":
+
+    params = [p for p in parsed.params if p.name != 'self'] # and (p.descr or p.default or p.type)]
+    if params:
         arglines.extend(["", "**Args**", ""])
-        for param in parsed.params:
-            if param.name == "self":
-                continue
+        for param in params:
             arglines.extend(_mdParam(param, maxwidth=renderConfig.maxwidth))
 
     if parsed.returns and parsed.returns.descr and parsed.returns.descr != "None":
@@ -673,17 +732,21 @@ def _renderDocMarkdown(parsed: ParsedDef, startLevel:int, renderConfig: RenderCo
     longdescr = markdownReplaceHeadings(longdescr, startLevel=startLevel+1, normalize=True)
     componentName = parsed.name if not renderConfig.splitName else parsed.name.split(".")[-1]
     blocks = [markdownHeader(componentName, headernum=startLevel)]
-    if parsed.shortDescr:
-        blocks.append(parsed.shortDescr)
-    signature = parsed.generateSignature(includeName=False, includePrefix=False)
+    if parsed.embeddedSignature:
+        fmtsig = parsed.embeddedSignature
+    else:
+        signature = parsed.generateSignature(includeName=False, includePrefix=False)
+        fmtsig = formatSignature(componentName,
+                                 signature=signature,
+                                 maxwidth=renderConfig.maxwidth,
+                                 prefix=parsed.prefix())
     siglines = ["```python\n"]
-    fmtsig = formatSignature(componentName,
-                             signature=signature,
-                             maxwidth=renderConfig.maxwidth,
-                             prefix=parsed.prefix())
     siglines.append(fmtsig)
     siglines.append("\n```")
     blocks.append("\n".join(siglines))
+
+    if parsed.shortDescr:
+        blocks.append(parsed.shortDescr)
 
     if parsed.longDescr:
         blocks.append(longdescr)
@@ -696,7 +759,7 @@ def _renderDocMarkdown(parsed: ParsedDef, startLevel:int, renderConfig: RenderCo
 def renderDocumentation(parsed: ParsedDef, renderConfig: RenderConfig, startLevel:int
                         ) -> str:
     """
-    Renders the parsed function / method as documentation in the given format
+    Renders the parsed function / method /  property as documentation in the given format
 
     Args:
         parsed: the result of calling parseDef on a function or method
@@ -765,7 +828,7 @@ def generateDocsForFunctions(funcs: List[Callable], renderConfig: RenderConfig=N
         _(sep)
 
     lasti = len(funcs)-1
-    startLevelForFuncs = startLevel+1 if title else startLevel
+    startLevelForFuncs = startLevel
     for i, func in enumerate(funcs):
         try:
             parsed = parseDef(func)
@@ -782,40 +845,89 @@ def generateDocsForFunctions(funcs: List[Callable], renderConfig: RenderConfig=N
 
 @dataclasses.dataclass
 class ClassMembers:
-    properties: list
+    """
+    Gathers members defined in a class
+
+    A member can be an attribute (a `@property`) or a method
+    """
+    properties: Dict[str, Any]
     """ The @properties in this class """
 
-    methods: list
+    methods: Dict[str, Any]
     """ The methods in this class """
 
 
-def getClassMembers(cls, exclude:Set[str]=set()) -> ClassMembers:
+def _isMethodInherited(cls, method: str, mro) -> bool:
+    m = getattr(cls, method)
+    if inspect.ismethod(m):
+        # classmethod
+        return any(getattr(base, method, None)
+                   for base in mro)
+    else:
+        # normal method
+        return any(m is getattr(base, method, None)
+                   for base in mro)
+
+
+def isMethodInherited(cls, method: str) -> bool:
+    """
+    Is this method inherited?
+
+    Args:
+        cls: the class to which this method belonds
+        method: the method name
+
+    Returns:
+        True is this method is not defined in *cls* but inherited from
+        a base class. If False, this method is defined in *cls* and it
+        either does not exist in any base class or it overrides a parent's
+        definition
+    """
+    mro = cls.mro()[1:]
+    return _isMethodInherited(cls, method, mro)
+
+
+def getClassMembers(cls, exclude: List[str] = None, inherited=True) -> ClassMembers:
     """
     Inspects cls and determines its methods and properties
 
     Args:
         cls: the class to inspect
-        exclude: a set of method/property names to exclude
+        exclude: a list of regexes to exclude
+        inherited: if True, include inherited attributes and methods
 
     Returns:
         a ClassMembers object, with attributes: properties, methods
 
     """
     names = dir(cls)
-    clsname = fullname(cls)
     memberNames = [n for n in names
-                   if n[0].islower() and not n.startswith("__") and n not in exclude]
+                   if n[0].islower() and not n.startswith("__") and not _matchAnyRegex(exclude, n)]
     if '__init__' in names:
-        memberNames = ['__init__'] + memberNames
-    members = [getattr(cls, method) for method in memberNames]
-    properties = [m for m in members if inspect.isgetsetdescriptor(m)]
-    methods = [m for m in members
-               if not inspect.isgetsetdescriptor(m)]
+        initmeth = getattr(cls, '__init__')
+        if initmeth is not object.__init__ and initmeth.__doc__ != 'Initialize self.  See help(type(self)) for accurate signature.':
+            memberNames = ['__init__'] + memberNames
+    members = [(method, getattr(cls, method)) for method in memberNames]
+    properties = {m[0]: m[1] for m in members
+                  if inspect.isgetsetdescriptor(m[1])}
+    methods = {m[0]:m[1] for m in members
+               if not inspect.isgetsetdescriptor(m[1])}
+    if not inherited:
+        mro = cls.mro()[1:-1]
+        methods = {name: method for name, method in methods.items()
+                   if not _isMethodInherited(cls, name, mro)}
+        properties = {name: prop for name, prop in properties.items()
+                      if not _isMethodInherited(cls, name, mro)}
+
     return ClassMembers(properties=properties, methods=methods)
 
 
 def isExtensionClass(cls) -> bool:
-    """ Returns True if cls is an extension (C) class """
+    """ Returns True if cls is an extension class
+
+    An extension class (also built-in class) is defined in c or
+    cython. Its source cannot be inspected
+    """
     try:
         inspect.getsourcelines(cls)
     except OSError:
@@ -823,6 +935,29 @@ def isExtensionClass(cls) -> bool:
     except TypeError:
         return False
     return False
+
+
+def getEmbeddedSignature(objname: str, doc: str) -> Opt[str]:
+    """
+    Returns the docstring embedded signature
+
+    This is present in cython generated classes with the compiler
+    directive "embedsignature" enabled
+
+    Args:
+        objname: the name of the object
+        doc: the docstring of the object
+
+    Returns:
+        the embedded signature or None if no embedded signature found
+    """
+    try:
+        line0, rest = doc.split("\n", maxsplit=1)
+    except ValueError:
+        line0 = doc
+    if re.search(fr"{objname}\(", line0):
+        return line0.strip()
+    return None
 
 
 def hasEmbeddedSignature(objname: str, doc: str) -> bool:
@@ -839,13 +974,7 @@ def hasEmbeddedSignature(objname: str, doc: str) -> bool:
     Returns:
         True if docstring has an embedded signature
     """
-    try:
-        line0, rest = doc.split("\n", maxsplit=1)
-    except ValueError:
-        line0 = doc
-    if re.search(fr"{objname}\(", line0):
-        return True
-    return False
+    return getEmbeddedSignature(objname, doc) is not None
 
 
 def _splitFirstLine(s: str) -> Tuple[str, str]:
@@ -855,7 +984,7 @@ def _splitFirstLine(s: str) -> Tuple[str, str]:
     return s, ''
 
 
-def getModuleMembers(module) -> Dict[str, Any]:
+def getModuleMembers(module, exclude: List[str] = None, classesFirst=True) -> Dict[str, Any]:
     """
     Returns a dictionary of {membername:member} in order of appearence
 
@@ -864,14 +993,25 @@ def getModuleMembers(module) -> Dict[str, Any]:
 
     Args:
         module: the module to query
+        exclude: a list of regexes to exclude
+        classesFirst: if True, classes are included first
 
     Returns:
         a dictionary of all the members defined in this module
 
     """
     members = inspect.getmembers(module)
+
+    if exclude:
+        members = [(name, item) for name, item in members
+                   if _matchAnyRegex(exclude, name)]
+
+    if classesFirst:
+        members.sort(key=lambda item: int(inspect.isclass(item)))
+
     ownmembers = {name:item for name, item in members
                   if inspect.getmodule(item) is module and not name.startswith("_")}
+
     return ownmembers
 
 
@@ -918,19 +1058,60 @@ def groupMembers(members: Dict[str, Any]) -> Tuple[dict, dict, dict]:
     return funcs, clss, modules
 
 
-def generateDocsForModule(module, renderConfig:RenderConfig=None, exclude:Set[str]=None,
-                          startLevel=1, grouped=False, title:str=None) -> str:
+def sortClassesByTree(classes: List[type]) -> List[type]:
+    """
+    Sort classes according to their inheritance tree
+
+    Args:
+        classes: a list of classes
+
+    Returns:
+        the list of classes, sorted by inheritance
+    """
+    assert all(isinstance(cls, type) for cls in classes)
+
+    seen = set()
+    coll = []
+    later = []
+
+    def walk(tree):
+        for entry in tree:
+            if isinstance(entry, tuple):
+                cls, bases = entry
+                if cls == object :
+                    continue
+                if bases[0] != object and bases[0] not in seen:
+                    later.append(cls)
+                    continue
+                coll.append(cls)
+                seen.add(cls)
+            elif isinstance(entry, list):
+                walk(entry)
+            else:
+                raise ValueError(f"Got {entry}")
+
+    walk(inspect.getclasstree(classes))
+    coll.extend(later)
+    assert all(isinstance(cls, type) for cls in coll)
+
+    return coll
+
+
+def generateDocsForModule(module, renderConfig:RenderConfig=None, exclude: List[str] = None,
+                          startLevel=1, grouped=False, title:str=None,
+                          includeCustomExceptions=False) -> str:
     """
     Generate documentation for the given module
 
     Args:
         module: the module to generate documentation for
         renderConfig: a RenderConfig
-        exclude: functions/classes to exclude
+        exclude: functions/classes to exclude. A list of regexes
         startLevel: heading start level
         grouped: if True, classes / functions are grouped together. Otherwise the order
             of appearance within the source code is used
         title: if given, it will be used instead of the module name
+        includeCustomExceptions: if True, include user defined exceptions into the documentation
 
     Returns:
         The rendered documentation as a markdown string
@@ -949,25 +1130,51 @@ def generateDocsForModule(module, renderConfig:RenderConfig=None, exclude:Set[st
     blocks.append(sep)
     if grouped:
         raise ValueError("grouped output not supported yet")
-    membersd = getModuleMembers(module)
-    for name, member in membersd.items():
-        if exclude and name in exclude:
-            continue
-        if inspect.isclass(member):
-            blocks.append(generateDocsForClass(member, renderConfig=renderConfig,
-                                               startLevel=startLevel+1))
-        else:
-            parsed = parseDef(member)
-            doc = renderDocumentation(parsed, renderConfig=renderConfig,
-                                      startLevel=startLevel+1)
-            blocks.append(doc)
-            blocks.append(sep)
+
+    membersd = getModuleMembers(module, exclude=exclude)
+    classmembers = [member for name, member in membersd.items()
+                    if inspect.isclass(member)]
+    classmembers = sortClassesByTree(classmembers)
+
+    funcmembers = [member for name, member in membersd.items()
+                   if not inspect.isclass(member)]
+
+    if not includeCustomExceptions and classmembers:
+        classmembers = [cls for cls in classmembers
+                        if Exception not in cls.mro()]
+
+    for cls in classmembers:
+        blocks.append(generateDocsForClass(cls, renderConfig=renderConfig, startLevel=startLevel+1))
+        blocks.append(sep)
+
+    for func in funcmembers:
+        parsed = parseDef(func)
+        doc = renderDocumentation(parsed, renderConfig=renderConfig, startLevel=startLevel+1)
+        blocks.append(doc)
+        blocks.append(sep)
+
     if blocks[-1] == sep:
         blocks.pop()
     return "\n\n".join(blocks)
 
 
-def generateDocsForClass(cls, renderConfig:RenderConfig, exclude:Set[str]=set(),
+def _matchAnyRegex(patterns: List[str], s: str) -> bool:
+    """
+    Returns True if s matches any of the regexes in patterns
+
+    Args:
+        patterns: a list of regexes (can be None)
+        s: the string to match
+
+    Returns:
+        True if s matches any of the regexes in patterns
+    """
+    if not patterns:
+        return False
+    return any(re.search(patt, s) for patt in patterns)
+
+
+def generateDocsForClass(cls, renderConfig:RenderConfig, exclude: List[str] = None,
                          startLevel=1) -> str:
     """
     Generate documentation for the given class
@@ -981,37 +1188,48 @@ def generateDocsForClass(cls, renderConfig:RenderConfig, exclude:Set[str]=set(),
     Returns:
         The rendered documentation as a markdown string
     """
-    classMembers = getClassMembers(cls)
-    blocks = [markdownHeader(cls.__qualname__, startLevel)]
     sep = "\n---------\n"
+    classMembers = getClassMembers(cls, inherited=renderConfig.includeInheritedMethods)
+    blocks = [markdownHeader(cls.__qualname__, startLevel)]
+    mro = cls.mro()
+    if len(mro) > 2:
+        base = mro[1].__qualname__
+        blocks.append(f' - Base Class: [{base}](#{base.lower()})')
     if cls.__doc__:
         clsdocs = textwrap.dedent(cls.__doc__)
         if isExtensionClass(cls) and hasEmbeddedSignature(cls.__qualname__, clsdocs):
+            signature = getEmbeddedSignature(cls.__qualname__, clsdocs)
             _, clsdocs = _splitFirstLine(clsdocs)
             clsdocs = textwrap.dedent(clsdocs)
-        # clsdocs = markdownReplaceHeadings(clsdocs, startLevel=startLevel+1)
+        else:
+            signature = ''
         parsedDocs = parseDocstring(clsdocs)
-        parsedDocs.name = cls.__qualname__
-        parsedDocs.kind = ObjectKind.Class
+        parsedDocs.embeddedSignature = signature
         rendered = renderDocumentation(parsedDocs, renderConfig=renderConfig,
                                        startLevel = startLevel+1)
         blocks.append(rendered)
 
-    if classMembers.methods:
-        methodDocs = generateDocsForFunctions(classMembers.methods,
-                                              renderConfig=renderConfig,
-                                              title="Methods",
-                                              startLevel=startLevel+1)
-        blocks.append(sep)
-        blocks.append(methodDocs)
-
     if classMembers.properties:
-        blocks.append(sep)
-        blocks.append(markdownHeader("Attributes", startLevel+1))
-        for prop in classMembers.properties:
+        blocks.append("**Attributes**")
+        # blocks.append(markdownHeader("Attributes", startLevel+1))
+        for prop in classMembers.properties.values():
             p = parseDef(prop)
-            doc = renderDocumentation(p, renderConfig=renderConfig, startLevel=startLevel+3)
+            doc = renderDocumentation(p, renderConfig=renderConfig, startLevel=startLevel+2)
             blocks.append(doc)
+
+    if classMembers.methods:
+        if exclude:
+            methods = [method for methodname, method in classMembers.methods.items()
+                       if not _matchAnyRegex(exclude, methodname)]
+        else:
+            methods = list(classMembers.methods.values())
+
+        blocks.append(sep)
+        blocks.append("**Methods**")
+        methodDocs = generateDocsForFunctions(methods,
+                                              renderConfig=renderConfig,
+                                              startLevel=startLevel+1)
+        blocks.append(methodDocs)
 
     docs = "\n\n".join(blocks)
     return docs

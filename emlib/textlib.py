@@ -8,7 +8,7 @@ import re
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import *
+    from typing import Sequence, Callable
 
 
 def stripLines(text: str) -> str:
@@ -22,7 +22,7 @@ def stripLines(text: str) -> str:
     return "\n".join(lines)
 
 
-def splitAndStripLines(text: str) -> List[str]:
+def splitAndStripLines(text: str, regexp: str = None) -> list[str]:
     """
     Spits `text` into lines and removes empty lines at the beginning and end
 
@@ -30,11 +30,12 @@ def splitAndStripLines(text: str) -> List[str]:
 
     Args:
         text: the text to split
+        regexp: if given, use this regexp to split the lines. Otherwise uses ``str.splitlines``
 
     Returns:
         the list of lines
     """
-    lines = text.splitlines()
+    lines = re.split(regexp, text) if regexp else text.splitlines()
     startidx, endidx = 0, 0
     for startidx, line in enumerate(lines):
         if line.strip():
@@ -96,7 +97,7 @@ def joinPreservingIndentation(fragments: Sequence[str]) -> str:
     return code
 
 
-def fuzzymatch(pattern:str, strings:List[str]) -> List[Tuple[float, str]]:
+def fuzzymatch(pattern:str, strings:list[str]) -> list[tuple[float, str]]:
     """
     Find possible matches to pattern in ``strings``. Returns a subseq. of
     strings sorted by best score. Only strings representing possible matches
@@ -157,10 +158,13 @@ def makeReplacer(conditions: dict) -> Callable:
 
 
 def escapeAnsi(line: str) -> str:
+    """
+    Escape ani codes
+    """
     return re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]').sub('', line)
 
 
-def splitInChunks(s: Union[str, bytes], maxlen: int) -> list:
+def splitInChunks(s: str|bytes, maxlen: int) -> list:
     """
     Split `s` into strings of max. size `maxlen`
 
