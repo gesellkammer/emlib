@@ -1,6 +1,6 @@
 from __future__ import annotations
 import math
-from emlib.pitchtools import amp2db, db2amp
+from pitchtools import amp2db, db2amp
 import re as _re
 
 
