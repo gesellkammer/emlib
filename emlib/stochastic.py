@@ -6,7 +6,9 @@ from collections import defaultdict
 import tabulate
 import random
 import logging
-import emlib.typehints as t
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import *
 
 
 try:

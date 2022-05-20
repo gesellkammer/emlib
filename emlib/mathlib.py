@@ -12,12 +12,23 @@ from __future__ import annotations
 import operator as _operator
 import random as _random
 from functools import reduce
-from fractions import Fraction
 from math import gcd, sqrt, cos, sin, radians, ceil
 import sys as _sys
 import numpy as np
+from numbers import Rational
 
-from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, Seq, Callable
+try:
+    from quicktions import Fraction
+except ImportError:
+    from fractions import Fraction
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from typing import *
+    # number_t = Union[float, Rational]
+    number_t = Rational
+    T = TypeVar("T", bound=number_t)
+    T2 = TypeVar("T2", bound=number_t)
 
 
 __all__ = ("PHI",
@@ -40,6 +51,7 @@ __all__ = ("PHI",
            "logrange",
            "randspace",
            "fib",
+           "interpfib"
            "roundrnd",
            "roundres",
            "next_in_grid",
@@ -54,7 +66,7 @@ __all__ = ("PHI",
 PHI = 0.6180339887498949
 
 
-def intersection(u1:T, u2:T, v1:T, v2:T) -> Opt[Tup[T, T]]:
+def intersection(u1:T, u2:T, v1:T, v2:T) -> Optional[Tuple[T, T]]:
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
 
@@ -79,7 +91,7 @@ def intersection(u1:T, u2:T, v1:T, v2:T) -> Opt[Tup[T, T]]:
     return (x0, x1) if x0 < x1 else None
 
 
-def frange(start:float, stop:float=None, step:float=None) -> Iter[float]:
+def frange(start: float, stop: float=None, step: float=None) -> Iterator[float]:
     """
     Like xrange(), but returns list of floats instead
 
@@ -114,28 +126,31 @@ def asFraction(x) -> Fraction:
     """ Convert x to a Fraction if it is not already one """
     if isinstance(x, Fraction):
         return x
+    elif isinstance(x, Rational):
+        return Fraction(x.numerator, x.denominator)
     return Fraction(x)
 
 
-def fraction_range(start:number_t, stop:number_t=None, step:number_t=None
-                   ) -> Iter[Fraction]:
+def fraction_range(start: number_t, stop: number_t = None, step: number_t = None
+                   ) -> Iterator[Fraction]:
     """ Like range, but yielding Fractions """
     if stop is None:
-        stop = asFraction(start)
-        start = Fraction(0)
+        stopF = asFraction(start)
+        startF = Fraction(0)
     else:
-        start = asFraction(start)
+        startF = asFraction(start)
+        stopF = asFraction(stop)
 
     if step is None:
         step = Fraction(1)
     else:
         step = asFraction(step)
-    while start < stop:
-        yield start
-        start += step
+    while startF < stopF:
+        yield startF
+        startF += step
 
 
-def linspace(start:float, stop:float, numitems:int) -> List[float]:
+def linspace(start: float, stop: float, numitems: int) -> List[float]:
     """ Similar to numpy.linspace, returns a python list """
     dx = (stop - start) / (numitems - 1)
     return [start + dx*i for i in range(numitems)]
@@ -176,7 +191,7 @@ def lcm(*numbers: int) -> int:
     return reduce(lcm2, numbers, 1)
 
 
-def min_common_denominator(floats: Iter[float], limit:int = int(1e10)) -> int:
+def min_common_denominator(floats: Iterator[float], limit: int = int(1e10)) -> int:
     """
     find the min common denominator to express floats as fractions
 
@@ -192,7 +207,7 @@ def min_common_denominator(floats: Iter[float], limit:int = int(1e10)) -> int:
     return lcm(*[f.denominator for f in fracs])
 
 
-def convert_base_10_to_any_base(x:int, base:int) -> str:
+def convert_base_10_to_any_base(x: int, base: int) -> str:
     """
     Converts given number x, from base 10 to base b
 
@@ -213,7 +228,7 @@ def convert_base_10_to_any_base(x:int, base:int) -> str:
     return r
 
 
-def convert_any_base_to_base_10(s:str, base:int) -> int:
+def convert_any_base_to_base_10(s: str, base: int) -> int:
     """
     Converts given number s, from base b to base 10
 
@@ -228,7 +243,7 @@ def convert_any_base_to_base_10(s:str, base:int) -> int:
     return int(s, base)
 
 
-def convert_base(s:str, frombase:int, tobase:int) -> str:
+def convert_base(s: str, frombase: int, tobase: int) -> str:
     """
     Converts s from base a to base b
 
@@ -249,7 +264,7 @@ def convert_base(s:str, frombase:int, tobase:int) -> str:
     return convert_base_10_to_any_base(x, tobase)
 
 
-def euclidian_distance(values: Seq[float], weights: Seq[float]=None) -> float:
+def euclidian_distance(values: Sequence[float], weights: Sequence[float]=None) -> float:
     """
     Reduces distances in multiple dimensions to 1 dimension.
 
@@ -268,7 +283,7 @@ def euclidian_distance(values: Seq[float], weights: Seq[float]=None) -> float:
     return sqrt(sum(value**2 for value in values))
 
 
-def weighted_euclidian_distance(pairs: List[Tuple(float, float)]) -> float:
+def weighted_euclidian_distance(pairs: List[Tuple[float, float]]) -> float:
     """
     Reduces distances in multiple dimensions to 1 dimension.
 
@@ -285,7 +300,7 @@ def weighted_euclidian_distance(pairs: List[Tuple(float, float)]) -> float:
     return euclidian_distance(values=values, weights=weights)
 
 
-def prod(numbers: Seq[number_t]) -> number_t:
+def prod(numbers: Sequence[number_t]) -> number_t:
     """
     Returns the product of the given numbers
     ::
@@ -295,26 +310,25 @@ def prod(numbers: Seq[number_t]) -> number_t:
     return reduce(_operator.mul, numbers)
 
 
-def geometric_mean(numbers: Seq[number_t]) -> float:
+def geometric_mean(numbers: Sequence[number_t]) -> float:
     """
     The geometric mean is often used to find the mean of data measured in different units.
     """
     return prod(numbers) ** (1/len(numbers))
 
 
-def harmonic_mean(numbers: Seq[number_t]) -> number_t:
+def harmonic_mean(numbers: Sequence[T]) -> T:
     """
     The harmonic mean is used to calculate F1 score.
 
     (https://en.wikipedia.org/wiki/F-score)
     """
-    T = type(numbers[0])
-    one = T(1)
+    one = type(numbers[0])(1)
     return one/(sum(one/n for n in numbers) / len(numbers))
 
 
-def split_interval_at_values(start: number_t, end: number_t, offsets: Seq[number_t]
-                             ) -> List[Tup[number_t, number_t]]:
+def split_interval_at_values(start: T, end: T, offsets: Sequence[T]
+                             ) -> List[Tuple[T, T]]:
     """
     Split interval (start, end) at the given offsets
 
@@ -373,7 +387,7 @@ def derivative(func: Callable[[number_t], number_t], h=0) -> Callable[[number_t]
     return lambda x: (float(func(x+h*1.0j))).imag / h
 
 
-def logrange(start:float, stop:float, num=50, base=10) -> np.ndarray:
+def logrange(start: float, stop: float, num=50, base=10) -> np.ndarray:
     """
     create an array [start, ..., stop] with a logarithmic scale
     """
@@ -412,7 +426,7 @@ def randspace(begin: float, end: float, numsteps: int, include_end=True
     return out
 
 
-def _fib2(N: float) -> Tup[float, float]:
+def _fib2(N: float) -> Tuple[float, float]:
     if N == 0:
         return 0, 1
     half_N, is_N_odd = divmod(N, 2)
@@ -440,6 +454,21 @@ def fib(n: float) -> float:
         return _fib2(n)[0]
 
 
+def interpfib(x: float, x0: float, y0: float, x1: float, y1: float) -> float:
+    """
+    Fibonacci interpolation
+
+    Interpolate between ``(x0, y0)`` and ``(x1, y1)`` at *x* with fibonacci interpolation
+
+    It is assured that if *x* is equidistant to
+    *x0* and *x1*, then for the result *y* it should be true that::
+
+        y1 / y == y / y0 == ~0.618
+    """
+    dx = (x-x0)/(x1-x0)
+    dx2 = fib(40+dx*2)
+    dx3 = (dx2 - 102334155) / 165580141
+    return y0 + (y1 - y0)*dx3
 
 
 def roundrnd(x: float) -> float:
@@ -493,9 +522,9 @@ def modulo_shortest_distance(x, origin, mod):
     return -xanti
 
 
-def rotate2d(point: Tup[float, float],
+def rotate2d(point: Tuple[float, float],
              degrees: float,
-             origin=(0, 0)) -> Tup[float, float]:
+             origin=(0, 0)) -> Tuple[float, float]:
     """
     A rotation function that rotates a point around an origin
 
@@ -546,7 +575,7 @@ def periodic_float_to_fraction(s: str) -> Fraction:
 
 
 def optimize_parameter(func, val: float, paraminit: float, maxerror=0.001,
-                       maxiterations=100) -> Tup[float, int]:
+                       maxiterations=100) -> Tuple[float, int]:
     """
     Optimize one parameter to arrive to a desired value.
 

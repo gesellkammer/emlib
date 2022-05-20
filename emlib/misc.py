@@ -26,8 +26,12 @@ import numpy as np
 from fractions import Fraction
 from typing import TYPE_CHECKING
 if TYPE_CHECKING or 'sphinx' in _sys.modules:
-    from emlib.typehints import T, T2, number_t, List, Tup, Opt, Iter, U, Seq, Func, Any, Callable, Dict
-
+    from typing import *
+    T = TypeVar("T")
+    T2 = TypeVar("T2")
+    import numbers
+    number_t = Union[float, numbers.Rational]
+    
 
 # ------------------------------------------------------------
 #     CHUNKS
@@ -70,7 +74,7 @@ def _partialsum(seq):
     return out
 
 
-def wrap_by_sizes(flatseq: list, packsizes: Seq[int]) -> List[list]:
+def wrap_by_sizes(flatseq: list, packsizes: Sequence[int]) -> List[list]:
     """
     Wrap a flat seq using the given sizes
 
@@ -106,7 +110,7 @@ def wrap_by_sizes(flatseq: list, packsizes: Seq[int]) -> List[list]:
 # ------------------------------------------------------------
 
 
-def nearest_element(item: float, seq: U[List[float], np.ndarray]) -> float:
+def nearest_element(item: float, seq: Union[List[float], np.ndarray]) -> float:
     """
     Find the nearest element (the element, not the index) in seq
 
@@ -152,7 +156,7 @@ def nearest_element(item: float, seq: U[List[float], np.ndarray]) -> float:
     return element_l
 
 
-def nearest_unsorted(x:number_t, seq:List[number_t]) -> number_t:
+def nearest_unsorted(x: number_t, seq: List[number_t]) -> number_t:
     """
     Find nearest item in an unsorted sequence
 
@@ -212,7 +216,7 @@ def nearest_index(item: number_t, seq: List[number_t]) -> int:
 # ------------------------------------------------------------
 
 
-def sort_natural(seq: list, key:Callable[[Any], str]=None) -> list:
+def sort_natural(seq: list, key: Callable[[Any], str]=None) -> list:
     """
     sort a string sequence naturally
 
@@ -251,7 +255,7 @@ def sort_natural_dict(d: Dict[str, Any], recursive=True) -> dict:
     """
     sort dict d naturally and recursively
     """
-    rows: List[Tup[str, Any]] = []
+    rows: List[Tuple[str, Any]] = []
     if recursive:
         for key, value in d.items():
             if isinstance(value, dict):
@@ -275,9 +279,9 @@ def issorted(seq:list, key=None) -> bool:
     Example
     -------
 
-    >>> seq = [(10, "a"), (0, "b"), (45, None)]
-    >>> issorted(seq, key=lambda item:item[0])
-    False
+        >>> seq = [(10, "a"), (0, "b"), (45, None)]
+        >>> issorted(seq, key=lambda item:item[0])
+        False
 
     """
     lastx = -float('inf')
@@ -338,8 +342,8 @@ def firstval(*values, sentinel=None):
     raise ValueError(f"All values are {sentinel}")
 
 
-def zipsort(a:Seq[T], b:Seq[T2], key:Func=None, reverse=False
-            ) -> Tup[List[T], List[T2]]:
+def zipsort(a: Sequence[T], b: Sequence[T2], key:Func=None, reverse=False
+            ) -> Tuple[List[T], List[T2]]:
     """
     Sort a and keep b in sync
 
@@ -361,7 +365,7 @@ def zipsort(a:Seq[T], b:Seq[T2], key:Func=None, reverse=False
     return (list(a), list(b))
 
 
-def duplicates(seq:Seq[T], mincount=2) -> List[T]:
+def duplicates(seq: Sequence[T], mincount=2) -> List[T]:
     """
     Find all elements in seq which are present at least `mincount` times
     """
@@ -397,12 +401,6 @@ def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
     Given a list of elements, take a slice similar to seq[start:end:step],
     but allows step to be a fraction
 
-    Example
-    -------
-
-    >>> fractional_slice(range(10), 1.5)
-    >>> [0, 2, 3, 5, 6, 8]
-
     Args:
         seq: the sequence of elements
         step: the step size
@@ -412,6 +410,14 @@ def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
     Returns:
         the resulting list
 
+    
+    Example
+    -------
+
+    >>> fractional_slice(range(10), 1.5)
+    >>> [0, 2, 3, 5, 6, 8]
+
+    
     """
     if step < 1:
         raise ValueError("step should be >= 1 (for now)")
@@ -455,7 +461,7 @@ def sec2str(seconds:float, msdigits=3) -> str:
 
 def parse_time(t:str) -> float:
     """
-    Parse a time string HH:MM:SS.mmm and convert it to seconds
+    Parse a time string ``HH:MM:SS.mmm`` and convert it to seconds
 
     Given a time in the format HH:MM:SS.mmm or any sub-form of it
     (SS.mmm, MM:SS, etc), return the time in seconds. This is the
@@ -550,7 +556,7 @@ def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # 
     return newtuples
 
 
-def namedtuple_extend(name:str, orig, columns: U[str, Seq[str]]):
+def namedtuple_extend(name:str, orig, columns: Union[str, Sequence[str]]):
     """
     Create a new namedtuple constructor with the added columns
 
@@ -562,10 +568,12 @@ def namedtuple_extend(name:str, orig, columns: U[str, Seq[str]]):
         name: new name for the type
         orig: an instance of the original namedtuple or the constructor itself
         columns : the columns to add
+    
     Returns:
         a tuple (newtype, newtype_from_old)
 
-    Example::
+    Example
+    ~~~~~~~
 
         >>> from collections import namedtuple
         >>> Point = namedtuple("Point", "x y")
@@ -598,9 +606,10 @@ def namedtuple_extend(name:str, orig, columns: U[str, Seq[str]]):
 # ------------------------------------------------------------
 
 
-def isiterable(obj, exceptions:Tup[type, ...]=(str, bytes)) -> bool:
+def isiterable(obj, exceptions:Tuple[type, ...]=(str, bytes)) -> bool:
     """
-    Examples::
+    Example
+    ~~~~~~~
 
         >>> isiterable([1, 2, 3])
         True
@@ -616,12 +625,13 @@ def isgeneratorlike(obj):
 
 
 def asnumber(obj, accept_fractions=True, accept_expon=False
-             ) -> U[int, float, Fraction, None]:
+             ) -> Union[int, float, Fraction, None]:
     """
     Return ``obj`` as number, or None of it cannot be converted
     to a number
 
-    Examples::
+    Example
+    ~~~~~~~
 
         >>> asnumber(1)
         1
@@ -667,7 +677,8 @@ def astype(type_, obj=None, factory=None):
         obj: the object to be checkec/converted
         factory: if given, a function ``(obj) -> obj`` of type ``type_``
 
-    Example::
+    Example
+    ~~~~~~~
 
         >>> astype(list, (3, 4))
         [3, 4]
@@ -694,7 +705,9 @@ def str_is_number(s:str, accept_exp=False, accept_fractions=False):
     Returns:
         True if s represents a number, False otherwise
 
-    **NB**: fractions should have the form num/den, like 3/4, with no spaces in between
+    .. note::
+
+        fractions should have the form num/den, like 3/4, with no spaces in between
     """
     if accept_exp and accept_fractions:
         return asnumber(s) is not None
@@ -725,7 +738,7 @@ def dictmerge(dict1: dict, dict2: dict) -> dict:
 
 
 def moses(pred: Callable[[T], bool], seq: Iter[T]
-          ) -> Tup[List[T], List[T]]:
+          ) -> Tuple[List[T], List[T]]:
     """
     Divides *seq* into two lists: filter(pred, seq), filter(not pred, seq)
 
@@ -767,11 +780,13 @@ def allequal(xs: Seq) -> bool:
     return all(x==x0 for x in xs)
 
 
-def dumpobj(obj) -> List[Tup[str, Any]]:
+def dumpobj(obj) -> List[Tuple[str, Any]]:
     """
     Return all 'public' attributes of this object
     """
-    return [(item, getattr(obj, item)) for item in dir(obj) if not item.startswith('__')]
+    return [(item, getattr(obj, item)) 
+            for item in dir(obj) 
+            if not item.startswith('__')]
 
 
 def can_be_pickled(obj) -> bool:
@@ -786,7 +801,7 @@ def can_be_pickled(obj) -> bool:
     return obj == obj2
 
 
-def snap_to_grid(x:number_t, tick:number_t, offset:number_t=0, nearest=True) -> number_t:
+def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True) -> number_t:
     """
     Find the nearest slot in a grid
 
@@ -807,8 +822,8 @@ def snap_to_grid(x:number_t, tick:number_t, offset:number_t=0, nearest=True) -> 
         return t(int((x - offset) / tick)) * tick + offset
 
 
-def snap_array(X:np.ndarray, tick:float, offset:float=0.,
-               out:Opt[np.ndarray]=None, nearest=True) -> np.ndarray:
+def snap_array(X: np.ndarray, tick:float, offset:float=0.,
+               out:Optional[np.ndarray]=None, nearest=True) -> np.ndarray:
     """
     Snap the values of X to the nearest slot in a grid
 
@@ -837,7 +852,7 @@ def snap_array(X:np.ndarray, tick:float, offset:float=0.,
     return _snap_array_floor(X, tick, offset=float(offset), out=out)
 
 
-def _snap_array_nearest(X:np.ndarray, tick:number_t, offset=0, out=None) -> np.ndarray:
+def _snap_array_nearest(X: np.ndarray, tick: number_t, offset=0, out=None) -> np.ndarray:
     if out is None:
         out = X.copy()
     if offset != 0:
@@ -853,7 +868,7 @@ def _snap_array_nearest(X:np.ndarray, tick:number_t, offset=0, out=None) -> np.n
     return out
 
 
-def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out:np.ndarray=None) -> \
+def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out: np.ndarray=None) -> \
         np.ndarray:
     arr = out if out is not None else X.copy()
     if offset != 0:
@@ -870,8 +885,9 @@ def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out:np.ndarray=None)
     return arr
 
 
-def snap_to_grids(x: number_t, ticks: Seq[number_t], offsets:Seq[number_t]=None,
-                  mode='nearest') -> number_t:
+def snap_to_grids(x: number_t, ticks: Sequence[number_t], 
+                  offsets: Sequence[number_t]=None, mode='nearest'
+                  ) -> number_t:
     """
     Snap x to the nearest slot within multiple overlapping grids
 
@@ -932,7 +948,7 @@ def snap_to_grids(x: number_t, ticks: Seq[number_t], offsets:Seq[number_t]=None,
     return quants[0]
 
 
-def distribute_in_zones(x:number_t, split_points:List[number_t], side="left") -> int:
+def distribute_in_zones(x: number_t, split_points: List[number_t], side="left") -> int:
     """
     Returns the index of a "zone" where to place x.
 
@@ -973,7 +989,7 @@ def distribute_in_zones(x:number_t, split_points:List[number_t], side="left") ->
     return imin
 
 
-def _distribute_in_zones_right(x:number_t, split_points:Seq[number_t]) -> int:
+def _distribute_in_zones_right(x: number_t, split_points: Sequence[number_t]) -> int:
     """
     the same as distribute_in_zones, but with right inclusive zones
     """
@@ -988,7 +1004,7 @@ def _distribute_in_zones_right(x:number_t, split_points:Seq[number_t]) -> int:
     return imin
 
 
-def seq_contains(seq, subseq) -> Opt[Tup[int, int]]:
+def seq_contains(seq, subseq) -> Optional[Tuple[int, int]]:
     """
     Returns the (start, end) indexes if seq contains subseq, or None
 
@@ -1007,9 +1023,9 @@ def seq_contains(seq, subseq) -> Opt[Tup[int, int]]:
     return None
 
 
-def pick_regularly(seq: U[List[T], np.ndarray], numitems:int, start_idx:int=0,
+def pick_regularly(seq: Union[List[T], np.ndarray], numitems:int, start_idx:int=0,
                    end_idx:int=0
-                   ) -> U[np.ndarray, List[T]]:
+                   ) -> Union[np.ndarray, List[T]]:
     """
     Given a sequence, pick `numitems` from it at regular intervals
 
@@ -1118,7 +1134,7 @@ def pixels_to_inches(pixels: int, dpi=300) -> float:
     return pixels / dpi
 
 
-def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> Tup[float, float]:
+def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> Tuple[float, float]:
     """
     Return the (height, width) for a given DIN size and page orientation
 
@@ -1366,7 +1382,7 @@ def type_error_msg(x, *expected_types):
 
 # --- crossplatform ---
 
-def _open_with_standard_app(path: str, wait:U[str, bool]=False, min_wait=0.5,
+def _open_with_standard_app(path: str, wait:Union[str, bool]=False, min_wait=0.5,
                             timeout:float=None
                             ) -> None:
     """
@@ -1419,7 +1435,7 @@ def _split_command(s:str) -> List[str]:
     return parts
 
 
-def open_with_app(path: str, app: U[str, List[str]]=None, wait=False, shell=False,
+def open_with_app(path: str, app: Union[str, List[str]]=None, wait=False, shell=False,
                   min_wait=0.5, timeout=None) -> None:
     """
     Open a given file with a given app.
@@ -1591,8 +1607,8 @@ def ipython_qt_eventloop_started() -> bool:
         return False
 
 
-def html_table(rows: list, headers: List[str], maxwidths:Opt[List[int]]=None,
-               rowstyles:Opt[List[str]]=None) -> str:
+def html_table(rows: list, headers: List[str], maxwidths:Optional[List[int]]=None,
+               rowstyles:Optional[List[str]]=None) -> str:
     """
     Create a html table
 

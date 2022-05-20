@@ -14,8 +14,11 @@ def wavg(values, weights):
     """
     weighted average
 
-    values, weights: iterators (does not need to be a full formed sequence)
-    returns dotproduct(values, weights) / sum(weights)
+    Args:
+        values, weights: iterators (does not need to be a full formed sequence)
+
+    Returns:
+        dotproduct(values, weights) / sum(weights)
     """
     ac_v = 0
     ac_w = 0

@@ -2,6 +2,8 @@
 More itertools
 """
 from __future__ import annotations
+
+import sys
 from itertools import *
 import operator as _operator
 import collections as _collections
@@ -405,8 +407,18 @@ def avg(seq: Iterable[T], empty=0) -> T:
         
 def flatten(s: Iterable[Union[T, Iterable[T]]], exclude=(str,), levels=inf) -> Iterable[T]:
     """
-    return an iterator to the flattened items of sequence s
-    strings are not flattened
+    Return an iterator to the flattened items of sequence s
+
+    Args:
+        s: the sequence to flatten
+        exclude: classes to exclude from flattening
+        levels: how many levels to flatten
+
+    Returns:
+        the flattened version of *s*
+
+    Example
+    -------
 
     >>> seq = [1, [2, 3], [4, [5, 6]]]
     >>> list(flatten(seq))
@@ -423,10 +435,11 @@ def flatten(s: Iterable[Union[T, Iterable[T]]], exclude=(str,), levels=inf) -> I
 def flatdict(d: dict) -> list:
     """
     Given a dictionary, return a flat list where keys and values are interleaved.
+
     This is similar to doing `flattened(d.items())`
 
     Example
-    =======
+    -------
 
         >>> d = {'a': 1, 'b': 2, 'c': 3}
         >>> flatdict(d)
@@ -440,23 +453,28 @@ def flatdict(d: dict) -> list:
     return out
 
 
-def flattened(s: Iterable[Union[T, Iterable[T]]], exclude=(str,), levels=inf, out:list=None) -> List[T]:
+def flattened(s: Iterable[Union[T, Iterable[T]]], exclude=(str,), levels: int = None, out:list=None) -> List[T]:
     """
     Like flatten, but returns a list instead of an iterator
 
     Args:
         s: the seq to flatten.
         exclude: types to exclude
-        levels: how many levels to flatten
+        levels: how many levels to flatten (None: flatten all levels)
         out: if given, the flattened result is appended to this list
+
+    Returns:
+        a list with the elements in *s* flattened
     """
+    if levels is None:
+        levels = sys.maxsize
     if out is None:
         out = []
-    _flattened2(s, out, exclude, levels)
+    _flattened2(s, out, exclude, levels=levels)
     return out
     
 
-def _flattened2(s, out:list, exclude, levels:int) -> None:
+def _flattened2(s, out:list, exclude, levels:int = None) -> None:
     for item in s:
         if isinstance(item, exclude or levels <= 0) or not hasattr(item, '__iter__'):
             out.append(item)
@@ -491,7 +509,7 @@ def flattenonly(l, types):
             
 def zipflat(*seqs):
     """
-    like izip but flat. It has the same effect as flatten(zip(seqA, seqB), levels=1)
+    like izip but flat. It has the same effect as `flatten(zip(seqA, seqB), levels=1)`
     
     Example
     -------
@@ -571,7 +589,7 @@ def mesh(xs: Iterable[T], ys: Iterable[T2]) -> Iterable[Tuple[T, T2]]:
         (xn y1) ...                 (xn yn)
 
     Example
-    =======
+    -------
 
     .. code::
 

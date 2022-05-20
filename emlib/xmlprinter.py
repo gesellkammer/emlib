@@ -1,44 +1,47 @@
 """
-help write out XML documents
+Help write out XML documents
 
->>> import xmlprinter
->>> from io import StringIO
->>> fp = StringIO()
->>> xp = xmlprinter.xmlprinter(fp) # The fp need only have a write() method
->>> xp.startDocument()
->>> xp.notationDecl("html", "-//W3C//DTD XHTML 1.1//EN", "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd")
->>> xp.startElement('html',
-...         {'xmlns': "http://www.w3.org/1999/xhtml",
-...          'xml:lang': "en-us"})
->>> xp.data("\\n")
->>> xp.startElement('head')
->>> xp.startElement('title')
->>> xp.data("This is the title")
->>> xp.endElement()    # we may omit the element name ('title')
->>> xp.endElement('head')  # or we can include it
->>> xp.data("\\n")
->>> xp.startElement('body')
->>> xp.data("\\n")
->>> xp.startElement('p')
->>> xp.data("This is some information in a paragraph.")
->>> xp.endElement('p')
->>> xp.data("\\n")
->>> xp.emptyElement('hr', {'style': 'color: red'})
->>> xp.data("\\n")
->>> xp.endDocument()       # closes remaining tags
+Example
+-------
 
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-us">
-<head><title>This is the title</title></head>
-<body>
-<p>This is some information in a paragraph.</p>
-<hr style="color: red" />
-</body></html>
+.. code::
 
-Distributions for this module can be downloaded at
-https://sourceforge.net/project/showfiles.php?group_id=60881
+    >>> from emlib import xmlprinter
+    >>> from io import StringIO
+    >>> fp = StringIO()
+    >>> xp = xmlprinter.XmlPrinter(fp) # The fp need only have a write() method
+    >>> xp.startDocument()
+    >>> xp.notationDecl("html", "-//W3C//DTD XHTML 1.1//EN", "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd")
+    >>> xp.startElement('html',
+    ...     {'xmlns': "http://www.w3.org/1999/xhtml",
+    ...      'xml:lang': "en-us"})
+    >>> xp.data("\\n")
+    >>> xp.startElement('head')
+    >>> xp.startElement('title')
+    >>> xp.data("This is the title")
+    >>> xp.endElement()    # we may omit the element name ('title')
+    >>> xp.endElement('head')  # or we can include it
+    >>> xp.data("\\n")
+    >>> xp.startElement('body')
+    >>> xp.data("\\n")
+    >>> xp.startElement('p')
+    >>> xp.data("This is some information in a paragraph.")
+    >>> xp.endElement('p')
+    >>> xp.data("\\n")
+    >>> xp.empty('hr', {'style': 'color: red'})
+    >>> xp.data("\\n")
+    >>> print(xp.endDocument())   # closes remaining tags
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+    <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en-us">
+    <head><title>This is the title</title></head>
+    <body>
+    <p>This is some information in a paragraph.</p>
+    <hr style="color: red" />
+    </body></html>
 
+
+This module is a fork of code from https://sourceforge.net/project/showfiles.php?group_id=60881
 
 Based on work by Frank J. Tobin, ftobin@neverending.org
 
@@ -59,16 +62,22 @@ class WellFormedError(Exception):
     pass
 
 
-class xmlprinter(object):
+class XmlPrinter:
     """
-    We try to ensure a well-formed document, but won't check
-    things like the validity of element names.
-    Method raise WellFormedError if there are well-formed-ness problems.
+    A printer for xml
+
+    We try to ensure a well-formed document, but won't check things like the validity
+    of element names.
+
+    WellFormedError is raised if there are well-formed-ness problems.
     """
     xml_version = '1.0'
 
     def __init__(self, fp):
-        """fp is a file-like object, needing only a write() method"""
+        """
+        Args:
+            fp:  a file-like object
+        """
         self.fp = fp
         self._finished = False
         self._past_doctype = False
@@ -86,9 +95,20 @@ class xmlprinter(object):
         """
         To be used as a with statement:
 
-        with parser.tag("person"):
-            parser.tag1("name", "John")
-            parser.tag1("surname", "Smith")
+        .. code::
+
+            with parser.tag("person"):
+                parser.tag1("name", "John")
+                parser.tag1("surname", "Smith")
+
+        Results in:
+
+        .. code-block:: xml
+
+            <person>
+                <name>John</name>
+                <surname>Smith</surname>
+            </person>
         """
         self.startElement(*args, **kws)
         return self
@@ -97,7 +117,15 @@ class xmlprinter(object):
         """
         Allows to construct simple tags
 
-        parser.tag1('name', 'John') --> <name>John</name>
+        .. code::
+
+            parser.tag1('name', 'John')
+
+        Retults in:
+
+        .. code-block:: xml
+
+            <name>John</name>
         """
         self.startElement(name)
         for datum in data:
@@ -142,7 +170,7 @@ class xmlprinter(object):
         self.fp.write(">\n")
         self._past_doctype = True
 
-    def startElement(self, name:str, **attrs) -> None:
+    def startElement(self, name: str, **attrs) -> None:
         """Start element 'name' with attributes 'attrs'. (<example>)"""
         self._past_doctype = True
         self._past_decl = True
@@ -161,15 +189,14 @@ class xmlprinter(object):
         self._tabify = True
         self._last = "start"
 
-    def data(self, data:str) -> None:
+    def data(self, data: str) -> None:
         """Add text 'data'."""
         data = str(data)
-        # self.fp.write(escape(data).encode('UTF-8'))
         self.fp.write(escape(data))
         self._tabify = False
         self._last = "data"
 
-    def separator(self, s=_SEPARATOR) -> None:
+    def separator(self, s: str = _SEPARATOR) -> None:
         self.fp.write(_TAB*len(self._elstack))
         self.fp.write(f'\n<!{s}>\n')
 
@@ -186,7 +213,7 @@ class xmlprinter(object):
             _(" %s=%s" % (attr, quoteattr(val)))
         _("/>")
 
-    def endElement(self, name:str=None) -> None:
+    def endElement(self, name: str = None) -> None:
         """
         End the element 'name'.
 

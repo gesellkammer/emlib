@@ -1,3 +1,6 @@
+"""
+Utilities around python's own logging framework
+"""
 from __future__ import annotations
 import logging
 import logging.handlers
@@ -7,7 +10,7 @@ import os
 def fileLogger(path:str, level='DEBUG', fmt='%(levelname)s: %(message)s'
                ) -> logging.Logger:
     """
-    Create a logger outputting to a file
+    Create a logger outputting to a (rotating) file
 
     Args:
         path: the path of the output file
@@ -27,9 +30,22 @@ def fileLogger(path:str, level='DEBUG', fmt='%(levelname)s: %(message)s'
     return logger
 
 
-def reloadBasicConfig(level='DEBUG', otherLoggers=[]) -> None:
+def reloadBasicConfig(level='DEBUG', otherLoggers: list[logging.Logger] = None
+                      ) -> None:
+    """
+    Setup basicConfig for the logging module
+
+    Inside an interactive session often logging is already setup when you
+    get to setup your own logging. In such a case it is needed to reload
+    the logging module to setup the desired logging level
+
+    Args:
+        level: the level to setup the basic config
+        otherLoggers: a list of logging.Loggers  to also set at the given level
+    """
     import importlib
     importlib.reload(logging)
-    logging.basicConfig(level="DEBUG")
-    for logger in otherLoggers:
-        logger.setLevel(level)
+    logging.basicConfig(level=level)
+    if otherLoggers:
+        for logger in otherLoggers:
+            logger.setLevel(level)
