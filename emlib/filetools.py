@@ -174,4 +174,4 @@ def normalizePath(path:str) -> str:
     Convert `path` to an absolute path with user expanded
     (something that can be safely passed to a subprocess)
     """
-    return os.path.abspath(os.path.expanduser(path))
+    return os.path.abspath(os.path.expandvars(os.path.expanduser(path)))

@@ -1064,6 +1064,7 @@ def deepupdate(orig, updatewith):
     return orig
 
 
+
 # ------------------------------------------------------------
 #
 #    Image and Pixels
