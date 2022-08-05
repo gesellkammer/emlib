@@ -24,6 +24,7 @@ import warnings
 
 import numpy as np
 from fractions import Fraction
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING or 'sphinx' in _sys.modules:
     from typing import *
@@ -74,7 +75,7 @@ def _partialsum(seq):
     return out
 
 
-def wrap_by_sizes(flatseq: list, packsizes: Sequence[int]) -> List[list]:
+def wrap_by_sizes(flatseq: list, packsizes: Sequence[int]) -> list[list]:
     """
     Wrap a flat seq using the given sizes
 
@@ -110,7 +111,7 @@ def wrap_by_sizes(flatseq: list, packsizes: Sequence[int]) -> List[list]:
 # ------------------------------------------------------------
 
 
-def nearest_element(item: float, seq: Union[List[float], np.ndarray]) -> float:
+def nearest_element(item: float, seq: Union[list[float], np.ndarray]) -> float:
     """
     Find the nearest element (the element, not the index) in seq
 
@@ -124,7 +125,8 @@ def nearest_element(item: float, seq: Union[List[float], np.ndarray]) -> float:
     Returns:
         the value of the nearest element of seq
 
-    Example::
+    Example
+    ~~~~~~~
 
         >>> seq = list(range(10))
         >>> nearest_element(4.1, seq)
@@ -156,7 +158,7 @@ def nearest_element(item: float, seq: Union[List[float], np.ndarray]) -> float:
     return element_l
 
 
-def nearest_unsorted(x: number_t, seq: List[number_t]) -> number_t:
+def nearest_unsorted(x: number_t, seq: list[number_t]) -> number_t:
     """
     Find nearest item in an unsorted sequence
 
@@ -179,7 +181,7 @@ def nearest_unsorted(x: number_t, seq: List[number_t]) -> number_t:
     return min((abs(x - y), y) for y in seq)[1]
 
 
-def nearest_index(item: number_t, seq: List[number_t]) -> int:
+def nearest_index(item: number_t, seq: list[number_t]) -> int:
     """
     Return the index of the nearest element in seq to item
 
@@ -255,7 +257,7 @@ def sort_natural_dict(d: Dict[str, Any], recursive=True) -> dict:
     """
     sort dict d naturally and recursively
     """
-    rows: List[Tuple[str, Any]] = []
+    rows: list[Tuple[str, Any]] = []
     if recursive:
         for key, value in d.items():
             if isinstance(value, dict):
@@ -343,7 +345,7 @@ def firstval(*values, sentinel=None):
 
 
 def zipsort(a: Sequence[T], b: Sequence[T2], key:Func=None, reverse=False
-            ) -> Tuple[List[T], List[T2]]:
+            ) -> Tuple[list[T], list[T2]]:
     """
     Sort a and keep b in sync
 
@@ -365,7 +367,7 @@ def zipsort(a: Sequence[T], b: Sequence[T2], key:Func=None, reverse=False
     return (list(a), list(b))
 
 
-def duplicates(seq: Sequence[T], mincount=2) -> List[T]:
+def duplicates(seq: Sequence[T], mincount=2) -> list[T]:
     """
     Find all elements in seq which are present at least `mincount` times
     """
@@ -374,7 +376,7 @@ def duplicates(seq: Sequence[T], mincount=2) -> List[T]:
     return [item for item, count in counter if count >= mincount]
 
 
-def remove_duplicates(seq: List[T]) -> List[T]:
+def remove_duplicates(seq: list[T]) -> list[T]:
     """
     Remove all duplicates in seq while keeping its order
     If order is not important, use list(set(seq))
@@ -485,7 +487,7 @@ def parse_time(t:str) -> float:
         raise ValueError("Format not understood")
 
 
-def sumlist(seq: Iterable[List[T]]) -> List[T]:
+def sumlist(seq: Iterable[list[T]]) -> list[T]:
     """
     Concatenate multiple lists to one big list
     
@@ -738,7 +740,7 @@ def dictmerge(dict1: dict, dict2: dict) -> dict:
 
 
 def moses(pred: Callable[[T], bool], seq: Iter[T]
-          ) -> Tuple[List[T], List[T]]:
+          ) -> Tuple[list[T], list[T]]:
     """
     Divides *seq* into two lists: filter(pred, seq), filter(not pred, seq)
 
@@ -780,7 +782,7 @@ def allequal(xs: Seq) -> bool:
     return all(x==x0 for x in xs)
 
 
-def dumpobj(obj) -> List[Tuple[str, Any]]:
+def dumpobj(obj) -> list[Tuple[str, Any]]:
     """
     Return all 'public' attributes of this object
     """
@@ -948,7 +950,7 @@ def snap_to_grids(x: number_t, ticks: Sequence[number_t],
     return quants[0]
 
 
-def distribute_in_zones(x: number_t, split_points: List[number_t], side="left") -> int:
+def distribute_in_zones(x: number_t, split_points: list[number_t], side="left") -> int:
     """
     Returns the index of a "zone" where to place x.
 
@@ -1023,9 +1025,9 @@ def seq_contains(seq, subseq) -> Optional[Tuple[int, int]]:
     return None
 
 
-def pick_regularly(seq: Union[List[T], np.ndarray], numitems:int, start_idx:int=0,
+def pick_regularly(seq: Union[list[T], np.ndarray], numitems:int, start_idx:int=0,
                    end_idx:int=0
-                   ) -> Union[np.ndarray, List[T]]:
+                   ) -> Union[np.ndarray, list[T]]:
     """
     Given a sequence, pick `numitems` from it at regular intervals
 
@@ -1430,13 +1432,13 @@ def _open_with_standard_app(path: str, wait:Union[str, bool]=False, min_wait=0.5
                 dialogs.showInfo("Close this dialog when finished")
 
 
-def _split_command(s:str) -> List[str]:
+def _split_command(s:str) -> list[str]:
     parts = s.split()
     parts = [p.replace('"', '') for p in parts]
     return parts
 
 
-def open_with_app(path: str, app: Union[str, List[str]]=None, wait=False, shell=False,
+def open_with_app(path: str, app: Union[str, list[str]]=None, wait=False, shell=False,
                   min_wait=0.5, timeout=None) -> None:
     """
     Open a given file with a given app.
@@ -1608,8 +1610,8 @@ def ipython_qt_eventloop_started() -> bool:
         return False
 
 
-def html_table(rows: list, headers: List[str], maxwidths:Optional[List[int]]=None,
-               rowstyles:Optional[List[str]]=None) -> str:
+def html_table(rows: list, headers: list[str], maxwidths:Optional[list[int]]=None,
+               rowstyles:Optional[list[str]]=None) -> str:
     """
     Create a html table
 
@@ -1736,9 +1738,10 @@ class temporary_sigint_handler:
         return True
 
 
-def simplify_breakpoints(bps: List[T], coordsfunc: Func,
+def simplify_breakpoints(bps: list[T],
+                         coordsfunc: Func,
                          tolerance: number_t=0.01
-                         ) -> List[T]:
+                         ) -> list[T]:
     """
     Simplify breakpoints in a breakpoint function
 

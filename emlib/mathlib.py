@@ -12,7 +12,7 @@ from __future__ import annotations
 import operator as _operator
 import random as _random
 from functools import reduce
-from math import gcd, sqrt, cos, sin, radians, ceil
+from math import gcd, sqrt, cos, sin, radians, ceil, hypot, pi, asin
 import sys as _sys
 import numpy as np
 from numbers import Rational
@@ -24,8 +24,7 @@ except ImportError:
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import *
-    # number_t = Union[float, Rational]
+    from typing import Union, Optional, TypeVar
     number_t = Rational
     T = TypeVar("T", bound=number_t)
     T2 = TypeVar("T2", bound=number_t)
@@ -66,7 +65,7 @@ __all__ = ("PHI",
 PHI = 0.6180339887498949
 
 
-def intersection(u1:T, u2:T, v1:T, v2:T) -> Optional[Tuple[T, T]]:
+def intersection(u1:T, u2:T, v1:T, v2:T) -> Optional[tuple[T, T]]:
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
 
@@ -283,7 +282,7 @@ def euclidian_distance(values: Sequence[float], weights: Sequence[float]=None) -
     return sqrt(sum(value**2 for value in values))
 
 
-def weighted_euclidian_distance(pairs: List[Tuple[float, float]]) -> float:
+def weighted_euclidian_distance(pairs: List[tuple[float, float]]) -> float:
     """
     Reduces distances in multiple dimensions to 1 dimension.
 
@@ -328,7 +327,7 @@ def harmonic_mean(numbers: Sequence[T]) -> T:
 
 
 def split_interval_at_values(start: T, end: T, offsets: Sequence[T]
-                             ) -> List[Tuple[T, T]]:
+                             ) -> List[tuple[T, T]]:
     """
     Split interval (start, end) at the given offsets
 
@@ -426,7 +425,7 @@ def randspace(begin: float, end: float, numsteps: int, include_end=True
     return out
 
 
-def _fib2(N: float) -> Tuple[float, float]:
+def _fib2(N: float) -> tuple[float, float]:
     if N == 0:
         return 0, 1
     half_N, is_N_odd = divmod(N, 2)
@@ -522,9 +521,9 @@ def modulo_shortest_distance(x, origin, mod):
     return -xanti
 
 
-def rotate2d(point: Tuple[float, float],
+def rotate2d(point: tuple[float, float],
              degrees: float,
-             origin=(0, 0)) -> Tuple[float, float]:
+             origin=(0, 0)) -> tuple[float, float]:
     """
     A rotation function that rotates a point around an origin
 
@@ -575,7 +574,7 @@ def periodic_float_to_fraction(s: str) -> Fraction:
 
 
 def optimize_parameter(func, val: float, paraminit: float, maxerror=0.001,
-                       maxiterations=100) -> Tuple[float, int]:
+                       maxiterations=100) -> tuple[float, int]:
     """
     Optimize one parameter to arrive to a desired value.
 
@@ -612,3 +611,42 @@ def optimize_parameter(func, val: float, paraminit: float, maxerror=0.001,
         else:
             param = param * (1-relerror)
     return valnow, i
+
+
+def intersection_area_between_circles(x1: float, y1: float, r1: float,
+                                      x2: float, y2: float, r2: float
+                                      ) -> float:
+    """
+    Calculate the are of the intersection between two circles
+
+    Args:
+        x1: x coord of the center of the 1st circle
+        y1: y coord of the center of the 1st circle
+        r1: ratio of the 1st circle
+        x2: x coord of the center of the 2nd circle
+        y2: y coord of the center of the 2nd circle
+        r2: ratio of the 2nd circle
+
+    Returns:
+        the area of the intersection
+
+    from https://www.xarg.org/2016/07/calculate-the-intersection-area-of-two-circles/
+    """
+    d = hypot(x2 - x1, y2 - y1)
+    if d >= r1 + r2:
+        return 0
+    a = r1 * r1
+    b = r2 * r2
+    if d != 0:
+        x = (a - b + d*d) / (2*d)
+    else:
+        # They share the same center!
+        return pi*min(a, b)
+    z = x * x
+    if a < z:
+        # One circle is embedded in the other?
+        return pi * min(a, b)
+    y = sqrt(a - z)
+    if d <= abs(r2 - r1):
+        return pi * min(a, b)
+    return a * asin(y / r1) + b*asin(y / r2) - y * (x + sqrt(z + b - a))
