@@ -344,7 +344,7 @@ def firstval(*values, sentinel=None):
     raise ValueError(f"All values are {sentinel}")
 
 
-def zipsort(a: Sequence[T], b: Sequence[T2], key:Func=None, reverse=False
+def zipsort(a: Sequence[T], b: Sequence[T2], key: Callable = None, reverse=False
             ) -> Tuple[list[T], list[T2]]:
     """
     Sort a and keep b in sync
@@ -1739,8 +1739,8 @@ class temporary_sigint_handler:
 
 
 def simplify_breakpoints(bps: list[T],
-                         coordsfunc: Func,
-                         tolerance: number_t=0.01
+                         coordsfunc: Callable,
+                         tolerance: number_t = 0.01
                          ) -> list[T]:
     """
     Simplify breakpoints in a breakpoint function
@@ -1804,6 +1804,86 @@ def rgb_to_hex(r: int, g: int, b: int) -> str:
     "Convert a color in rgb to its hex representation"
     return '#%02x%02x%02x'% (r, g, b)
         
+
+_attrs_by_class: dict[type, list[str]] = {}
+
+
+def find_attrs(obj, excludeprefix='_') -> list[str]:
+    """
+    Iterate over all attributes of objects.
+
+    Args:
+        obj: the object to query
+        excludeprefix: attributes starting with this prefix will be excluded
+
+    Returns:
+        a list of all the attibutes (instance variables) of this object. Notice
+        that results are cached by class so if an object has dynamic attributes
+        these will not be detected
+
+
+    .. note::
+        This function will only return attributes, no methods,
+        class variables, staticmethods, etc.
+
+    Example
+    -------
+
+        >>> class Foo:
+        ...     def __init__(self, a, b):
+        ...         self.a = a
+        ...         self.b = b
+        ...
+        >>> class Bar(Foo):
+        ...     def __init__(self, c):
+        ...         super().__init__(1, 2)
+        ...         self.c = c
+        ...
+        >>> bar = Bar(3)
+        >>> find_attrs(bar)
+        ['a', 'b', 'c']
+    """
+    cls = type(obj)
+    if attrs := _attrs_by_class.get(cls):
+        return attrs
+    attrs = _find_attrs(obj, excludeprefix=excludeprefix)
+    _attrs_by_class[cls] = attrs
+    return attrs
+
+
+def _find_attrs(obj, excludeprefix='_') -> list[str]:
+    import inspect
+    visited = set()
+    out = []
+    if hasattr(obj, "__dict__"):
+        for attr in sorted(obj.__dict__):
+            if attr not in visited:
+                if not attr.startswith(excludeprefix):
+                    out.append(attr)
+                visited.add(attr)
+
+    for cls in reversed(inspect.getmro(obj.__class__)):
+        if hasattr(cls, "__slots__"):
+            for attr in cls.__slots__:
+                if hasattr(obj, attr) and attr not in visited:
+                    if not attr.startswith(excludeprefix):
+                        out.append(attr)
+                    visited.add(attr)
+
+    return out
+
+
+class ReprMixin:
+    """
+    Mixin class to provide automatic __repr__
+    """
+    __slots__ = []
+
+    def __repr__(self):
+        attrs = find_attrs(self)
+        reprstr = ", ".join(f"{attr}={repr(getattr(self, attr))}"
+                            for attr in attrs)
+        return f"{type(self).__name__}({reprstr})"
 
 #  ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
 #                             END

@@ -42,7 +42,11 @@ def last(seq: Iterable[T]) -> Optional[T]:
             pass
         return x
 
-    
+
+def first(it: Iterable[T], default=None) -> Optional[T]:
+    return next(it, default)
+
+
 def consume(iterator, n:int) -> None:
     """Advance the iterator n-steps ahead. If n is none, consume entirely."""
     if n is None:

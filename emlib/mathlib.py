@@ -12,7 +12,7 @@ from __future__ import annotations
 import operator as _operator
 import random as _random
 from functools import reduce
-from math import gcd, sqrt, cos, sin, radians, ceil, hypot, pi, asin
+from math import gcd, sqrt, cos, sin, radians, ceil, hypot, pi, asin, floor, factorial, e
 import sys as _sys
 import numpy as np
 from numbers import Rational
@@ -650,3 +650,68 @@ def intersection_area_between_circles(x1: float, y1: float, r1: float,
     if d <= abs(r2 - r1):
         return pi * min(a, b)
     return a * asin(y / r1) + b*asin(y / r2) - y * (x + sqrt(z + b - a))
+
+
+def roman(n: int) -> str:
+    """
+    Convert an integer to its roman representation
+
+    Args:
+        n: the integer to convert
+
+    Returns:
+        the roman representation
+
+    credit: https://www.geeksforgeeks.org/python-program-to-convert-integer-to-roman/
+    """
+    romans = {
+        1: "I",
+        5: "V",
+        10: "X",
+        50: "L",
+        100: "C",
+        500: "D",
+        1000: "M",
+        5000: "G",
+        10000: "H"
+    }
+
+    div = 1
+    while n >= div:
+        div *= 10
+
+    div /= 10
+    res = ""
+    while n:
+        # main significant digit extracted into lastNum
+        lastNum = int(n / div)
+        if lastNum <= 3:
+            res += (romans[div] * lastNum)
+        elif lastNum == 4:
+            res += (romans[div] + romans[div * 5])
+        elif 5 <= lastNum <= 8:
+            res += (romans[div * 5] + (romans[div] * (lastNum - 5)))
+        elif lastNum == 9:
+            res += (romans[div] + romans[div * 10])
+        n = floor(n % div)
+        div /= 10
+    return res
+
+
+def fractional_factorial(x: float) -> float:
+    """
+    Ramanujan's approximation of factorial of x, where x does not need to be an integer
+
+    .. note::
+
+        If x is in fact an integer the returned value will be an integral float
+
+    Via: https://www.johndcook.com/blog/2012/09/25/ramanujans-factorial-approximation/
+
+    """
+    if isinstance(x, int):
+        return factorial(x)
+
+    fact = sqrt(pi)*(x/e)**x
+    fact *= (((8*x + 4)*x + 1)*x + 1/30.)**(1./6.)
+    return fact

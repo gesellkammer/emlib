@@ -8,10 +8,15 @@ from __future__ import annotations
 import os
 import sys
 import emlib.misc
-import tkinter as tk
-import tkinter.font
-from tkinter import ttk
 import logging
+
+try:
+    import tkinter as tk
+    from tkinter import ttk
+    _TK_AVAILABLE = True
+except ImportError:
+    _TK_AVAILABLE = False
+
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -52,7 +57,12 @@ def _resolveBackend(backend: str = None):
     if sys.platform == 'darwin':
         backend = 'qt'
     elif backend is None:
-        backend = 'qt' if _has_qt() else 'tk'
+        if _has_qt():
+            backend = 'qt'
+        elif _TK_AVAILABLE:
+            backend = 'tk'
+        else:
+            raise RuntimeError("No backends available")
     if backend == 'qt' and not _has_qt():
         raise RuntimeError("pyqt5 is needed not installed. Install it via 'pip install pyqt5'")
     return backend
