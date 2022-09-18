@@ -7,11 +7,11 @@ import sys
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (1, 5, 1)
+version = (1, 6, 0)
 
 setup(
     name='emlib',
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     version=".".join(map(str, version)),
     description='Miscellaneous utilities',
     long_description=readme,
