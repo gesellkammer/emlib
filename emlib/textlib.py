@@ -78,6 +78,30 @@ def getIndentation(code:str) -> int:
     return 0
 
 
+def matchIndentation(code: str, modelcode: str) -> str:
+    """
+    Indent code matching modelcode
+
+    Args:
+        code: the code to indent
+        modelcode: the code to match
+
+    Returns:
+        code indented to match modelcode
+
+    Example
+    ~~~~~~~
+
+        >>> a = "    # This is some code"
+        >>> b = "        # This is some other code"
+        >>> matchIndentation(a, b)
+        '        # This is some code'
+    """
+    indentation = getIndentation(modelcode)
+    code = textwrap.dedent(code)
+    return textwrap.indent(code, prefix=" " * indentation)
+
+
 def joinPreservingIndentation(fragments: Sequence[str]) -> str:
     """
     Like join, but preserving indentation

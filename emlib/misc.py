@@ -67,8 +67,9 @@ def reverse_recursive(seq: list):
     return out
 
 
-def _partialsum(seq):
+def _partialsum(seq: Sequence[T]) -> list[T]:
     accum = 0
+    out = []
     for i in seq:
         accum += i
         out.append(accum)
@@ -398,7 +399,7 @@ def remove_duplicates(seq: list[T]) -> list[T]:
     return list(dict.fromkeys(seq))
 
 
-def fractional_slice(seq: Seq, step:float, start=0, end=-1) -> list:
+def fractional_slice(seq: Sequence[T], step:float, start=0, end=-1) -> list[T]:
     """
     Given a list of elements, take a slice similar to seq[start:end:step],
     but allows step to be a fraction
@@ -739,7 +740,7 @@ def dictmerge(dict1: dict, dict2: dict) -> dict:
     return out
 
 
-def moses(pred: Callable[[T], bool], seq: Iter[T]
+def moses(pred: Callable[[T], bool], seq: Iterator[T]
           ) -> Tuple[list[T], list[T]]:
     """
     Divides *seq* into two lists: filter(pred, seq), filter(not pred, seq)
@@ -768,7 +769,7 @@ def moses(pred: Callable[[T], bool], seq: Iter[T]
     return trueitems, falseitems
 
 
-def allequal(xs: Seq) -> bool:
+def allequal(xs: Iterator) -> bool:
     """
     Return True if all elements in xs are equal
 
@@ -1303,7 +1304,7 @@ class runonce:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def istype(obj, *types):
+def istype(obj, *types) -> bool:
     """
     Examples::
 

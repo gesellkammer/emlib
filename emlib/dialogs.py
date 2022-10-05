@@ -10,13 +10,6 @@ import sys
 import emlib.misc
 import logging
 
-try:
-    import tkinter as tk
-    from tkinter import ttk
-    _TK_AVAILABLE = True
-except ImportError:
-    _TK_AVAILABLE = False
-
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -52,6 +45,16 @@ def _has_qt() -> bool:
         return False
 
 
+
+@emlib.misc.runonce
+def _has_tk() -> bool:
+    try:
+        import tkinter
+        return True
+    except ImportError:
+        return False
+
+
 @emlib.misc.runonce
 def _resolveBackend(backend: str = None):
     if sys.platform == 'darwin':
@@ -59,7 +62,7 @@ def _resolveBackend(backend: str = None):
     elif backend is None:
         if _has_qt():
             backend = 'qt'
-        elif _TK_AVAILABLE:
+        elif _has_tk():
             backend = 'tk'
         else:
             raise RuntimeError("No backends available")
@@ -83,7 +86,7 @@ def showInfo(msg: str, title: str = "Info", font=None, icon: str = None, backend
     if backend == 'qt':
         from . import _dialogsqt
         return _dialogsqt.showInfo(msg=msg, title=title, font=font, icon=icon)
-
+    from tkinter import ttk
     from ttkthemes import ThemedTk
     root = ThemedTk(theme="breeze")
     root.title(title)
@@ -245,11 +248,6 @@ def selectItem(items: Sequence[str], title="Select", entryFont=('Arial', 15),
     return selected[0] if selected else None
 
 
-def _tkMeasureTextWidth(font: Tuple[str, int], text: str, correctionFactor=1.1) -> int:
-    tkfont = tk.font.Font(font=font)
-    return int(tkfont.measure(text) * correctionFactor)
-
-
 def selectItems(items: Sequence[str], title="Select", entryFont=('Arial', 14),
                 listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
                 caseSensitive=False, ensureSelection=False,
@@ -318,7 +316,8 @@ def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 
     """
     if sys.platform == 'darwin':
         logger.error("macOS is not supported")
-
+    import tkinter as tk
+    from tkinter import ttk
     from ttkthemes import ThemedTk
     root = ThemedTk(theme="breeze")
 
@@ -329,7 +328,9 @@ def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 
     root.columnconfigure(0, weight=1)
 
     longest = max((item for item in items), key=len)
-    minwidth = _tkMeasureTextWidth(listFont, longest)
+    tkfont = tk.font.Font(font=font)
+    minwidth = int(tkfont.measure(text) * correctionFactor)
+
     width = max(width, minwidth)
 
     filterval = tk.StringVar()
