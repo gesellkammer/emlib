@@ -1651,7 +1651,7 @@ def html_table(rows: list, headers: list[str], maxwidths:Optional[list[int]]=Non
     return "".join(parts)
 
 
-def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
+def print_table(rows:list, headers=(), tablefmt:str='', showindex=True, floatfmt: str|tuple[str, ...]='') -> None:
     """
     Print rows as table
 
@@ -1661,6 +1661,7 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
         tablefmt: if None, a suitable default for the current situation will be used
             (depending on if we are running inside jupyter or in a terminal, etc)
             Otherwise it is passed to tabulate.tabulate
+        floatfmt: a format for all floats or a tuple of formats
         showindex: if True, add a column with the index of each row
 
     """
@@ -1687,13 +1688,15 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True) -> None:
         if not tablefmt:
             tablefmt = 'html'
         s = tabulate.tabulate(rows, headers=headers, disable_numparse=True,
-                              tablefmt=tablefmt, showindex=showindex, stralign='left')
+                              tablefmt=tablefmt, showindex=showindex, stralign='left',
+                              floatfmt=floatfmt if floatfmt else tabulate._DEFAULT_FLOATFMT)
         if tablefmt == 'html':
             display(HTML(s))
         else:
             print(s)
     else:
-        print(tabulate.tabulate(rows, headers=headers, showindex=showindex, tablefmt=tablefmt))
+        print(tabulate.tabulate(rows, headers=headers, showindex=showindex, tablefmt=tablefmt,
+                                floatfmt=floatfmt if floatfmt else tabulate._DEFAULT_FLOATFMT))
 
 
 def replace_sigint_handler(handler):

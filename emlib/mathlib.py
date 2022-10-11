@@ -57,6 +57,7 @@ __all__ = ("PHI",
            "modulo_shortest_distance",
            "rotate2d",
            "optimize_parameter"
+           "ispowerof2"
            )
 
 
@@ -715,3 +716,12 @@ def fractional_factorial(x: float) -> float:
     fact = sqrt(pi)*(x/e)**x
     fact *= (((8*x + 4)*x + 1)*x + 1/30.)**(1./6.)
     return fact
+
+
+def ispowerof2(x: int) -> bool:
+    """
+    Is x a power of two?
+
+    Via: https://stackoverflow.com/questions/600293/how-to-check-if-a-number-is-a-power-of-2
+    """
+    return (x != 0) and ((x & (x - 1)) == 0)
