@@ -25,7 +25,7 @@ except ImportError:
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Union, Optional, TypeVar
-    number_t = Rational
+    number_t = Rational | float
     T = TypeVar("T", bound=number_t)
     T2 = TypeVar("T2", bound=number_t)
 
@@ -56,7 +56,7 @@ __all__ = ("PHI",
            "next_in_grid",
            "modulo_shortest_distance",
            "rotate2d",
-           "optimize_parameter"
+           "optimize_parameter",
            "ispowerof2"
            )
 
@@ -278,7 +278,7 @@ def euclidian_distance(values: Sequence[float], weights: Sequence[float]=None) -
         the euclidian distance
     """
     if weights:
-        s = sum(value**2 * weight for value, weight in zip(values, weights))
+        s = sum(value*value * weight for value, weight in zip(values, weights))
         return sqrt(s)
     return sqrt(sum(value**2 for value in values))
 

@@ -204,12 +204,13 @@ def nearest_index(item: number_t, seq: list[number_t]) -> int:
         3
     """
     ir = _bisect(seq, item)
-    if ir >= len(seq) or ir <= 0:
+    seqlen = len(seq)
+    if ir == seqlen:
+        return seqlen - 1
+    if ir == 0:
         return ir
     il = ir - 1
-    if abs(seq[ir] - item) < abs(seq[il] - item):
-        return ir
-    return il
+    return ir if seq[ir] - item < item - seq[il] else il
 
 
 # ------------------------------------------------------------
@@ -345,6 +346,35 @@ def firstval(*values, sentinel=None):
     raise ValueError(f"All values are {sentinel}")
 
 
+class Result:
+    """
+    A class to encapsulate a result
+
+    Args:
+        value: the value of the result
+        info: some information about the result, an error message, etc.
+        boolval: if provided, it determines how the result evaluates as a boolean.
+            This is useful when the value of the result would be evaluated to False
+            (for example, Result(0, boolval=True))
+
+    """
+    __slots__ = ('value', 'info', 'boolval')
+
+    def __init__(self, value, info: str = '', boolval: bool | None = None):
+        self.value = value
+        self.info = info
+        self.boolval = boolval
+
+    def __repr__(self):
+        return f"Result(value={self.value}, info={self.info})"
+
+    def __call__(self):
+        return self.value
+
+    def __bool__(self):
+        return self.boolval if self.boolval is not None else bool(self.value)
+
+
 def zipsort(a: Sequence[T], b: Sequence[T2], key: Callable = None, reverse=False
             ) -> Tuple[list[T], list[T2]]:
     """
@@ -398,6 +428,24 @@ def remove_duplicates(seq: list[T]) -> list[T]:
     # In python >= 3.7 we use the fact that dicts keep order:
     return list(dict.fromkeys(seq))
 
+
+def remove_last_matching(seq: list[T], func: Callable[[T], bool]) -> T | None:
+    """
+    Remove last element of *seq* matching the given condition, **in place**
+
+    Args:
+        seq: the list to modify
+        func: a function taking an element of *seq*, should return True if
+            this is the element to remove
+
+    Returns:
+        the removed element, or None if the condition was never met
+    """
+    l = len(seq)
+    for i, x in enumerate(reversed(seq)):
+        if func(x):
+            return seq.pop(l - i - 1)
+    return None
 
 def fractional_slice(seq: Sequence[T], step:float, start=0, end=-1) -> list[T]:
     """
@@ -1439,8 +1487,12 @@ def _split_command(s:str) -> list[str]:
     return parts
 
 
-def open_with_app(path: str, app: Union[str, list[str]]=None, wait=False, shell=False,
-                  min_wait=0.5, timeout=None) -> None:
+def open_with_app(path: str,
+                  app: str | list[str] | None = None,
+                  wait: bool | str = False,
+                  shell=False,
+                  min_wait=0.5,
+                  timeout=None) -> None:
     """
     Open a given file with a given app.
 
@@ -1455,8 +1507,10 @@ def open_with_app(path: str, app: Union[str, list[str]]=None, wait=False, shell=
         wait: if True, wait until the app stops. If the app is a daemon
             app (it returns immediately), this situation
             is detected and a dialog is created which needs to be
-            clicked in order for the function to return. Alternatively, wait can take
-            the value "modified", in which case we wait until ``path`` has been modified
+            clicked in order for the function to return. Alternatively, wait can be
+            "modified", in which case we wait until ``path`` has been modified; or
+            "dialog", where a confirmation dialog is open for the user to signal
+            when the editing is done
         shell: should app be started from a shell?
         min_wait: if the application returns before this time a wait
             dialog is created
@@ -1479,6 +1533,11 @@ def open_with_app(path: str, app: Union[str, list[str]]=None, wait=False, shell=
     t0 = time.time()
     if wait == "modified":
         wait_for_file_modified(path, timeout=timeout)
+    elif wait == 'dialog':
+        proc.wait()
+        from emlib import dialogs
+        dialogs.showInfo("Close this dialog when finished")
+
     elif wait:
         proc.wait()
         if time.time() - t0 < min_wait:
