@@ -574,6 +574,46 @@ def periodic_float_to_fraction(s: str) -> Fraction:
     return Fraction(num, den)
 
 
+def fraction_to_decimal(numerator: int, denominator: int) -> str:
+    """
+    Converts a fraction to a decimal number with repeating period
+
+    Args:
+        numerator: the numerator of the fraction
+        denominator: the denominator of the fraction
+
+    Returns:
+        the string representation of the resulting decimal. Any repeating
+        period will be prefixed with '('
+
+    Example
+    ~~~~~~~
+
+        >>> from emlib.mathlib import *
+        >>> fraction_to_decimal(1, 3)
+        '0.(3'
+        >>> fraction_to_decimal(1, 7)
+        '0.(142857'
+        >>> fraction_to_decimal(100, 7)
+        '14.(285714'
+        >>> fraction_to_decimal(355, 113)
+        '3.(1415929203539823008849557522123893805309734513274336283185840707964601769911504424778761061946902654867256637168'
+    """
+    result = [str(numerator//denominator) + "."]
+    subresults = [numerator % denominator]
+    numerator %= denominator
+    while numerator != 0:
+        numerator *= 10
+        result_digit, numerator = divmod(numerator, denominator)
+        result.append(str(result_digit))
+        if numerator not in subresults:
+            subresults.append(numerator)
+        else:
+            result.insert(subresults.index(numerator) + 1, "(")
+            break
+    return "".join(result)
+
+
 def optimize_parameter(func, val: float, paraminit: float, maxerror=0.001,
                        maxiterations=100) -> tuple[float, int]:
     """

@@ -24,7 +24,7 @@ def stripLines(text: str) -> str:
 
 def splitAndStripLines(text: str, regexp: str = None) -> list[str]:
     """
-    Spits `text` into lines and removes empty lines at the beginning and end
+    Splits `text` into lines and removes empty lines at the beginning and end
 
     Returns the split lines in between
 
@@ -113,22 +113,23 @@ def joinPreservingIndentation(fragments: Sequence[str]) -> str:
         the joint code
 
     """
-    codes2 = [textwrap.dedent(code) for code in fragments if code]
-    code = "\n".join(codes2)
+    code = "\n".join(textwrap.dedent(code) for code in fragments if code)
     numspaces = getIndentation(fragments[0])
     if numspaces:
         code = textwrap.indent(code, prefix=" "*numspaces)
     return code
 
 
-def fuzzymatch(pattern:str, strings:list[str]) -> list[tuple[float, str]]:
+def fuzzymatch(pattern: str, strings: list[str]
+               ) -> list[tuple[float, str]]:
     """
-    Find possible matches to pattern in ``strings``. Returns a subseq. of
-    strings sorted by best score. Only strings representing possible matches
-    are returned
+    Find possible matches to pattern in ``strings``.
+
+    Returns a subseq. of strings sorted by best score. Only strings
+    representing possible matches are returned
 
     Args:
-        pattern: the string to search for within ``strings``
+        pattern: the string to search for within *strings*
         strings: a list os possible strings
 
     Returns:
@@ -142,19 +143,17 @@ def fuzzymatch(pattern:str, strings:list[str]) -> list[tuple[float, str]]:
             return 0
         return 100.0 / ((1 + match.start()) * (match.end() - match.start() + 1))
 
-    S2 = []
-    for s in strings:
-        score = calculate_score(pattern, s)
-        if score > 0:
-            S2.append((score, s))
-    S2.sort(reverse=True)
-    return S2
+    matches = [(score, s) for s in strings
+               if (score:=calculate_score(pattern, s)) > 0]
+    matches.sort(reverse=True)
+    return matches
 
 
 def ljust(s: str, width: int, fillchar=" ") -> str:
     """
-    Like ``str.ljust``, but makes sure that the output is always the given width,
-    even if s is longer than ``width``
+    Like str.ljust, but ensures that the output is always the given width
+
+    Even if s is longer than ``width``
     """
     s = s.ljust(width, fillchar)
     if len(s) > width:
@@ -183,7 +182,7 @@ def makeReplacer(conditions: dict) -> Callable:
 
 def escapeAnsi(line: str) -> str:
     """
-    Escape ani codes
+    Escape ansi codes
     """
     return re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]').sub('', line)
 
@@ -195,6 +194,10 @@ def splitInChunks(s: str|bytes, maxlen: int) -> list:
     Args:
         s: the str/bytes to split
         maxlen: the max. length of each substring
+
+    Returns:
+        a list of substrings, where each substring has a max. length
+        of *maxlen*
     """
     out = []
     idx = 0

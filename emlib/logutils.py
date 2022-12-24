@@ -7,6 +7,17 @@ import logging.handlers
 import os
 
 
+def prettylog(logger: logging.Logger, obj, level='DEBUG') -> None:
+    """
+    Log obj using pprint's representation
+    """
+    import pprint
+    msg = pprint.pformat(obj)
+    levelint = logging.getLevelName(level)
+    assert isinstance(levelint, int), f"Unknown logging level {level}"
+    logger.log(level=levelint, msg=msg)
+
+
 def fileLogger(path:str, level='DEBUG', fmt='%(levelname)s: %(message)s'
                ) -> logging.Logger:
     """
