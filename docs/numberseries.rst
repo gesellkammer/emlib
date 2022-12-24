@@ -9,5 +9,7 @@ numberseries: Generate diverse number series
     :skip: Generator
     :skip: List
     :skip: PHI
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
 

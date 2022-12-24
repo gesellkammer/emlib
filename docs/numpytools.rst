@@ -6,6 +6,8 @@ numpytools: Miscellaneous utilities for working with numpy arrays
     :no-inheritance-diagram:
     :no-heading:
 
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
     :skip: as_strided
     :skip: np

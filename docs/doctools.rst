@@ -12,8 +12,10 @@ doctools: Tools to parse and generate documentation
     :skip: List
     :skip: Opt
     :skip: Set
+    :skip: TYPE_CHECKING
     :skip: Tuple
     :skip: Type
+    :skip: TypeVar
     :skip: annotations
     :skip: dataclasses
     :skip: enum

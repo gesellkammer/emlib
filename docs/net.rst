@@ -7,6 +7,8 @@ net: Utility functions related to network
     :no-heading:
 
     :skip: Opt
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
     :skip: socket
 

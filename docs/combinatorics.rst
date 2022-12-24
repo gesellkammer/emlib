@@ -10,6 +10,7 @@ combinatorics: Functions for combinatorics
     :skip: Iterator
     :skip: List
     :skip: Seq
+    :skip: TYPE_CHECKING
     :skip: Tuple
     :skip: TypeVar
     :skip: U

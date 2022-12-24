@@ -7,6 +7,7 @@ textlib: Routines for working with text
     :no-heading:
 
     :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
     :skip: re
     :skip: sys

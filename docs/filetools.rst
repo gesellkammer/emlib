@@ -8,6 +8,8 @@ filetools: Utilities to work with files and filenames
 
     :skip: List
     :skip: Opt
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
     :skip: datetime
     :skip: misc

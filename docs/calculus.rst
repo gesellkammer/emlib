@@ -8,6 +8,8 @@ calculus: Calculus utilities, based on calculus.jl
 
     :skip: Callable
     :skip: NAN
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
     :skip: epsilon
     :skip: infinity

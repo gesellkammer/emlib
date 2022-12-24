@@ -41,7 +41,14 @@ def get_abstract(docstr):
     return "<docstring>"
 
 def get_skipped(module):
+    skipped = [
+        "TypeVar",
+        "TYPE_CHECKING"
+    ]
     external = doctools.externalModuleMembers(module)
+    external.extend(skipped)
+    external = list(set(external))
+    external.sort()
     return external    
 
 def generate_template(module):

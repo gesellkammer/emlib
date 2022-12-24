@@ -7,6 +7,7 @@ iterlib: More itertools
     :no-heading:
 
     :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: accumulate
     :skip: annotations
     :skip: chain

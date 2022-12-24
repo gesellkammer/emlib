@@ -6,22 +6,22 @@ mathlib: Miscellaneous math utilities
     :no-inheritance-diagram:
     :no-heading:
 
-    :skip: Callable
     :skip: Fraction
-    :skip: Iter
-    :skip: List
-    :skip: Opt
     :skip: PHI
-    :skip: Seq
-    :skip: T
-    :skip: T2
-    :skip: Tup
+    :skip: Rational
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
+    :skip: asin
     :skip: ceil
     :skip: cos
+    :skip: e
+    :skip: factorial
+    :skip: floor
     :skip: gcd
+    :skip: hypot
     :skip: np
-    :skip: number_t
+    :skip: pi
     :skip: radians
     :skip: reduce
     :skip: sin

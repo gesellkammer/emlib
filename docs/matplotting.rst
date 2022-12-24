@@ -9,6 +9,7 @@ matplotting: Routines to help draw shapes / labels within a matplotlib
     :skip: PatchCollection
     :skip: Rectangle
     :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
     :skip: cm
     :skip: defaultprofile

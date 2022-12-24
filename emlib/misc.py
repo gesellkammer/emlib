@@ -24,13 +24,13 @@ import warnings
 
 import numpy as np
 from fractions import Fraction
+import numbers
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING or 'sphinx' in _sys.modules:
-    from typing import *
+    from typing import TypeVar, Sequence, Union
     T = TypeVar("T")
     T2 = TypeVar("T2")
-    import numbers
     number_t = Union[float, numbers.Rational]
     
 
@@ -259,7 +259,7 @@ def sort_natural_dict(d: Dict[str, Any], recursive=True) -> dict:
     """
     sort dict d naturally and recursively
     """
-    rows: list[Tuple[str, Any]] = []
+    rows: list[tuple[str, Any]] = []
     if recursive:
         for key, value in d.items():
             if isinstance(value, dict):
@@ -376,7 +376,7 @@ class Result:
 
 
 def zipsort(a: Sequence[T], b: Sequence[T2], key: Callable = None, reverse=False
-            ) -> Tuple[list[T], list[T2]]:
+            ) -> tuple[list[T], list[T2]]:
     """
     Sort a and keep b in sync
 
@@ -657,7 +657,7 @@ def namedtuple_extend(name:str, orig, columns: Union[str, Sequence[str]]):
 # ------------------------------------------------------------
 
 
-def isiterable(obj, exceptions:Tuple[type, ...]=(str, bytes)) -> bool:
+def isiterable(obj, exceptions:tuple[type, ...]=(str, bytes)) -> bool:
     """
     Example
     ~~~~~~~
@@ -676,7 +676,7 @@ def isgeneratorlike(obj):
 
 
 def asnumber(obj, accept_fractions=True, accept_expon=False
-             ) -> Union[int, float, Fraction, None]:
+             ) -> int | float | Fraction | None:
     """
     Return ``obj`` as number, or None of it cannot be converted
     to a number
@@ -789,7 +789,7 @@ def dictmerge(dict1: dict, dict2: dict) -> dict:
 
 
 def moses(pred: Callable[[T], bool], seq: Iterator[T]
-          ) -> Tuple[list[T], list[T]]:
+          ) -> tuple[list[T], list[T]]:
     """
     Divides *seq* into two lists: filter(pred, seq), filter(not pred, seq)
 
@@ -831,7 +831,7 @@ def allequal(xs: Iterator) -> bool:
     return all(x==x0 for x in xs)
 
 
-def dumpobj(obj) -> list[Tuple[str, Any]]:
+def dumpobj(obj) -> list[tuple[str, Any]]:
     """
     Return all 'public' attributes of this object
     """
@@ -865,7 +865,7 @@ def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True) 
         the result will be float, if it is a Fraction, then the
         result will be a fraction
     """
-    assert isinstance(x, (float, Fraction))
+    assert isinstance(x, (float, number.Rational))
     t = x.__class__
     if nearest:
         return t(round((x - offset) / tick)) * tick + offset
@@ -1055,7 +1055,7 @@ def _distribute_in_zones_right(x: number_t, split_points: Sequence[number_t]) ->
     return imin
 
 
-def seq_contains(seq, subseq) -> Optional[Tuple[int, int]]:
+def seq_contains(seq, subseq) -> Optional[tuple[int, int]]:
     """
     Returns the (start, end) indexes if seq contains subseq, or None
 
@@ -1186,7 +1186,7 @@ def pixels_to_inches(pixels: int, dpi=300) -> float:
     return pixels / dpi
 
 
-def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> Tuple[float, float]:
+def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> tuple[float, float]:
     """
     Return the (height, width) for a given DIN size and page orientation
 

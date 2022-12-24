@@ -8,6 +8,8 @@ containers: Diverse containers
 
     :skip: Opt
     :skip: Seq
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: Union
     :skip: annotations
     :skip: dataclasses

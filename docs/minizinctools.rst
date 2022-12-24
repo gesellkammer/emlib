@@ -9,6 +9,8 @@ minizinctools: Set of minizinc models to solve form problems
     :skip: Any
     :skip: List
     :skip: Opt
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: U
     :skip: annotations
     :skip: mz

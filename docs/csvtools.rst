@@ -9,6 +9,8 @@ csvtools: Utilities to read and write csv files
     :skip: List
     :skip: RecordList
     :skip: Seq
+    :skip: TYPE_CHECKING
+    :skip: TypeVar
     :skip: annotations
     :skip: dataclasses
     :skip: misc
