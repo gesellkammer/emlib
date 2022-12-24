@@ -50,7 +50,7 @@ __all__ = ("PHI",
            "logrange",
            "randspace",
            "fib",
-           "interpfib"
+           "interpfib",
            "roundrnd",
            "roundres",
            "next_in_grid",
