@@ -1,6 +1,4 @@
 numpy
-scipy
-bpf4
 configdict
 appdirs
 tabulate
