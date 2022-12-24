@@ -12,5 +12,5 @@ ttkthemes
 send2trash
 
 sphinx-autodoc-typehints
-git+git://github.com/astropy/sphinx-automodapi@main#egg=sphinx-automodapi
+sphinx-automodapi
 sphinx_rtd_theme
