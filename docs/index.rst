@@ -49,6 +49,5 @@ Modules
     combinatorics
     numberseries
     graphlib
-    bpfx
     minizinctools
     net

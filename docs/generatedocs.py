@@ -24,12 +24,13 @@ modules = [
     "combinatorics",
     "numberseries",
     "graphlib",
-    "bpfx", 
     "minizinctools",
     "net",
 ]
 
+
 docsfolder = Path(__file__).parent
+
 
 def get_abstract(docstr):
     for line in docstr.splitlines():
