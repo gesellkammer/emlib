@@ -8,6 +8,7 @@ pyyaml
 minizinc
 ttkthemes
 send2trash
+matplotlib
 
 sphinx-autodoc-typehints
 sphinx-automodapi

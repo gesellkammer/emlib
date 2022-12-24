@@ -33,7 +33,8 @@ setup(
         "minizinc",
         "watchdog",
         "send2trash",
-        "ttkthemes"
+        "ttkthemes",
+        "matplotlib"
     ],
     license="BSD",
     zip_safe=False,
