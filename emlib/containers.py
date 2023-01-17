@@ -42,8 +42,7 @@ class IntPool:
         >>> pool.push(4)
         ValueError: token 4 already in pool
     """
-    def __init__(self, capacity: int):
-        start = 0
+    def __init__(self, capacity: int, start=0):
         self.capacity = capacity
         self.pool = set(range(start, start+capacity))
         self.tokenrange = (start, start+capacity)

@@ -113,6 +113,9 @@ def joinPreservingIndentation(fragments: Sequence[str]) -> str:
         the joint code
 
     """
+    if any(not isinstance(fragment, str) for fragment in fragments):#
+        fragment = next(_ for _ in fragments if not isinstance(_, str))
+        raise TypeError(f"Expected a string, got {fragment}")
     code = "\n".join(textwrap.dedent(code) for code in fragments if code)
     numspaces = getIndentation(fragments[0])
     if numspaces:
