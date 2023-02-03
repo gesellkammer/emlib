@@ -11,7 +11,7 @@ import random as _random
 from math import inf
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import List, Iterable, Optional, Union, TypeVar, Tuple, Callable, Sequence
+    from typing import Iterable, Iterator, TypeVar, Callable, Sequence
     T = TypeVar("T")
     T2 = TypeVar("T2")
 
@@ -24,13 +24,17 @@ if TYPE_CHECKING:
 # ----------------------------------------------------------------------------
 
 
-def take(seq: Iterable[T], n:int) -> List[T]:
+def take(seq: Iterable[T], n:int) -> list[T]:
     """returns the first n elements of seq as a list"""
     return list(islice(seq, n))
 
 
-def last(seq: Iterable[T]) -> Optional[T]:
-    """returns the last element of seq or None if seq is empty"""
+def last(seq: Iterable[T]) -> T | None:
+    """
+    Returns the last element of seq or None if seq is empty
+
+    if *seq* is an iterator, it will consume it
+    """
     if isinstance(seq, _collections.Sequence):
         try:
             return seq[-1]
@@ -43,12 +47,18 @@ def last(seq: Iterable[T]) -> Optional[T]:
         return x
 
 
-def first(it: Iterable[T], default=None) -> Optional[T]:
+def first(it: Iterable[T], default=None) -> T | None:
     return next(it, default)
 
 
-def consume(iterator, n:int) -> None:
-    """Advance the iterator n-steps ahead. If n is none, consume entirely."""
+def consume(iterator, n: int) -> None:
+    """Advance the iterator n-steps ahead. If n is none, consume entirely.
+
+    .. note::
+
+        The only reason to consume an iterator is if it this has some
+        sort of side-effect
+    """
     if n is None:
         # feed the entire iterator into a zero-length deque
         _collections.deque(iterator, maxlen=0)
@@ -57,22 +67,6 @@ def consume(iterator, n:int) -> None:
         next(islice(iterator, n, n), None)
 
         
-def quantify(iterable, pred: Callable=bool) -> int:
-    """
-    Count how many times the predicate is true
-    
-    Example
-    =======
-
-    .. code::
-
-        >>> quantify("ABACA", lambda letter:letter=='A')
-        3
-
-    """
-    return sum(map(pred, iterable))
-
-
 def drop(seq: Iterable[T], n: int) -> Iterable[T]:
     """
     return an iterator over seq with n elements consumed
@@ -88,16 +82,16 @@ def drop(seq: Iterable[T], n: int) -> Iterable[T]:
 
 def nth(seq: Iterable[T], n: int) -> T:
     """Returns the nth item"""
-    return list(islice(seq, n, n+1))[0]
+    return next(islice(seq, n, n+1))
 
 
-def pad(seq: Iterable[T], element:T2=None) -> Iterable[Union[T, T2]]:
+def pad(seq: Iterable[T], element:T2=None) -> Iterator[T | T2]:
     """
-    Returns the elements in seq and then return element indefinitely.
+    Returns the elements in *seq* and then return *element* indefinitely.
 
     Useful for emulating the behavior of the built-in map() function.
     
-    >>> list(take(pad(range(10), "X"), 15))
+    >>> take(pad(range(10), "X"), 15)
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 'X', 'X', 'X', 'X', 'X']
     """
     return chain(seq, repeat(element))
@@ -157,14 +151,12 @@ def repeatfunc(func, times=None, *args):
         return starmap(func, repeat(args, times))
 
 
-def pairwise(iterable: Iterable[T]) -> Iterable[Tuple[T, T]]:
+def pairwise(iterable: Iterable[T]) -> Iterator[tuple[T, T]]:
     """
     Similar to window(seq, size=2, step=1)
     
     Example
-    -------
-
-    .. code::
+    ~~~~~~~
 
         >>> list(pairwise(range(4)))
         [(0, 1), (1, 2), (2, 3)]
@@ -177,36 +169,42 @@ def pairwise(iterable: Iterable[T]) -> Iterable[Tuple[T, T]]:
     return zip(a, b)
 
 
-def window(iterable: Iterable[T], size=3, step=1) -> Iterable[Tuple[T, ...]]:
+def window(iterable: Iterable[T], size=3, step=1) -> Iterator[tuple[T, ...]]:
     """
     iterate over subseqs of iterable
-    
+
+    Args:
+        iterable: an iterable
+        size: the size of the window
+        step: the step size
+
+    Returns:
+        an iterator over a tuple of items of iterable, windowed as indicated
+
     Example
-    =======
+    ~~~~~~~
     
     >>> seq = range(6)
-    
     >>> list(window(seq, 3, 1))
     [(0, 1, 2), (1, 2, 3), (2, 3, 4), (3, 4, 5)]
-    
     >>> list(window(seq, 3, 2))
     [(0, 1, 2), (2, 3, 4)]
-    
     # the same as pairwise
-    >>> assert list(window(range(5), 2, 1)) == [(0, 1), (1, 2), (2, 3), (3, 4)]
+    >>> list(window(range(5), 2, 1))
+    [(0, 1), (1, 2), (2, 3), (3, 4)]
     """
     iterators = tee(iterable, size)
     for skip_steps, itr in enumerate(iterators):
         for _ in islice(itr, skip_steps):
             pass
-    window_itr = zip(*iterators)
+    winiter = zip(*iterators)
     if step != 1:
-        window_itr = islice(window_itr, 0, 99999999, step)
-    return window_itr
+        winiter = islice(winiter, 0, 99999999, step)
+    return winiter
 
 
 def window_fixed_size(seq: Iterable[T], size: int, maxstep: int
-                           ) -> Iterable[Tuple[T, ...]]:
+                           ) -> Iterable[tuple[T, ...]]:
     """
     A sliding window over subseqs of seq
 
@@ -251,8 +249,12 @@ def window_fixed_size(seq: Iterable[T], size: int, maxstep: int
 def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
     """
     Returns an iterator over chunks of seq of at most `chunksize` size.
+
     If seq is finite and not divisible by chunksize, the last chunk will
     have less than `chunksize` elements.
+
+    Example
+    ~~~~~~~
 
     >>> seq = range(20)
     >>> list(iterchunks(seq, 3))
@@ -271,7 +273,7 @@ def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
             yield chunk
 
 
-def parse_range(start, stop:int=None, step:int=None) -> Tuple[int, int, int]:
+def parse_range(start, stop:int=None, step:int=None) -> tuple[int, int, int]:
     """
     Given arguments as passed to `range`, resolved them in `(start, stop, step)`
     """
@@ -283,12 +285,12 @@ def parse_range(start, stop:int=None, step:int=None) -> Tuple[int, int, int]:
     return start, stop, step
 
 
-def chunks(start:int, stop:int=None, step:int=None) -> Iterable[Tuple[int, int]]:
+def chunks(start:int, stop:int=None, step:int=None) -> Iterable[tuple[int, int]]:
     """
     Returns a generator of tuples (offset, chunksize)
 
     Example
-    =======
+    ~~~~~~~
 
     >>> list(chunks(0, 10, 3))
     [(0, 3), (3, 3), (6, 3), (9, 1)]
@@ -307,21 +309,6 @@ def isiterable(obj, exclude=(str,)) -> bool:
         return hasattr(obj, '__iter__') and (not isinstance(obj, exclude))
     return hasattr(obj, '__iter__')
     
-
-def grouper(seq: Iterable, n: int, fillvalue=None) -> Iterable:
-    """
-    Collect data into fixed-length chunks or blocks
-    
-    >>> for group in grouper('ABCDEFG', 3, fillvalue='x'):
-    ...     print(group)
-    ('A', 'B', 'C')
-    ('D', 'E', 'F')
-    ('G', 'x', 'x')
-
-    """
-    args = [iter(seq)] * n
-    return zip_longest(fillvalue=fillvalue, *args)
-
 
 def random_combination(iterable: Iterable, r):
     """Random selection from itertools.combinations(iterable, r)"""
@@ -342,7 +329,7 @@ def partialsum(seq: Iterable[T], start=0) -> Iterable[T]:
     """
     for each elem in seq return the partial sum
 
-    ::
+    .. code::
 
         n0 -> n0
         n1 -> n0 + n1
@@ -358,7 +345,7 @@ def partialmul(seq: Iterable[T], start=1) -> Iterable[T]:
     """
     return the accumulated multiplication
 
-    ::
+    .. code::
 
         n0 -> n0
         n1 -> n1 * n0
@@ -371,9 +358,9 @@ def partialmul(seq: Iterable[T], start=1) -> Iterable[T]:
         yield accum
 
         
-def avgnow(seq: Iterable[T]) -> T:
+def partialavg(seq: Iterable[T]) -> T:
     """
-    return the average of the elements of seq until now
+    Return the partial average in seq
     """
     accum = 0
     i = 0
@@ -396,8 +383,12 @@ def avg(seq: Iterable[T], empty=0) -> T:
     """
     Return the average of seq, or `empty` if the seq. is empty
 
-    **NB**: if you know the size of seq, it is faster to do
-    `sum(seq) / len_of_seq`
+    .. note::
+
+        If you know the size of seq, it is faster to do `sum(seq) / len_of_seq`
+
+    Example
+    ~~~~~~~
 
     >>> avg(range(1_000_000))
     499999.5
@@ -409,7 +400,7 @@ def avg(seq: Iterable[T], empty=0) -> T:
     return accum / i if i else empty
 
         
-def flatten(s: Iterable[Union[T, Iterable[T]]], exclude=(str,), levels=inf) -> Iterable[T]:
+def flatten(s: Iterable[T | Iterable[T]], exclude=(str,), levels=inf) -> Iterator[T]:
     """
     Return an iterator to the flattened items of sequence s
 
@@ -445,9 +436,9 @@ def flatdict(d: dict) -> list:
     Example
     -------
 
-        >>> d = {'a': 1, 'b': 2, 'c': 3}
-        >>> flatdict(d)
-        ['a', 1, 'b', 2, 'c', 3]
+    >>> d = {'a': 1, 'b': 2, 'c': 3}
+    >>> flatdict(d)
+    ['a', 1, 'b', 2, 'c', 3]
     """
     ks = d.keys()
     vs = d.values()
@@ -457,7 +448,8 @@ def flatdict(d: dict) -> list:
     return out
 
 
-def flattened(s: Iterable[Union[T, Iterable[T]]], exclude=(str,), levels: int = None, out:list=None) -> List[T]:
+def flattened(s: Iterable[T | Iterable[T]], exclude=(str,), levels: int = None, out: list=None
+              ) -> list[T]:
     """
     Like flatten, but returns a list instead of an iterator
 
@@ -478,7 +470,7 @@ def flattened(s: Iterable[Union[T, Iterable[T]]], exclude=(str,), levels: int = 
     return out
     
 
-def _flattened2(s, out:list, exclude, levels:int = None) -> None:
+def _flattened2(s, out: list, exclude, levels: int = None) -> None:
     for item in s:
         if isinstance(item, exclude or levels <= 0) or not hasattr(item, '__iter__'):
             out.append(item)
@@ -526,7 +518,7 @@ def zipflat(*seqs):
             yield elem
 
             
-def butlast(seq: Iterable[T]) -> Iterable[T]:
+def butlast(seq: Iterable[T]) -> Iterator[T]:
     """
     iterate over seq[:-1]
     
@@ -552,7 +544,7 @@ def butn(seq: Iterable[T], n: int) -> Iterable[T]:
         d.append(x)
 
         
-def intercalate(seq: Iterable[T], item:T2) -> Iterable[Union[T, T2]]:
+def intercalate(seq: Iterable[T], item:T2) -> Iterator[T|T2]:
     """
     Intercalate *item* between elements of *seq*
 
@@ -565,9 +557,9 @@ def intercalate(seq: Iterable[T], item:T2) -> Iterable[Union[T, T2]]:
     return butlast(zipflat(seq, repeat(item)))
 
 
-def reductions(seq: Iterable[T], func: Callable, start=0) -> Iterable[T]:
+def partialreduce(seq: Iterable[T], func: Callable, start=0) -> Iterator[T]:
     """
-    Return an iterator of the partial values of the reduction.
+    Return an iterator of the partial values of the reduce operation.
 
     The last value is always equal to reduce(func, seq, start)
     """
@@ -581,7 +573,7 @@ def reductions(seq: Iterable[T], func: Callable, start=0) -> Iterable[T]:
             raise StopIteration
 
         
-def mesh(xs: Iterable[T], ys: Iterable[T2]) -> Iterable[Tuple[T, T2]]:
+def mesh(xs: Iterable[T], ys: Iterable[T2]) -> Iterator[tuple[T, T2]]:
     """
     iterator over the lexicographical pairs
 
@@ -624,12 +616,14 @@ def mesh3(A, B, C):
                 yield (a, b, c)
 
                 
-def unique(seq: Iterable[T]) -> Iterable[T]:
+def unique(seq: Iterable[T]) -> Iterator[T]:
     """
     Return only unique elements of a sequence (keeps order)
 
-    If seq is not an iterator or order is not important
-    it is better to call set instead. Elements must be hashable
+    If seq is not an iterator or order is not important it is more
+    efficient to call set instead.
+
+    .. note:: Elements must be hashable
 
     >>> tuple(unique((1, 2, 3)))
     (1, 2, 3)
@@ -670,7 +664,7 @@ def interleave(seqs, pass_exceptions=()):
         iters = newiters
         
 
-def split_in_chunks(seq: Iterable[T], chunksize: int) -> Iterable[List[T]]:
+def split_in_chunks(seq: Iterable[T], chunksize: int) -> Iterator[list[T]]:
     """
     splits a sequence into chunks
 
@@ -690,7 +684,7 @@ def split_in_chunks(seq: Iterable[T], chunksize: int) -> Iterable[List[T]]:
     # return [seq[i:i+chunksize] for i in range(0, len(seq), chunksize)]
 
 
-def classify(s: Sequence[T], keyfunc: Callable[[T], T2]) -> Dict[T2, List[T]]:
+def classify(s: Sequence[T], keyfunc: Callable[[T], T2]) -> dict[T2, list[T]]:
     """
     Split `s` according to `keyfunc`
 

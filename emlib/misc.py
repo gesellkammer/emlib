@@ -1196,17 +1196,38 @@ def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> tuple[float, float]:
 
     Returns:
         a tuple (height, width) in mm
+
+
+    ========== =================================
+    Format     Width x Heigh (mm)
+    ========== =================================
+    A0         841 x 1189
+    A1         594 x 841
+    A2         420 x 594
+    A3         297 x 420
+    A4         210 x 297
+    A5         148 x 210
+    A6         105 x 148
+    A7         74 x 105
+    ========== =================================
+
     """
-    pagesize = pagesize.lower()
-    if pagesize == 'a3':
-        height, width = 420, 297
-    elif pagesize == 'a4':
-        height, width = 297, 210
-    else:
-        raise KeyError(f"pagesize {pagesize} not known")
-    if pagelayout == 'landscape':
-        height, width = width, height
-    return height, width
+    pagesizes = {
+        'a0': (1189, 841),
+        'a1': (841, 594),
+        'a2': (594, 420),
+        'a3': (420, 297),
+        'a4': (297, 210),
+        'a5': (210, 148),
+        'a6': (148, 105),
+        'a7': (105, 74)
+    }
+    w, h = pagesizes.get(pagesize.lower(), (0, 0))
+    if not w:
+        raise ValueError(f"pagesize {pagesize} not known. Supported sizes: {pagesizes.keys()}")
+    if pagelayout == 'portrait':
+        w, h = h, w
+    return h, w
 
 
 # ------------------------------------------------------------
