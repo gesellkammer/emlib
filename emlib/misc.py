@@ -1677,6 +1677,15 @@ def session_type() -> str:
         return "python"
 
 
+@runonce
+def running_inside_terminal() -> bool:
+    """
+    Are we running inside a terminal and not in the background?
+
+    """
+    return _sys.stdin and _sys.stdin.isatty()
+
+
 def ipython_qt_eventloop_started() -> bool:
     """
     Are we running ipython / jupyter and the qt event loop has been started?
