@@ -151,7 +151,7 @@ def repeatfunc(func, times=None, *args):
         return starmap(func, repeat(args, times))
 
 
-def pairwise(iterable: Iterable[T]) -> Iterator[tuple[T, T]]:
+def pairwise(iterable: Iterable[T]) -> zip[tuple[T, T]]:
     """
     Similar to window(seq, size=2, step=1)
     

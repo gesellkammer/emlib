@@ -40,8 +40,7 @@ def voltage_divider_R1(Vin, Vout, R2="10K"):
 
 def opamp_amplifier_Rf(gain, Rgnd):
     """
-    calculate the feedback resistor of an opamp (non-inverting)
-    for a given gain and Rgnd
+    Calculate the feedback resistor of an opamp (non-inverting) for a given gain and Rgnd
 
     ::
 
@@ -63,9 +62,7 @@ def opamp_amplifier_Rf(gain, Rgnd):
 
 def opamp_amplifier_Rgnd(gain, Rf):
     """
-    opamp-amplifier -- non inverting
-    Calculate the resistor to ground for the given gain and
-    feedback resistor
+    Calculate the resistor to ground for the given gain and feedback resistor (non-inverting)
 
     See opamp_amplifier_Rf for schematic
     """
@@ -76,8 +73,7 @@ def opamp_amplifier_Rgnd(gain, Rf):
 
 def opamp_inverting_gain(R1, Rf):
     """
-    return the gain of the opamp for the given values
-    of the resistors
+    Return the gain of the opamp for the given values of the resistors
 
                   --Rf---
                   |     |
