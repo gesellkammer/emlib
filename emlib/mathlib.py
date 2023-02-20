@@ -765,3 +765,10 @@ def ispowerof2(x: int) -> bool:
     Via: https://stackoverflow.com/questions/600293/how-to-check-if-a-number-is-a-power-of-2
     """
     return (x != 0) and ((x & (x - 1)) == 0)
+
+
+def nextpowerof2(x) -> int:
+    """
+    Return the lowest power of two >= x
+    """
+    return 1 if x == 0 else 2 ** (x - 1).bit_length()
