@@ -498,7 +498,27 @@ def roundres(x, resolution=1.0):
     return round(x / resolution) * resolution
 
 
-def next_in_grid(x: float, step: float, offset=0.) -> float:
+def next_in_grid(x: number_t, step: number_t, offset: number_t = 0) -> float:
+    """
+    The next value in the grid defined by step/offset which is >= x
+
+    Args:
+        x: a value to fit to the next division of a grid
+        step: the step of the grid
+        offset: the offset of the grid
+
+    Returns
+        the next value within the grid higher or equal to x
+
+    Example
+    ~~~~~~~
+
+        >>> next_in_grid(4.3, 0.5, 0)
+        4.5
+        >>> from fractions import Fraction
+        >>> next_in_grid(1.31, Fraction(1, 3))
+        Fraction(4, 3)
+    """
     return offset + ceil((x - offset) / step) * step
 
 
