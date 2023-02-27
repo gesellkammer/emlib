@@ -57,7 +57,8 @@ __all__ = ("PHI",
            "modulo_shortest_distance",
            "rotate2d",
            "optimize_parameter",
-           "ispowerof2"
+           "ispowerof2",
+           "nextpowerof2"
            )
 
 
