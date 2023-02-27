@@ -24,7 +24,7 @@ except ImportError:
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import Union, Optional, TypeVar
+    from typing import TypeVar
     number_t = Rational | float
     T = TypeVar("T", bound=number_t)
     T2 = TypeVar("T2", bound=number_t)
@@ -67,7 +67,7 @@ __all__ = ("PHI",
 PHI = 0.6180339887498949
 
 
-def intersection(u1:T, u2:T, v1:T, v2:T) -> Optional[tuple[T, T]]:
+def intersection(u1:T, u2:T, v1:T, v2:T) -> tuple[T, T] | None:
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
 
@@ -342,7 +342,8 @@ def split_interval_at_values(start: T, end: T, offsets: Sequence[T]
         a list of (start, end) segments where no segment extends over any
         of the given offsets
 
-    Example::
+    Example
+    ~~~~~~~
 
         >>> split_interval_at_values(1, 3, [1.5, 2])
         [(1, 1.5), (1.5,  2), (2, 3)]
@@ -501,7 +502,7 @@ def next_in_grid(x: float, step: float, offset=0.) -> float:
     return offset + ceil((x - offset) / step) * step
 
 
-def modulo_shortest_distance(x, origin, mod):
+def modulo_shortest_distance(x: number_t, origin: number_t, mod: int):
     """
     Return the shortest distance to x from origin around a circle of modulo `mod`.
 
@@ -615,10 +616,25 @@ def fraction_to_decimal(numerator: int, denominator: int) -> str:
     return "".join(result)
 
 
-def optimize_parameter(func, val: float, paraminit: float, maxerror=0.001,
-                       maxiterations=100) -> tuple[float, int]:
+def optimize_parameter(func,
+                       val: float,
+                       paraminit: float,
+                       maxerror=0.001,
+                       maxiterations=100
+                       ) -> tuple[float, int]:
     """
     Optimize one parameter to arrive to a desired value.
+
+    Args:
+        func: a function returning a value which will be compared to `val`
+        val: the desired value to arrive to
+        paraminit: the initial value of param
+        maxerror: the max. relative error (0.001 is 0.1%)
+        maxiterations: max. number of iterations
+
+    Returns:
+        a tuple (value, number of iterations)
+
 
     Example
     -------
@@ -632,15 +648,6 @@ def optimize_parameter(func, val: float, paraminit: float, maxerror=0.001,
         >>> bpf.expon(0, 1, 1, 6, exp=expon)(0.1)
         1.25
 
-    Args:
-        func: a function returning a value which will be compared to `val`
-        val: the desired value to arrive to
-        paraminit: the initial value of param
-        maxerror: the max. relative error (0.001 is 0.1%)
-        maxiterations: max. number of iterations
-
-    Returns:
-        a tuple (value, number of iterations)
     """
     param = paraminit
     for i in range(maxiterations):
