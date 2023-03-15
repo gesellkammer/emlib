@@ -212,3 +212,26 @@ def splitInChunks(s: str|bytes, maxlen: int) -> list:
         idx += n
     return out
 
+
+def quoteIfNeeded(s: str, quote='"') -> str:
+    """
+    Add quotation marks around `s` if needed
+
+    Args:
+        s: the string which might need quoting
+
+    Returns:
+        a string where it is ensured that it is surrounded by `quote`
+
+    Example
+    ~~~~~~~
+
+        >>> quoteIfNeeded('test')
+        "test"
+        >>> quoteIfNeeded("'foo'", "'")
+        'foo'
+
+    """
+    if s.startswith(quote) and s.endswith(quote):
+        return s
+    return f'{quote}{s}{quote}'
