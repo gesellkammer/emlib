@@ -34,7 +34,8 @@ setup(
         "watchdog",
         "send2trash",
         "ttkthemes",
-        "matplotlib"
+        "matplotlib",
+        "pillow"
     ],
     license="BSD",
     zip_safe=False,
