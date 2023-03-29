@@ -86,11 +86,14 @@ def showInfo(msg: str, title: str = "Info", font=None, icon: str = None, backend
     if backend == 'qt':
         from . import _dialogsqt
         return _dialogsqt.showInfo(msg=msg, title=title, font=font, icon=icon)
-    from tkinter import ttk
-    from ttkthemes import ThemedTk
-    root = ThemedTk(theme="breeze")
-    root.title(title)
+    from tkinter import ttk, Tk
+    try:
+        from ttkthemes import ThemedTk
+        root = ThemedTk(theme="breeze")
+    except ImportError:
+        root = Tk()
 
+    root.title(title)
     bg = "#f5f5f5"
     frame = ttk.Frame(root)
     dx, dy = 8, 8
@@ -127,14 +130,19 @@ def selectFile(directory: str = None, filter="All (*.*)", title="Open file",
         from . import _dialogsqt
         return _dialogsqt.selectFile(directory=directory, filter=filter, title=title)
 
-    from ttkthemes import ThemedTk
+    from tkinter import ttk, Tk
+    try:
+        from ttkthemes import ThemedTk
+        root = ThemedTk(theme="breeze")
+    except ImportError:
+        root = Tk()
+
     from tkinter import filedialog
 
     filetypes = _tkParseFilter(filter)
     if not filetypes:
         filetypes = [('All', '(*.*)')]
 
-    root = ThemedTk(theme='breeze')
     root.withdraw()
     path = filedialog.askopenfilename(initialdir=directory, title=title,
                                       filetypes=filetypes)
@@ -172,9 +180,14 @@ def _tkOk() -> bool:
 
 
 def _saveDialogTk(filter="All (*.*)", title="Save file", directory: str = "~") -> str:
-    from ttkthemes import ThemedTk
+    from tkinter import ttk, Tk
+    try:
+        from ttkthemes import ThemedTk
+        root = ThemedTk(theme="breeze")
+    except ImportError:
+        root = Tk()
+
     from tkinter import filedialog
-    root = ThemedTk(theme='breeze')
     filetypes = _tkParseFilter(filter)
     root.withdraw()
 
@@ -316,10 +329,15 @@ def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 
     """
     if sys.platform == 'darwin':
         logger.error("macOS is not supported")
+
+    from tkinter import ttk, Tk
+    try:
+        from ttkthemes import ThemedTk
+        root = ThemedTk(theme="breeze")
+    except ImportError:
+        root = Tk()
+
     import tkinter as tk
-    from tkinter import ttk
-    from ttkthemes import ThemedTk
-    root = ThemedTk(theme="breeze")
 
     if len(items) < numlines:
         scrollbar = False

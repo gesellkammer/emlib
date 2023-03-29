@@ -33,7 +33,6 @@ setup(
         "minizinc",
         "watchdog",
         "send2trash",
-        "ttkthemes",
         "matplotlib",
         "pillow"
     ],
