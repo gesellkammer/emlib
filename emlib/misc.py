@@ -28,7 +28,7 @@ import numbers
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING or 'sphinx' in _sys.modules:
-    from typing import TypeVar, Sequence, Union
+    from typing import TypeVar, Sequence, Union, Optional, Callable, Any, Iterable
     T = TypeVar("T")
     T2 = TypeVar("T2")
     number_t = Union[float, numbers.Rational]
@@ -255,7 +255,7 @@ def sort_natural(seq: list, key: Callable[[Any], str]=None) -> list:
     return sorted(seq, key=alphanum_key)
 
 
-def sort_natural_dict(d: Dict[str, Any], recursive=True) -> dict:
+def sort_natural_dict(d: dict[str, Any], recursive=True) -> dict:
     """
     sort dict d naturally and recursively
     """
@@ -272,7 +272,7 @@ def sort_natural_dict(d: Dict[str, Any], recursive=True) -> dict:
     return dict(sorted_rows)
 
 
-def issorted(seq:list, key=None) -> bool:
+def issorted(seq: list, key=None) -> bool:
     """
     Returns True if seq is sorted
 
@@ -788,7 +788,7 @@ def dictmerge(dict1: dict, dict2: dict) -> dict:
     return out
 
 
-def moses(pred: Callable[[T], bool], seq: Iterator[T]
+def moses(pred: Callable[[T], bool], seq: Iterable[T]
           ) -> tuple[list[T], list[T]]:
     """
     Divides *seq* into two lists: filter(pred, seq), filter(not pred, seq)
@@ -817,7 +817,7 @@ def moses(pred: Callable[[T], bool], seq: Iterator[T]
     return trueitems, falseitems
 
 
-def allequal(xs: Iterator) -> bool:
+def allequal(xs: Sequence) -> bool:
     """
     Return True if all elements in xs are equal
 
@@ -865,7 +865,6 @@ def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True) 
         the result will be float, if it is a Fraction, then the
         result will be a fraction
     """
-    assert isinstance(x, (float, number.Rational))
     t = x.__class__
     if nearest:
         return t(round((x - offset) / tick)) * tick + offset
@@ -1700,8 +1699,70 @@ def ipython_qt_eventloop_started() -> bool:
         return False
 
 
-def html_table(rows: list, headers: list[str], maxwidths:Optional[list[int]]=None,
-               rowstyles:Optional[list[str]]=None) -> str:
+def get_platform() -> tuple[str, str]:
+    """
+    Return a tuple (osname, architecture)
+
+    This attempts to improve upon `sysconfig.get_platform` by fixing some
+    issues when running a Python interpreter with a different architecture than
+    that of the system (e.g. 32bit on 64bit system, or a multiarch build),
+    which should return the machine architecture of the currently running
+    interpreter rather than that of the system (which didn't seem to work
+    properly). The reported machine architectures follow platform-specific
+    naming conventions (e.g. "x86_64" on Linux, but "x64" on Windows).
+
+    Returns:
+        a tuple (osname: str, architecture: str)
+
+
+    Example output strings for common platforms::
+
+        ("darwin", one of ppc|ppc64|i368|x86_64|arm64)
+        ("linux", one of i686|x86_64|armv7l|aarch64)
+        ("windows", one of x86|x64|arm32|arm64
+
+
+
+    """
+    import platform
+    import sysconfig
+
+    system = platform.system().lower()
+    machine = sysconfig.get_platform().split("-")[-1].lower()
+    is_64bit = _sys.maxsize > 2 ** 32
+
+    if system == "darwin": # get machine architecture of multiarch binaries
+        if any([x in machine for x in ("fat", "intel", "universal")]):
+            machine = platform.machine().lower()
+
+    elif system == "linux":  # fix running 32bit interpreter on 64bit system
+        if not is_64bit and machine == "x86_64":
+            machine = "i686"
+        elif not is_64bit and machine == "aarch64":
+            machine = "armv7l"
+
+    elif system == "windows": # return more precise machine architecture names
+        if machine == "amd64":
+            machine = "x64"
+        elif machine == "win32":
+            if is_64bit:
+                machine = platform.machine().lower()
+            else:
+                machine = "x86"
+
+    # some more fixes based on examples in https://en.wikipedia.org/wiki/Uname
+    if not is_64bit and machine in ("x86_64", "amd64"):
+        if any([x in system for x in ("cygwin", "mingw", "msys")]):
+            machine = "i686"
+        else:
+            machine = "i386"
+
+    return system, machine
+
+def html_table(rows: list, 
+               headers: list[str], 
+               maxwidths: Optional[list[int]]=None,
+               rowstyles: Optional[list[str]]=None) -> str:
     """
     Create a html table
 
