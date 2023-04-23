@@ -5,10 +5,9 @@ Miscellaneous functionality
 * **Search**: `nearest_element`, `nearest_unsorted`, `nearest_index`
 * **Sort**: `sort_natural`, `zipsort`, `issorted`
 * **Namedtuples**: `namedtupled_addcolumn`, `namedtuple_extend`, etc.
-* **IPython / Jupyter**: `inside_jupyter`, `is_interactive_session`, `session_type`
 * **Open files**: `open_with_standard_app`, `wait_for_file_modified`, `open_with`
 * **Unit conversions**: `cm_to_pixels`, `page_dinsize_to_mm`, etc.
-* **Other**: `runonce`, `singleton`
+* **Other**: `singleton`
 
 """
 # -*- coding: utf-8 -*-
@@ -20,11 +19,12 @@ from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
 import re as _re
 import dataclasses
-import warnings
 
 import numpy as np
 from fractions import Fraction
 import numbers
+from .envir import inside_jupyter
+
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING or 'sphinx' in _sys.modules:
@@ -873,7 +873,8 @@ def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True) 
 
 
 def snap_array(X: np.ndarray, tick:float, offset:float=0.,
-               out:Optional[np.ndarray]=None, nearest=True) -> np.ndarray:
+               out: Optional[np.ndarray] = None, nearest=True
+               ) -> np.ndarray:
     """
     Snap the values of X to the nearest slot in a grid
 
@@ -902,7 +903,11 @@ def snap_array(X: np.ndarray, tick:float, offset:float=0.,
     return _snap_array_floor(X, tick, offset=float(offset), out=out)
 
 
-def _snap_array_nearest(X: np.ndarray, tick: number_t, offset=0, out=None) -> np.ndarray:
+def _snap_array_nearest(X: np.ndarray, 
+                        tick: number_t, 
+                        offset: number_t = 0., 
+                        out: Optional[np.ndarray] = None
+                        ) -> np.ndarray:
     if out is None:
         out = X.copy()
     if offset != 0:
@@ -918,8 +923,8 @@ def _snap_array_nearest(X: np.ndarray, tick: number_t, offset=0, out=None) -> np
     return out
 
 
-def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out: np.ndarray=None) -> \
-        np.ndarray:
+def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out: np.ndarray=None
+                      ) -> np.ndarray:
     arr = out if out is not None else X.copy()
     if offset != 0:
 
@@ -936,7 +941,7 @@ def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out: np.ndarray=None
 
 
 def snap_to_grids(x: number_t, ticks: Sequence[number_t], 
-                  offsets: Sequence[number_t]=None, mode='nearest'
+                  offsets: Sequence[number_t] = None, mode='nearest'
                   ) -> number_t:
     """
     Snap x to the nearest slot within multiple overlapping grids
@@ -1337,39 +1342,6 @@ def singleton(cls):
     return get_instance()
 
 
-class runonce:
-    """
-    To be used as decorator. `func` will run only once
-
-    Example::
-
-        # get_config() will only read the file the first time,
-        # return the resulting dict for any further calls
-
-        @runonce
-        def get_config():
-            config = json.load(open("/path/to/config.json"))
-            return config
-
-        config = get_config()
-
-    """
-    __slots__ = ('func', 'result', 'has_run')
-
-    def __init__(self, func):
-        self.func = func
-        self.result = None
-        self.has_run = False
-
-    def __call__(self, *args, **kwargs):
-        if self.has_run:
-            return self.result
-
-        self.result = self.func(*args, **kwargs)
-        self.has_run = True
-        return self.result
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def istype(obj, *types) -> bool:
@@ -1541,7 +1513,8 @@ def open_with_app(path: str,
         _open_with_standard_app(path, wait=wait, min_wait=min_wait, timeout=timeout)
         return
 
-    import subprocess, time
+    import subprocess
+    import time
 
     if shell:
         assert isinstance(app, str), "shell needs a command-line as string"
@@ -1583,7 +1556,6 @@ def wait_for_file_modified(path:str, timeout:float=None) -> bool:
     """
     from watchdog.observers import Observer
     from watchdog.events import PatternMatchingEventHandler
-    import time
     directory, base = _os.path.split(path)
     if not directory:
         directory = "."
@@ -1625,139 +1597,6 @@ def first_existing_path(*paths: str, default="~") -> str:
             return p
     return _os.path.expanduser(default)
 
-
-@runonce
-def inside_jupyter() -> bool:
-    """
-    Are we running inside a jupyter notebook?
-    """
-    return session_type() == 'jupyter'
-
-@runonce
-def inside_ipython() -> bool:
-    """
-    Are we running inside ipython?
-
-    This includes any ipython session (ipython in terminal, jupyter, etc.)
-    """
-    return session_type() in ('jupyter', 'ipython', 'ipython-terminal')
-
-
-@runonce
-def is_interactive_session() -> bool:
-    """ Are we running inside an interactive session? """
-    return _sys.flags.interactive == 1
-
-
-@runonce
-def session_type() -> str:
-    """
-    Returns the kind of python session
-
-    .. note::
-        See also `is_interactive_session` to check if we are inside a REPL
-
-    Returns:
-        Returns one of "jupyter", "ipython-terminal" (if running ipython
-        in a terminal), "ipython" (if running ipython outside of a terminal),
-        "python" if running normal python.
-
-    """
-    try:
-        # get_ipython should be available within an ipython/jupyter session
-        shell = get_ipython().__class__.__name__   # type: ignore
-        if shell == 'ZMQInteractiveShell':
-            return "jupyter"
-        elif shell == 'TerminalInteractiveShell':
-            return "ipython-terminal"
-        else:
-            return "ipython"
-    except NameError:
-        return "python"
-
-
-@runonce
-def running_inside_terminal() -> bool:
-    """
-    Are we running inside a terminal and not in the background?
-
-    """
-    return _sys.stdin and _sys.stdin.isatty()
-
-
-def ipython_qt_eventloop_started() -> bool:
-    """
-    Are we running ipython / jupyter and the qt event loop has been started?
-    ( %gui qt )
-    """
-    session = session_type()
-    if session == 'ipython-terminal' or session == 'jupyter':
-        # we are inside ipython so we can just call 'get_ipython'
-        ip = get_ipython()   # type: ignore
-        return ip.active_eventloop == "qt"
-    else:
-        return False
-
-
-def get_platform() -> tuple[str, str]:
-    """
-    Return a tuple (osname, architecture)
-
-    This attempts to improve upon `sysconfig.get_platform` by fixing some
-    issues when running a Python interpreter with a different architecture than
-    that of the system (e.g. 32bit on 64bit system, or a multiarch build),
-    which should return the machine architecture of the currently running
-    interpreter rather than that of the system (which didn't seem to work
-    properly). The reported machine architectures follow platform-specific
-    naming conventions (e.g. "x86_64" on Linux, but "x64" on Windows).
-
-    Returns:
-        a tuple (osname: str, architecture: str)
-
-
-    Example output strings for common platforms::
-
-        ("darwin", one of ppc|ppc64|i368|x86_64|arm64)
-        ("linux", one of i686|x86_64|armv7l|aarch64)
-        ("windows", one of x86|x64|arm32|arm64
-
-
-
-    """
-    import platform
-    import sysconfig
-
-    system = platform.system().lower()
-    machine = sysconfig.get_platform().split("-")[-1].lower()
-    is_64bit = _sys.maxsize > 2 ** 32
-
-    if system == "darwin": # get machine architecture of multiarch binaries
-        if any([x in machine for x in ("fat", "intel", "universal")]):
-            machine = platform.machine().lower()
-
-    elif system == "linux":  # fix running 32bit interpreter on 64bit system
-        if not is_64bit and machine == "x86_64":
-            machine = "i686"
-        elif not is_64bit and machine == "aarch64":
-            machine = "armv7l"
-
-    elif system == "windows": # return more precise machine architecture names
-        if machine == "amd64":
-            machine = "x64"
-        elif machine == "win32":
-            if is_64bit:
-                machine = platform.machine().lower()
-            else:
-                machine = "x86"
-
-    # some more fixes based on examples in https://en.wikipedia.org/wiki/Uname
-    if not is_64bit and machine in ("x86_64", "amd64"):
-        if any([x in system for x in ("cygwin", "mingw", "msys")]):
-            machine = "i686"
-        else:
-            machine = "i386"
-
-    return system, machine
 
 def html_table(rows: list, 
                headers: list[str], 

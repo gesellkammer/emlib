@@ -1,13 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
-import sys
 
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (1, 8, 1)
+version = (1, 9, 0)
 
 setup(
     name='emlib',
