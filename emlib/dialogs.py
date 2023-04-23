@@ -7,7 +7,7 @@ in all three major platforms.
 from __future__ import annotations
 import os
 import sys
-import emlib.misc
+from emlib.common import runonce
 import logging
 
 
@@ -36,7 +36,7 @@ filters = {
 }
 
 
-@emlib.misc.runonce
+@runonce
 def _has_qt() -> bool:
     try:
         from PyQt5 import QtWidgets
@@ -46,7 +46,7 @@ def _has_qt() -> bool:
 
 
 
-@emlib.misc.runonce
+@runonce
 def _has_tk() -> bool:
     try:
         import tkinter
@@ -55,7 +55,7 @@ def _has_tk() -> bool:
         return False
 
 
-@emlib.misc.runonce
+@runonce
 def _resolveBackend(backend: str = None):
     if sys.platform == 'darwin':
         backend = 'qt'
@@ -168,7 +168,7 @@ def _tkParseFilter(filter: str) -> List[Tuple[str, str]]:
     return out
 
 
-@emlib.misc.runonce
+@runonce
 def _tkOk() -> bool:
     try:
         from ttkthemes import ThemedTk

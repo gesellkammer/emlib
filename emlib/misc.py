@@ -24,6 +24,7 @@ import numpy as np
 from fractions import Fraction
 import numbers
 from .envir import inside_jupyter
+from .common import runonce
 
 
 from typing import TYPE_CHECKING
