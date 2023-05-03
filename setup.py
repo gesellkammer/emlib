@@ -5,7 +5,7 @@
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (1, 9, 1)
+version = (1, 9, 2)
 
 setup(
     name='emlib',
@@ -43,4 +43,5 @@ setup(
         'Programming Language :: Python :: 3.9'
                 
     ],
+    package_data={'emlib': ['py.typed']},
 )
