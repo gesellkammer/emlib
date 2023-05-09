@@ -59,7 +59,8 @@ __all__ = ("PHI",
            "rotate2d",
            "optimize_parameter",
            "ispowerof2",
-           "nextpowerof2"
+           "nextpowerof2",
+           "Historgram"
            )
 
 
