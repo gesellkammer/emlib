@@ -15,7 +15,8 @@ from functools import reduce
 from math import gcd, sqrt, cos, sin, radians, ceil, hypot, pi, asin, floor, factorial, e
 import sys as _sys
 import numpy as np
-from numbers import Rational
+from numbers import Rational, Number
+
 
 try:
     from quicktions import Fraction
@@ -800,3 +801,21 @@ def nextpowerof2(x) -> int:
     Return the lowest power of two >= x
     """
     return 1 if x == 0 else 2 ** (x - 1).bit_length()
+
+
+class Historgram:
+    def __init__(self, values: list[Number] | np.ndarray, numbins: int = 20):
+        _, edges = np.histogram(values, bins=numbins)
+        self.edges = edges
+        self.numbins = numbins
+        self.values = values
+        self._percentiles = np.linspace(0, 1, len(edges))
+
+    def valueToPercentile(self, value: float) -> float:
+        return np.interp(value, self.edges, self._percentiles)
+
+    def percentileToValue(self, percentile: float) -> float:
+        return np.interp(percentile, self._percentiles, self.edges)
+
+    def __repr__(self):
+        return f"Histogram(numbins={self.numbins}, edges={self.edges})"

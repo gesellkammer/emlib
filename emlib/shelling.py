@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import re
+import sys
 
 
 class Proc:
@@ -43,6 +44,8 @@ def allpids():
     """
     This works only on unixy systems
     """
+    if not sys.platform == 'linux':
+        raise RuntimeError("This function only works in linux")
     return [int(pid) for pid in os.listdir('/proc') if pid != 'curproc' and pid.isdigit()]
         
 
@@ -50,6 +53,9 @@ def readargs(pid):
     """
     This only works only on unixy systems
     """
+    if not sys.platform == 'linux':
+        raise RuntimeError("This function only works in linux")
+    
     args = None
     try:
         with open(f'/proc/{pid}/cmdline', mode='rb') as fd:
@@ -65,6 +71,9 @@ def allprocs(skipempty=True, pids=None):
 
     returns a list of Procs 
     """
+    if not sys.platform == 'linux':
+        raise RuntimeError("This function only works in linux")
+        
     pids = pids or allpids()
     out = []
     for pid in pids:
@@ -77,6 +86,9 @@ def allprocs(skipempty=True, pids=None):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def fzf(cmd=None, pattern=None):
+    if not sys.platform == 'linux':
+        raise RuntimeError("This function only works in linux")
+        
     if pattern is not None and cmd is None:
         cmdline = f'fd {pattern} | fzf'
     elif cmd and pattern:
