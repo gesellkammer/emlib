@@ -60,7 +60,7 @@ __all__ = ("PHI",
            "optimize_parameter",
            "ispowerof2",
            "nextpowerof2",
-           "Historgram"
+           "Histogram"
            )
 
 
@@ -804,7 +804,7 @@ def nextpowerof2(x) -> int:
     return 1 if x == 0 else 2 ** (x - 1).bit_length()
 
 
-class Historgram:
+class Histogram:
     def __init__(self, values: list[Number] | np.ndarray, numbins: int = 20):
         _, edges = np.histogram(values, bins=numbins)
         self.edges = edges
