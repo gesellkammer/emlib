@@ -63,6 +63,10 @@ __all__ = ("PHI",
            )
 
 
+
+class NotFoundError(ValueError): pass
+
+
 # phi, in float (double) form and as Rational number with a precission of 2000
 # iterations in the fibonacci row (fib[2000] / fib[2001])
 PHI = 0.6180339887498949
@@ -646,6 +650,9 @@ def optimize_parameter(func,
     """
     Optimize one parameter to arrive to a desired value.
 
+    Will raise NotFoundError if the maximum iterations are reached without
+    converging
+
     Args:
         func: a function returning a value which will be compared to `val`
         val: the desired value to arrive to
@@ -680,7 +687,13 @@ def optimize_parameter(func,
             param = param * (1+relerror)
         else:
             param = param * (1-relerror)
-    return valnow, i
+    else:
+        valnow = func(param)
+        relerror = abs(valnow - val) / valnow
+        raise NotFoundError(f"The maximum iterations were reached without converging."
+                            f" Last param: {param}, value: {valnow}, relerror: {relerror}")
+
+    return param, i
 
 
 def intersection_area_between_circles(x1: float, y1: float, r1: float,
