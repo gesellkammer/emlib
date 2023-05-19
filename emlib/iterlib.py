@@ -684,6 +684,37 @@ def split_in_chunks(seq: Iterable[T], chunksize: int) -> Iterator[list[T]]:
     # return [seq[i:i+chunksize] for i in range(0, len(seq), chunksize)]
 
 
+def _reversedenum(s: Sequence[T]) -> Iterator[tuple[int, T]]:
+    lens = len(s)
+    for idx, item in enumerate(reversed(s)):
+        yield lens - 1 - idx, item
+
+
+def reversed_enumerate(s: Sequence[T]) -> Iterator[tuple[int, T]]:
+    """
+    The same as enumerate but reverses the sequence
+
+    Args:
+        s: the sequence to be reversed (needs to be finite)
+
+    Returns:
+        an iterator over tuples (index, item) on reversed
+        order
+
+    Example
+    ~~~~~~~
+
+        >>> seq = "a b c d e f".split()
+        >>> list(reversed_enumerate(seq))
+        [(5, 'f'), (4, 'e'), (3, 'd'), (2, 'c'), (1, 'b'), (0, 'a')]
+
+    """
+    # This is faster than the version above
+    enum = list(zip(range(len(s)), s))
+    enum.reverse()
+    return enum
+
+
 def classify(s: Sequence[T], keyfunc: Callable[[T], T2]) -> dict[T2, list[T]]:
     """
     Split `s` according to `keyfunc`

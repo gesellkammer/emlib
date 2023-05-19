@@ -677,10 +677,13 @@ def optimize_parameter(func,
         1.25
 
     """
+    if val == 0:
+        raise ValueError("Cannot optimize for 0")
+
     param = paraminit
     for i in range(maxiterations):
         valnow = func(param)
-        relerror = abs(valnow - val) / valnow
+        relerror = abs(valnow - val) / val
         if relerror < maxerror:
             break
         if valnow > val:
