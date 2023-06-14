@@ -1,13 +1,9 @@
 numpy
-configdict
 appdirs
 tabulate
-python-constraint
-pyyaml
-minizinc
-ttkthemes
 send2trash
 matplotlib
+pillow
 
 sphinx-autodoc-typehints
 sphinx-automodapi

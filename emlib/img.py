@@ -128,7 +128,7 @@ def cropToBoundingBox(inputpath: str, outpath: str = '') -> None:
     img = Image.open(inputpath)
     box = img.getbbox()
     croppedimg = img.crop(box)
-    croppedimg.save(outpath)
+    croppedimg.save(outpath or inputpath)
 
 
 def htmlImgBase64(imgpath: str, 
