@@ -1,17 +1,18 @@
-from PIL import Image
+from __future__ import annotations
+
 import os.path
 from io import BytesIO
+from PIL import Image
+from typing import Union
 
-from typing import Union as U, Tuple
 
-
-def imgSize(path:str) -> Tuple[int, int]:
+def imgSize(path: str) -> tuple[int, int]:
     """ returns (width, height) """
     im = Image.open(path)
     return im.size
 
 
-def asImage(obj: U[str, Image.Image]) -> Image.Image:
+def asImage(obj: Union[str, Image.Image]) -> Image.Image:
     if isinstance(obj, Image.Image):
         return obj
     elif isinstance(obj, str):
@@ -20,7 +21,7 @@ def asImage(obj: U[str, Image.Image]) -> Image.Image:
         raise TypeError(f"obj type {type(obj)} not supported")
 
 
-def hasTransparency(img: U[str, Image.Image]) -> bool:
+def hasTransparency(img: Union[str, Image.Image]) -> bool:
     img = asImage(img)
     if img.mode == "P":
         transparent = img.info.get("transparency", -1)
@@ -61,7 +62,7 @@ def removeTransparency(im: Image.Image, background=(255, 255, 255)) -> Image.Ima
         return im
 
 
-def pngRemoveTransparency(pngfile: str, outfile: str = None, background=(255, 255, 255)
+def pngRemoveTransparency(pngfile: str, outfile='', background=(255, 255, 255)
                           ) -> None:
     '''
     Remove transparency from a png file
@@ -86,14 +87,17 @@ def pngRemoveTransparency(pngfile: str, outfile: str = None, background=(255, 25
         img.save(pngfile)
 
 
-def readImageAsBase64(imgpath:str, outformat:str=None, removeAlpha=False
-                      ) -> Tuple[bytes, int, int]:
+def readImageAsBase64(imgpath: str, 
+                      outformat='', 
+                      removeAlpha=False
+                      ) -> tuple[bytes, int, int]:
     """
     Read an image and output its base64 representation
 
     Args:
         imgpath: the path to the image
         outformat: the format to save the image to
+        removeAlpha: if True, remove alpha channel
 
     Returns:
         a tuple (data, width, height), where data is the base64
@@ -113,9 +117,27 @@ def readImageAsBase64(imgpath:str, outformat:str=None, removeAlpha=False
     return imgbytes, width, height
 
 
-def htmlImgBase64(imgpath: str, width:U[int, str]=None, maxwidth:U[int,str]=None,
-                  margintop='14px', padding='10px',
-                  removeAlpha=False, scale:float=1.
+def cropToBoundingBox(inputpath: str, outpath: str = '') -> None:
+    """
+    Crop an image to its content, trimming any empty space
+
+    Args:
+        inputpath: the path of the input image
+        outpath: the path of the output. If not given the original image is modified
+    """
+    img = Image.open(inputpath)
+    box = img.getbbox()
+    croppedimg = img.crop(box)
+    croppedimg.save(outpath)
+
+
+def htmlImgBase64(imgpath: str, 
+                  width: Union[int, str] = None, 
+                  maxwidth: Union[int,str] = None,
+                  margintop='14px', 
+                  padding='10px',
+                  removeAlpha=False, 
+                  scale=1.
                   ) -> str:
     """
     Read an image and return the data as base64 within an img html tag
