@@ -49,5 +49,4 @@ Modules
     combinatorics
     numberseries
     graphlib
-    minizinctools
     net

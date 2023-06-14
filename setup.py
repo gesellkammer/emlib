@@ -5,7 +5,7 @@
 from setuptools import setup
 
 readme = open('README.rst').read()
-version = (1, 10, 4)
+version = (1, 11, 0)
 
 setup(
     name='emlib',
@@ -25,10 +25,7 @@ setup(
         "configdict",
         "appdirs",
         "tabulate",
-        "cachetools",
-        "python-constraint",
         "pyyaml",
-        "minizinc",
         "watchdog",
         "send2trash",
         "matplotlib",

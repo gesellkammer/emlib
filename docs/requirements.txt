@@ -2,7 +2,6 @@ numpy
 configdict
 appdirs
 tabulate
-cachetools
 python-constraint
 pyyaml
 minizinc
