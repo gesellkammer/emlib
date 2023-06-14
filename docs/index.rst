@@ -37,6 +37,7 @@ Modules
     textlib
     filetools
     iterlib
+    img
     doctools
     csvtools
     jsontools

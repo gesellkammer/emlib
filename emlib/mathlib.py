@@ -16,6 +16,7 @@ from math import gcd, sqrt, cos, sin, radians, ceil, hypot, pi, asin, floor, fac
 import sys as _sys
 import numpy as np
 from numbers import Rational, Number
+from typing import TYPE_CHECKING, TypeVar, Sequence, Callable
 
 
 try:
@@ -23,10 +24,9 @@ try:
 except ImportError:
     from fractions import Fraction
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import TypeVar
-    number_t = Rational | float
+    from typing import Union, Iterator
+    number_t = Union[Rational, float]
     T = TypeVar("T", bound=number_t)
     T2 = TypeVar("T2", bound=number_t)
 
@@ -97,7 +97,7 @@ def intersection(u1:T, u2:T, v1:T, v2:T) -> tuple[T, T] | None:
     return (x0, x1) if x0 < x1 else None
 
 
-def frange(start: float, stop: float=None, step: float=None) -> Iterator[float]:
+def frange(start: float, stop: float = None, step: float = 0.) -> Iterator[float]:
     """
     Like xrange(), but returns list of floats instead
 
@@ -121,7 +121,7 @@ def frange(start: float, stop: float=None, step: float=None) -> Iterator[float]:
     if stop is None:
         stop = float(start)
         start = 0.0
-    if step is None:
+    if not step:
         step = 1.0
     numiter = int((stop - start) / step)
     for i in range(numiter):
@@ -156,7 +156,7 @@ def fraction_range(start: number_t, stop: number_t = None, step: number_t = None
         startF += step
 
 
-def linspace(start: float, stop: float, numitems: int) -> List[float]:
+def linspace(start: float, stop: float, numitems: int) -> list[float]:
     """ Similar to numpy.linspace, returns a python list """
     dx = (stop - start) / (numitems - 1)
     return [start + dx*i for i in range(numitems)]
@@ -289,7 +289,7 @@ def euclidian_distance(values: Sequence[float], weights: Sequence[float]=None) -
     return sqrt(sum(value**2 for value in values))
 
 
-def weighted_euclidian_distance(pairs: List[tuple[float, float]]) -> float:
+def weighted_euclidian_distance(pairs: list[tuple[float, float]]) -> float:
     """
     Reduces distances in multiple dimensions to 1 dimension.
 
@@ -334,7 +334,7 @@ def harmonic_mean(numbers: Sequence[T]) -> T:
 
 
 def split_interval_at_values(start: T, end: T, offsets: Sequence[T]
-                             ) -> List[tuple[T, T]]:
+                             ) -> list[tuple[T, T]]:
     """
     Split interval (start, end) at the given offsets
 
@@ -405,7 +405,7 @@ def logrange(start: float, stop: float, num=50, base=10) -> np.ndarray:
 
 
 def randspace(begin: float, end: float, numsteps: int, include_end=True
-              ) -> List[float]:
+              ) -> list[float]:
     """
     go from begin to end in numsteps at randomly spaced steps
 
@@ -537,9 +537,10 @@ def modulo_shortest_distance(x: number_t, origin: number_t, mod: int):
     Example
     -------
 
-    Calculate the interval between two pitches, independently of octaves
+    Calculate the interval between note D5 and B3, independently of octaves
 
-    >>> interval = modulo_shortest_distance(n2m("D5"), n2m("B4"), 12)
+
+    >>> interval = modulo_shortest_distance(74, 59, 12)
     3
     """
     xclock = (x - origin) % mod
@@ -551,7 +552,8 @@ def modulo_shortest_distance(x: number_t, origin: number_t, mod: int):
 
 def rotate2d(point: tuple[float, float],
              degrees: float,
-             origin=(0, 0)) -> tuple[float, float]:
+             origin=(0, 0)
+             ) -> tuple[float, float]:
     """
     A rotation function that rotates a point around an origin
 

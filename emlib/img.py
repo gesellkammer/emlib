@@ -13,6 +13,15 @@ def imgSize(path: str) -> tuple[int, int]:
 
 
 def asImage(obj: Union[str, Image.Image]) -> Image.Image:
+    """
+    Returns `obj` if already a pillow Image or reads it from disk if given a path
+
+    Args:
+        obj: a pilllow Image or a path to an image file
+
+    Returns:
+        a pillow Image
+    """
     if isinstance(obj, Image.Image):
         return obj
     elif isinstance(obj, str):
@@ -22,6 +31,15 @@ def asImage(obj: Union[str, Image.Image]) -> Image.Image:
 
 
 def hasTransparency(img: Union[str, Image.Image]) -> bool:
+    """
+    Returns True if this image has an alpha channel
+
+    Args:
+        img: the image or a path to it
+
+    Returns:
+        True if the image has transparency
+    """
     img = asImage(img)
     if img.mode == "P":
         transparent = img.info.get("transparency", -1)
@@ -117,21 +135,42 @@ def readImageAsBase64(imgpath: str,
     return imgbytes, width, height
 
 
-def cropToBoundingBox(inputpath: str, outpath: str = '') -> None:
+def cropToBoundingBox(inputpath: str, outpath: str = '', margin: Union[int, tuple[int, int, int, int]] = 0) -> str | None:
     """
     Crop an image to its content, trimming any empty space
 
     Args:
         inputpath: the path of the input image
         outpath: the path of the output. If not given the original image is modified
+        margin: a margin in pixels. Can also be a tuple (x0, y0, x1, y1)
     """
-    img = Image.open(inputpath)
-    box = img.getbbox()
+    from PIL import ImageChops
+    img = Image.open(inputpath).convert('RGB')
+    border = img.getpixel((0, 0))
+    bg = Image.new(img.mode, img.size, border)
+    diff = ImageChops.difference(img, bg)
+    diff = ImageChops.add(diff, diff, 2.0, -100)
+    box = diff.getbbox()
+
+    if not box:
+        return 'Could not find bounding box'
+
+    if margin:
+        if isinstance(margin, int):
+            x0 = y0 = x1 = y1 = margin
+        else:
+            x0, y0, x1, y1 = margin
+        box = (max(0, box[0] - x0),
+               max(0, box[1] - y0),
+               min(box[2] + x1, img.width),
+               min(box[3] + y1, img.height)
+               )
+
     croppedimg = img.crop(box)
     croppedimg.save(outpath or inputpath)
 
 
-def htmlImgBase64(imgpath: str, 
+def htmlImgBase64(imgpath: str,
                   width: Union[int, str] = None, 
                   maxwidth: Union[int,str] = None,
                   margintop='14px', 
