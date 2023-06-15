@@ -365,10 +365,9 @@ def _getscaling(unit):
     return scalingvalue
 
 
-def spice_pwm(freq, duty=0.5, voltage=5, phase=0):
+def spice_pwm(freq: float, duty=0.5, voltage=5, phase=0) -> tuple[str, dict]:
     """
-    Returns the spice directive and the parameters to generate
-    a PWM signal.
+    Returns the spice directive and the parameters to generate a PWM signal.
     """
     Vinitial = 0
     Von = voltage
@@ -388,8 +387,7 @@ def spice_pwm(freq, duty=0.5, voltage=5, phase=0):
 
 def ohmlaw(V=None, I=None, R=None):
     """
-    provide two of the values, the third one
-    is the result
+    provide two of the values, the third one is the result
 
     V = I/R
     """
@@ -407,8 +405,17 @@ def ohmlaw(V=None, I=None, R=None):
         return _Res(R)
 
 
-def capacitive_reactance(cap, freq):
+def capacitive_reactance(cap, freq) -> float:
     """
+    Return the capacitive reactance for a given capacity at a given frequency
+
+    Args:
+        cap: capacity
+        freq: frequency
+
+    Returns:
+        the reactance in ohms
+
     In an AC Circuit the applied voltage signal is continually
     changing from a + to - . The capacitor is being charged or
     discharged on a continuous basis.
@@ -427,16 +434,22 @@ def capacitive_reactance(cap, freq):
     return _Res(Xc)
 
 
-def microphone_sensitivity(transferfactor):
+def microphone_sensitivity(transferfactor: float) -> float:
     """
-    transferfactor in mV/Pa
+    Microphone sensitivity for a given transfer factor
+
+    Args:
+        transferfactor: the transfer factor
+
+    Returns:
+        the sensitiviy in mV/Pa
 
     Returns the sensitivity in mV/Pa
     """
     return amp2db(transferfactor/1000.)
 
 
-def microphone_transferfactor(sensitivity):
+def microphone_transferfactor(sensitivity: float) -> float:
     """
     sensitivity in dB re 1V/Pa
 
