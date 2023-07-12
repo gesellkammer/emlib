@@ -1,0 +1,73 @@
+from __future__ import annotations
+from typing import Generic, TypeVar
+
+
+_T = TypeVar('_T')
+
+
+class Result(Generic[_T]):
+    """
+    A class to encapsulate the result of an operation
+
+    This is useful for operations which can either return a value
+    or an error message.
+
+    Args:
+        ok: True if ok, False if failed
+        value: the value returned by the operation
+        info: an error message if the operation failed
+
+    Example
+    -------
+
+    .. code::
+
+        from emlib.result import Result
+        import re
+        from fractions import Fraction
+
+        def parsefraction(txt: str) -> Result:
+            match = re.match(r"([0-9]+)\/([1-9][0-9]*)", txt)
+            if not match:
+                return Result.Fail(f"Could not parse '{txt}' as fraction")
+            num = int(match.group(1))
+            den = int(match.group(2))
+            return Result.Ok(Fraction(num, den))
+
+        if fraction := parsefraction("4/5"):
+            print(f"Fraction ok: {fraction.value})  # prints 'Fraction(4, 5)'
+
+
+
+    """
+
+    def __init__(self, ok: bool, value: _T | None = None, info: str = ''):
+        self.ok: bool = ok
+        self.value: _T | None = value
+        self.info: str = info
+
+    def __bool__(self) -> bool:
+        return self.ok
+
+    @property
+    def failed(self) -> bool:
+        """True if operation failed"""
+        return not self.ok
+
+    def __repr__(self):
+        if self.ok:
+            return f"Result(ok, value={self.value})"
+        else:
+            return f'Result(failed, info="{self.info}")'
+
+    @classmethod
+    def Fail(cls, info: str, value=None) -> Result:
+        """Create a Result object for a failed operation."""
+        if not isinstance(info, str):
+            raise TypeError(f"The info parameter should be a str, got {info}")
+        return cls(False, value=value, info=info)
+
+    @classmethod
+    def Ok(cls, value: _T | None = None) -> Result:
+        """Create a Result object for a successful operation."""
+        return cls(True, value=value)

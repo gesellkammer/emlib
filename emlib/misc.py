@@ -347,35 +347,6 @@ def firstval(*values, sentinel=None):
     raise ValueError(f"All values are {sentinel}")
 
 
-class Result:
-    """
-    A class to encapsulate a result
-
-    Args:
-        value: the value of the result
-        info: some information about the result, an error message, etc.
-        boolval: if provided, it determines how the result evaluates as a boolean.
-            This is useful when the value of the result would be evaluated to False
-            (for example, Result(0, boolval=True))
-
-    """
-    __slots__ = ('value', 'info', 'boolval')
-
-    def __init__(self, value, info: str = '', boolval: bool | None = None):
-        self.value = value
-        self.info = info
-        self.boolval = boolval
-
-    def __repr__(self):
-        return f"Result(value={self.value}, info={self.info})"
-
-    def __call__(self):
-        return self.value
-
-    def __bool__(self):
-        return self.boolval if self.boolval is not None else bool(self.value)
-
-
 def zipsort(a: Sequence[T], b: Sequence[T2], key: Callable = None, reverse=False
             ) -> tuple[list[T], list[T2]]:
     """
