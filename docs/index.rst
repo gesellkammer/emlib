@@ -41,6 +41,7 @@ Modules
     doctools
     csvtools
     jsontools
+    result
     containers
     dialogs
     mathlib

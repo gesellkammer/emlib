@@ -5,6 +5,8 @@ from typing import Generic, TypeVar
 _T = TypeVar('_T')
 
 
+__all__ = ('Result',)
+
 class Result(Generic[_T]):
     """
     A class to encapsulate the result of an operation
@@ -26,7 +28,7 @@ class Result(Generic[_T]):
         import re
         from fractions import Fraction
 
-        def parsefraction(txt: str) -> Result:
+        def parsefraction(txt: str) -> Result[Fraction]:
             match = re.match(r"([0-9]+)\/([1-9][0-9]*)", txt)
             if not match:
                 return Result.Fail(f"Could not parse '{txt}' as fraction")
@@ -37,7 +39,12 @@ class Result(Generic[_T]):
         if fraction := parsefraction("4/5"):
             print(f"Fraction ok: {fraction.value})  # prints 'Fraction(4, 5)'
 
+    Typing
+    ------
 
+    To make typing analysis work better it is possible to indicate the kind of
+    value wrapped by the Result class. See the return type declared in ``parsefraction``
+    in the example above
 
     """
 
