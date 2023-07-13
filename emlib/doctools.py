@@ -207,6 +207,9 @@ class RenderConfig:
     includeInheritedMethods: bool = False
     """If True, add inherited methods to the documentation of each class"""
 
+    generateClassTOC: bool = True
+    """If True, add a TOC to a class definition"""
+
 
 class ParseError(Exception):
     pass
@@ -858,6 +861,11 @@ class ClassMembers:
     methods: dict[str, Any]
     """ The methods in this class """
 
+    def exclude(self, regexes: list[str]) -> dict[str, Any]:
+        return {name: method for name, method in self.methods.items()
+                if not _matchAnyRegex(regexes, name)}
+
+
 
 def _isMethodInherited(cls, method: str, mro) -> bool:
     m = getattr(cls, method)
@@ -1110,46 +1118,33 @@ def sortClassesByTree(classes: list[type]) -> list[type]:
 
 
 def _abbreviateSignature(sig: str, maxlen=30) -> str:
-    if len(sig) > 30:
-        sig = sig[:30] + '…'
+    if len(sig) > maxlen:
+        sig = sig[:maxlen] + '…'
     return sig
 
 
-def generateTOC(members: dict[str, Any], astable=True) -> str:
+def generateModuleTOC(members: dict[str, Any]) -> str:
     classes = {name: member for name, member in members.items()
                if inspect.isclass(member)}
     funcs = {name: member for name, member in members.items()
              if name not in classes}
     blocks = []
     if classes:
-        if astable:
-            blocks.append("| Class  | Description  |")
-            blocks.append("| :----  | :----------- |")
-        else:
-            blocks.append("\n## Classes\n")
+        blocks.append("| Class  | Description  |")
+        blocks.append("| :----  | :----------- |")
         for name, cls in classes.items():
             docdef = parseDef(cls)
             descr = docdef.shortDescr if docdef else '-'
-            if astable:
-                blocks.append(f"| `{name}` | {descr} |")
-            else:
-                blocks.append(f"* {name}: {descr}")
+            blocks.append(f"| `{name}` | {descr} |")
         blocks.append("")
 
     if funcs:
-        if astable:
-            blocks.append("| Function  | Description  |")
-            blocks.append("| :-------  | :----------- |")
-        else:
-            blocks.append("\n## Functions\n")
-
+        blocks.append("| Function  | Description  |")
+        blocks.append("| :-------  | :----------- |")
         for name, func in funcs.items():
             docdef = parseDef(func)
             descr = docdef.shortDescr if docdef else '-'
-            if astable:
-                blocks.append(f"| `{name}` | {descr} |")
-            else:
-                blocks.append(f"* {name}: {descr}")
+            blocks.append(f"| `{name}` | {descr} |")
         blocks.append("")
 
     return "\n".join(blocks)
@@ -1208,7 +1203,7 @@ def generateDocsForModule(module,
                         if Exception not in cls.mro()]
         
     if toc:
-        toctext = generateTOC(membersd)
+        toctext = generateModuleTOC(membersd)
         blocks.append(toctext)
         blocks.append(sep)
 
@@ -1280,7 +1275,7 @@ def renderClassDocstring(cls,
 def generateDocsForClass(cls,
                          renderConfig: RenderConfig,
                          exclude: list[str] = None,
-                         indentLevel=1
+                         indentLevel=1,
                          ) -> str:
     """
     Generate documentation for the given class
@@ -1300,33 +1295,53 @@ def generateDocsForClass(cls,
     mro = cls.mro()
     if len(mro) > 2:
         base = mro[1].__qualname__
-        blocks.append(f' - Base Class: [{base}](#{base.lower()})')
+        blocks.append(f' - Base Class: [{base}](#{base.lower()})\n')
     if cls.__doc__:
         blocks.append(renderClassDocstring(cls, renderConfig=renderConfig, indentLevel=indentLevel))
+        blocks.append('')
+
+    propertyDefs = {name: parseDef(prop) for name, prop in classMembers.properties.items()}
+
+    methods = classMembers.methods if not exclude else classMembers.exclude(exclude)
+    methodDefs = {name: parseDef(method) for name, method in methods.items()}
+
+    if renderConfig.generateClassTOC and (classMembers.properties or methods):
+        blocks.append(sep)
+        blocks.append('\n**Summary**\n\n')
+        if classMembers.properties:
+            blocks.append('')
+            blocks.append("| Property  | Description  |")
+            blocks.append("| :-------- | :----------- |")
+            for name, propDef in propertyDefs.items():
+                blocks.append(f"| {name} | {propDef.shortDescr or '-'} |")
+            blocks.append('')
+
+        if methods:
+            blocks.append('')
+            blocks.append("| Method  | Description  |")
+            blocks.append("| :------ | :----------- |")
+            for name, methDef in methodDefs.items():
+                blocks.append(f"| [{name}](#{name}) | {methDef.shortDescr or '-'} |")
+            blocks.append('')
+        blocks.append(sep)
 
     if classMembers.properties:
-        blocks.append("**Attributes**")
-        # blocks.append(markdownHeader("Attributes", startLevel+1))
-        for prop in classMembers.properties.values():
-            p = parseDef(prop)
-            doc = renderDocumentation(p, renderConfig=renderConfig, indentLevel=indentLevel + 2)
+        blocks.append("\n**Attributes**\n")
+        for propname, propdef in propertyDefs.items():
+            doc = renderDocumentation(propdef, renderConfig=renderConfig, indentLevel=indentLevel + 2)
             blocks.append(doc)
+        blocks.append('')
 
-    if classMembers.methods:
-        if exclude:
-            methods = [method for methodname, method in classMembers.methods.items()
-                       if not _matchAnyRegex(exclude, methodname)]
-        else:
-            methods = list(classMembers.methods.values())
-
+    if methods:
         blocks.append(sep)
-        blocks.append("**Methods**")
-        methodDocs = generateDocsForFunctions(methods,
+        blocks.append("\n**Methods**\n")
+        methodDocs = generateDocsForFunctions(list(methods.values()),
                                               renderConfig=renderConfig,
                                               startLevel=indentLevel + 1)
         blocks.append(methodDocs)
+        blocks.append('')
 
-    docs = "\n\n".join(blocks)
+    docs = "\n".join(blocks)
     return docs
 
 
