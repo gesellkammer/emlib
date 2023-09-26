@@ -1648,7 +1648,8 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True, floatfmt
         from IPython.display import HTML, display
         if not tablefmt:
             tablefmt = 'html'
-        s = tabulate.tabulate(rows, headers=headers, disable_numparse=True,
+        disable_numparse = not floatfmt
+        s = tabulate.tabulate(rows, headers=headers, disable_numparse=disable_numparse,
                               tablefmt=tablefmt, showindex=showindex, stralign='left',
                               floatfmt=floatfmt if floatfmt else tabulate._DEFAULT_FLOATFMT)
         if tablefmt == 'html':

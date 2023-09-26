@@ -151,6 +151,9 @@ class ParsedDef:
         if self.params is None:
             self.params = []
 
+        if not self.shortDescr and self.longDescr:
+            self.shortDescr = textlib.firstSentence(self.longDescr)
+
     def prefix(self) -> str:
         if self.kind == ObjectKind.Class:
             return "class"
@@ -577,7 +580,7 @@ def _rstConvertNotesToMarkdown(rst: str) -> str:
     return rst
 
 
-def _rstToMarkdown(rst: str, startLevel=1) -> str:
+def _rstToMarkdown(rst: str, indentLevel=1) -> str:
     rst = _rstConvertNotesToMarkdown(rst)
     rstfile = tempfile.mktemp(suffix=".rst")
     mdfile = os.path.splitext(rstfile)[0] + ".md"
@@ -585,11 +588,11 @@ def _rstToMarkdown(rst: str, startLevel=1) -> str:
     proc = subprocess.Popen(["pandoc", "-f", "rst", "-t", "markdown", rstfile], stdout=subprocess.PIPE)
     proc.wait()
     mdstr = proc.stdout.read().decode("utf-8")
-    mdstr = markdownReplaceHeadings(mdstr, startLevel=startLevel)
+    mdstr = markdownReplaceHeadings(mdstr, indentLevel=indentLevel)
     return mdstr
 
 
-def markdownReplaceHeadings(s: str, startLevel=1, normalize=True) -> str:
+def markdownReplaceHeadings(s: str, indentLevel=1, normalize=True) -> str:
     """
     Replaces any heading of the form::
 
@@ -598,9 +601,9 @@ def markdownReplaceHeadings(s: str, startLevel=1, normalize=True) -> str:
 
     Args:
         s: the markdown text
-        startLevel: the heading start level
+        indentLevel: the heading start level
         normalize: if True, the highest heading in s will be forced to become
-            a `startLevel` heading.
+            a `indentLevel` heading.
 
     Returns:
         the modified markdown text
@@ -633,9 +636,9 @@ def markdownReplaceHeadings(s: str, startLevel=1, normalize=True) -> str:
             skip = True
         else:
             out.append(line)
-    if startLevel == 1 and not normalize:
+    if indentLevel == 1 and not normalize:
         return "\n".join(out)
-    # hnum     startLevel   roothnum   hnumnow
+    # hnum     indentLevel   roothnum   hnumnow
     #    1              1          1         1
     #    1              2          1         2
     #    2              1          1         2
@@ -653,7 +656,7 @@ def markdownReplaceHeadings(s: str, startLevel=1, normalize=True) -> str:
         elif line.startswith("#"):
             hstr, text = line.split(maxsplit=1)
             hnum = len(hstr)
-            hnumnow = hnum - roothnum + startLevel
+            hnumnow = hnum - roothnum + indentLevel
             if hnumnow != hnum:
                 out2.append(markdownHeader(text, hnumnow))
             else:
@@ -682,11 +685,11 @@ def _guessDocFormat(docstring: str) -> str:
     return formats.pop()
 
 
-def _renderAttributeMarkdown(parsed: ParsedDef, startLevel=0):
-    if startLevel == 0:
+def _renderAttributeMarkdown(parsed: ParsedDef, indentLevel=0):
+    if indentLevel == 0:
         s = f"* **{parsed.name}**"
     else:
-        s = markdownHeader(parsed.name, startLevel)
+        s = markdownHeader(parsed.name, indentLevel)
 
     descr = parsed.shortDescr
     if descr:
@@ -696,11 +699,11 @@ def _renderAttributeMarkdown(parsed: ParsedDef, startLevel=0):
     return s
 
 
-def _renderDocMarkdown(parsed: ParsedDef, startLevel:int, renderConfig: RenderConfig
+def _renderDocMarkdown(parsed: ParsedDef, indentLevel:int, renderConfig: RenderConfig
                        ) -> str:
     if parsed.kind == ObjectKind.Attribute:
-        level = startLevel if renderConfig.attributesAreHeadings else 0
-        return _renderAttributeMarkdown(parsed, startLevel=level)
+        level = indentLevel if renderConfig.attributesAreHeadings else 0
+        return _renderAttributeMarkdown(parsed, indentLevel=level)
     arglines = []
 
     params = [p for p in parsed.params if p.name != 'self'] # and (p.descr or p.default or p.type)]
@@ -729,14 +732,14 @@ def _renderDocMarkdown(parsed: ParsedDef, startLevel:int, renderConfig: RenderCo
         if docfmt == 'auto':
             docfmt = _guessDocFormat(parsed.longDescr)
         if docfmt == 'rst':
-            longdescr = _rstToMarkdown(parsed.longDescr, startLevel=startLevel+1)
+            longdescr = _rstToMarkdown(parsed.longDescr, indentLevel=indentLevel+1)
         elif docfmt == 'markdown':
             longdescr = parsed.longDescr
         else:
             raise ValueError(f"doc format {docfmt} not supported")
-    longdescr = markdownReplaceHeadings(longdescr, startLevel=startLevel+1, normalize=True)
+    longdescr = markdownReplaceHeadings(longdescr, indentLevel=indentLevel+1, normalize=True)
     componentName = parsed.name if not renderConfig.splitName else parsed.name.split(".")[-1]
-    blocks = [markdownHeader(componentName, headernum=startLevel)]
+    blocks = [markdownHeader(componentName, headernum=indentLevel)]
     if parsed.embeddedSignature:
         fmtsig = parsed.embeddedSignature
     else:
@@ -775,7 +778,7 @@ def renderDocumentation(parsed: ParsedDef, renderConfig: RenderConfig, indentLev
         the generated documentation as string
     """
     if renderConfig.fmt == 'markdown':
-        return _renderDocMarkdown(parsed, startLevel=indentLevel, renderConfig=renderConfig)
+        return _renderDocMarkdown(parsed, indentLevel=indentLevel, renderConfig=renderConfig)
     else:
         raise ValueError(f"format {renderConfig.fmt} not supported)")
 
@@ -801,7 +804,7 @@ def fullname(obj, includeModule=True) -> str:
 
 
 def generateDocsForFunctions(funcs: list[Callable], renderConfig: RenderConfig=None,
-                             title:str=None, pretext:str = None, startLevel=1
+                             title:str=None, pretext:str = None, indentLevel=1
                              ) -> str:
     """
     Collects documentation for multiple functions in one string
@@ -810,7 +813,7 @@ def generateDocsForFunctions(funcs: list[Callable], renderConfig: RenderConfig=N
         funcs: the funcs to parse
         title: a title to use before the generated code
         pretext: a text between the title and the generated code
-        startLevel: the heading start level
+        indentLevel: the heading start level
         renderConfig: a RenderConfig
 
     Returns:
@@ -825,7 +828,7 @@ def generateDocsForFunctions(funcs: list[Callable], renderConfig: RenderConfig=N
     sep = "\n----------\n"
     _ = lines.append
     if title:
-        _(markdownHeader(title, startLevel))
+        _(markdownHeader(title, indentLevel))
         _("")
 
     if pretext:
@@ -833,14 +836,14 @@ def generateDocsForFunctions(funcs: list[Callable], renderConfig: RenderConfig=N
         _(sep)
 
     lasti = len(funcs)-1
-    startLevelForFuncs = startLevel
+    indentLevelForFuncs = indentLevel
     for i, func in enumerate(funcs):
         try:
             parsed = parseDef(func)
         except ParseError:
             logger.error(f"Could not parse object {func}")
             continue
-        docstr = renderDocumentation(parsed, indentLevel=startLevelForFuncs,
+        docstr = renderDocumentation(parsed, indentLevel=indentLevelForFuncs,
                                      renderConfig=renderConfig)
         _(docstr)
         if i < lasti:
@@ -1153,7 +1156,7 @@ def generateModuleTOC(members: dict[str, Any]) -> str:
 def generateDocsForModule(module, 
                           renderConfig: RenderConfig = None, 
                           exclude: list[str] = None,
-                          startLevel=1, 
+                          indentLevel=1, 
                           grouped=False, 
                           title='',
                           includeCustomExceptions=False,
@@ -1166,7 +1169,7 @@ def generateDocsForModule(module,
         module: the module to generate documentation for
         renderConfig: a RenderConfig
         exclude: functions/classes to exclude. A list of regexes
-        startLevel: heading start level
+        indentLevel: heading start level
         grouped: if True, classes / functions are grouped together. Otherwise, the order
             of appearance within the source code is used
         title: if given, it will be used instead of the module name
@@ -1180,11 +1183,11 @@ def generateDocsForModule(module,
     sep = "\n---------\n"
     blocks = []
     if title:
-        blocks.append(markdownHeader(title, startLevel))
+        blocks.append(markdownHeader(title, indentLevel))
     else:
-        blocks.append(markdownHeader(module.__name__, startLevel))
+        blocks.append(markdownHeader(module.__name__, indentLevel))
     if module.__doc__:
-        doc = markdownReplaceHeadings(module.__doc__, startLevel=startLevel+1)
+        doc = markdownReplaceHeadings(module.__doc__, indentLevel=indentLevel+1)
         blocks.append(doc)
     blocks.append(sep)
     if grouped:
@@ -1208,12 +1211,12 @@ def generateDocsForModule(module,
         blocks.append(sep)
 
     for cls in classmembers:
-        blocks.append(generateDocsForClass(cls, renderConfig=renderConfig, indentLevel=startLevel + 1))
+        blocks.append(generateDocsForClass(cls, renderConfig=renderConfig, indentLevel=indentLevel + 1))
         blocks.append(sep)
 
     for func in funcmembers:
         parsed = parseDef(func)
-        doc = renderDocumentation(parsed, renderConfig=renderConfig, indentLevel=startLevel + 1)
+        doc = renderDocumentation(parsed, renderConfig=renderConfig, indentLevel=indentLevel + 1)
         blocks.append(doc)
         blocks.append(sep)
 
@@ -1264,6 +1267,16 @@ def renderClassDocstring(cls,
                          renderConfig: RenderConfig,
                          indentLevel=1
                          ) -> str:
+    """
+    Render the documentation for a given class
+
+    Args:
+        renderConfig: the RenderConfig
+        indentLevel: indentation level
+
+    Returns:
+        the rendered text in the format specified by renderConfig
+    """
     parsedDocs = parseClassDocstring(cls)
     if not parsedDocs:
         return ''
@@ -1287,7 +1300,8 @@ def generateDocsForClass(cls,
         indentLevel: heading start level
         
     Returns:
-        The rendered documentation as a markdown string
+        The rendered documentation as a string in the format specified by the
+        renderConfig
     """
     sep = "\n---------\n"
     classMembers = getClassMembers(cls, inherited=renderConfig.includeInheritedMethods)
@@ -1337,7 +1351,7 @@ def generateDocsForClass(cls,
         blocks.append("\n**Methods**\n")
         methodDocs = generateDocsForFunctions(list(methods.values()),
                                               renderConfig=renderConfig,
-                                              startLevel=indentLevel + 1)
+                                              indentLevel=indentLevel + 1)
         blocks.append(methodDocs)
         blocks.append('')
 
@@ -1352,10 +1366,11 @@ def generateMkdocsIndex(projectName: str,
                         url:str="<Project URL>",
                         longDescription:str="<Long Description>",
                         quickStart:str="<Quick Start>",
-                        includeWelcome=True
+                        includeWelcome=True,
+                        fmt='markdown'
                         ) -> str:
     """
-    Generate the template for an index.md file suitable for mkdocs
+    Generate the template for an index file suitable for mkdocs
 
     Args:
         projectName: the name of the project
@@ -1369,6 +1384,9 @@ def generateMkdocsIndex(projectName: str,
     Returns:
         a string which could be saved to an index.md file
     """
+    if fmt != 'markdown':
+        raise ValueError(f"At the moment only markdown is supported, got {fmt=}")
+
     if includeWelcome:
         welcomeStr = f"Welcome to the **{projectName}** documentation!"
     else:

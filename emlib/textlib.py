@@ -128,8 +128,9 @@ def fuzzymatch(pattern: str, strings: list[str]
     """
     Find possible matches to pattern in ``strings``.
 
-    Returns a subseq. of strings sorted by best score. Only strings
-    representing possible matches are returned
+    This implements a **very** simple algorithm. Returns a subseq.
+    of strings sorted by best score. Only strings representing
+    possible matches are returned
 
     Args:
         pattern: the string to search for within *strings*
@@ -181,6 +182,39 @@ def makeReplacer(conditions: dict) -> Callable:
     rep = {re.escape(k): v for k, v in conditions.items()}
     pattern = re.compile("|".join(rep.keys()))
     return lambda txt: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
+
+
+def firstSentence(txt: str) -> str:
+    """
+    Returns the first sentence from txt
+
+    Args:
+        txt: the text to analyze
+
+    Returns:
+        the first sentence
+
+    Example
+    -------
+
+        >>> firstSentence('''
+        ...
+        ...     This is my text. It is amazing
+        ...     It continues here
+        ... ''')
+        "This is my text"
+
+        >>> firstSentence('''
+        ...
+        ...     This is also my text
+        ...     It continues here
+        ... ''')
+        "This is also my text"
+    """
+    txt = txt.strip()
+    lines = txt.splitlines()
+    return lines[0].split('.', maxsplit=1)[0]
+
 
 
 def escapeAnsi(line: str) -> str:
