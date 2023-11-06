@@ -306,8 +306,9 @@ def selectItems(items: Sequence[str], title="Select", entryFont=('Arial', 14),
 
 def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 15),
                       listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
-                      caseSensitive=False, ensureSelection=False
-                      ) -> List[str]:
+                      caseSensitive=False, ensureSelection=False,
+                      correctionFactor=1.0
+                      ) -> list[str]:
     """
     Select one or multiple items from a list
 
@@ -338,6 +339,7 @@ def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 
         root = Tk()
 
     import tkinter as tk
+    from tkinter.font import Font
 
     if len(items) < numlines:
         scrollbar = False
@@ -346,8 +348,8 @@ def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 
     root.columnconfigure(0, weight=1)
 
     longest = max((item for item in items), key=len)
-    tkfont = tk.font.Font(font=font)
-    minwidth = int(tkfont.measure(text) * correctionFactor)
+    tkfont = Font(root=root, font=listFont)
+    minwidth = int(tkfont.measure(longest) * correctionFactor)
 
     width = max(width, minwidth)
 
