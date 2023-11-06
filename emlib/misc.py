@@ -1572,8 +1572,11 @@ def first_existing_path(*paths: str, default="~") -> str:
 
 def html_table(rows: list, 
                headers: list[str], 
-               maxwidths: Optional[list[int]]=None,
-               rowstyles: Optional[list[str]]=None) -> str:
+               maxwidths: Optional[list[int]] = None,
+               rowstyles: Optional[list[str]] = None,
+               tablestyle='',
+               headerstyle=''
+               ) -> str:
     """
     Create a html table
 
@@ -1582,14 +1585,22 @@ def html_table(rows: list,
         headers: a list of column names
         maxwidths: if given, a list of max widths for each column
         rowstyles: if given, a list of styles, one for each column
+        tablestyle: a style applied to the entire table
+        headerstyle: a style applied to the table header
 
     Returns:
         a string with the generated HTML
     """
     parts = []
     _ = parts.append
-    _("<table>")
-    _("<thead>")
+    if tablestyle:
+        _(f'<table style="{tablestyle}"')
+    else:
+        _("<table>")
+    if headerstyle:
+        _(f'<thead style="{headerstyle}"')
+    else:
+        _("<thead>")
     _("<tr>")
     if maxwidths is None:
         maxwidths = [0] * len(headers)

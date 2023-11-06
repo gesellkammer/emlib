@@ -245,7 +245,6 @@ def window_fixed_size(seq: Iterable[T], size: int, maxstep: int
         cursor += step
 
 
-
 def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
     """
     Returns an iterator over chunks of seq of at most `chunksize` size.
@@ -285,7 +284,7 @@ def parse_range(start, stop:int=None, step:int=None) -> tuple[int, int, int]:
     return start, stop, step
 
 
-def chunks(start:int, stop:int=None, step:int=None) -> Iterable[tuple[int, int]]:
+def chunks(start: int, stop: int = None, step: int = None) -> Iterable[tuple[int, int]]:
     """
     Returns a generator of tuples (offset, chunksize)
 
@@ -664,24 +663,39 @@ def interleave(seqs, pass_exceptions=()):
         iters = newiters
         
 
-def split_in_chunks(seq: Iterable[T], chunksize: int) -> Iterator[list[T]]:
-    """
-    splits a sequence into chunks
+def chunked(iterable, n):
+    """Break *iterable* into lists of length *n*:
 
-    Example
-    -------
+        >>> list(chunked([1, 2, 3, 4, 5, 6], 3))
+        [[1, 2, 3], [4, 5, 6]]
 
-    >>> s = [0, 1, 2, 3, 4, 5, 6, 8, 9]
-    >>> list(split_in_chunks(s, 3))
-    [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    By the default, the last yielded list will have fewer than *n* elements
+    if the length of *iterable* is not divisible by *n*:
+
+        >>> list(chunked([1, 2, 3, 4, 5, 6, 7, 8], 3))
+        [[1, 2, 3], [4, 5, 6], [7, 8]]
+
+    To use a fill-in value instead, see the :func:`grouper` recipe.
+
+    If the length of *iterable* is not divisible by *n* and *strict* is
+    ``True``, then ``ValueError`` will be raised before the last
+    list is yielded.
+
     """
-    chunk = []
-    for i, item in enumerate(seq):
-        chunk.append(item)
-        if i % chunksize == chunksize-1:
-            yield chunk
-            chunk = []
-    # return [seq[i:i+chunksize] for i in range(0, len(seq), chunksize)]
+    iterator = iter(partial(take, n, iter(iterable)), [])
+    if strict:
+        if n is None:
+            raise ValueError('n must not be None when using strict mode.')
+
+        def ret():
+            for chunk in iterator:
+                if len(chunk) != n:
+                    raise ValueError('iterable is not divisible by n.')
+                yield chunk
+
+        return iter(ret())
+    else:
+        return iterator
 
 
 def _reversedenum(s: Sequence[T]) -> Iterator[tuple[int, T]]:
