@@ -63,7 +63,6 @@ __all__ = ("PHI",
            )
 
 
-
 class NotFoundError(ValueError): pass
 
 
@@ -72,7 +71,7 @@ class NotFoundError(ValueError): pass
 PHI = 0.6180339887498949
 
 
-def intersection(u1:T, u2:T, v1:T, v2:T) -> tuple[T, T] | None:
+def intersection(u1: T, u2: T, v1: T, v2: T) -> tuple[T | None, T]:
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
 
@@ -83,18 +82,26 @@ def intersection(u1:T, u2:T, v1:T, v2:T) -> tuple[T, T] | None:
         v2: higher bound of range V
 
     Returns:
-        the intersection between range U and range V, or None if
-        there is no intersection
+        the intersection between range U and range V as a tuple (start, end). If no intersection is found,
+        start will be None.
 
     Example::
 
-        >>> if intersec := intersection(0, 3, 2, 5):
-        ...     x0, x1 = intersec
+        >>> x0, x1 = intersection(0, 3, 2, 5)
+        >>> if x0 is not None:
+        ...     # there is an intersection
 
     """
     x0 = u1 if u1 > v1 else v1
     x1 = u2 if u2 < v2 else v2
-    return (x0, x1) if x0 < x1 else None
+    return (x0, x1) if x0 < x1 else (None, 0)
+
+
+def hasintersect(u1: T, u2: T, v1: T, v2: T) -> bool:
+    """
+    True if the intervals (u1, u2) and (v1, v2) intersect
+    """
+    return u2 > v1 if u1 < v1 else v2 > u1
 
 
 def frange(start: float, stop: float = None, step: float = 0.) -> Iterator[float]:

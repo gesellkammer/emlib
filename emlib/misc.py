@@ -183,7 +183,7 @@ def nearest_unsorted(x: number_t, seq: list[number_t]) -> number_t:
     return min((abs(x - y), y) for y in seq)[1]
 
 
-def nearest_index(item: number_t, seq: list[number_t]) -> int:
+def nearest_index(item: number_t, seq: Sequence[number_t]) -> int:
     """
     Return the index of the nearest element in seq to item
 
@@ -379,7 +379,7 @@ def duplicates(seq: Sequence[T], mincount=2) -> list[T]:
     return [item for item, count in counter if count >= mincount]
 
 
-def remove_duplicates(seq: list[T]) -> list[T]:
+def remove_duplicates(seq: Sequence[T]) -> list[T]:
     """
     Remove all duplicates in seq while keeping its order
     If order is not important, use list(set(seq))
@@ -413,11 +413,12 @@ def remove_last_matching(seq: list[T], func: Callable[[T], bool]) -> T | None:
     Returns:
         the removed element, or None if the condition was never met
     """
-    l = len(seq)
+    seqlen = len(seq)
     for i, x in enumerate(reversed(seq)):
         if func(x):
-            return seq.pop(l - i - 1)
+            return seq.pop(seqlen - i - 1)
     return None
+
 
 def fractional_slice(seq: Sequence[T], step:float, start=0, end=-1) -> list[T]:
     """
@@ -975,7 +976,7 @@ def snap_to_grids(x: number_t, ticks: Sequence[number_t],
     return quants[0]
 
 
-def distribute_in_zones(x: number_t, split_points: list[number_t], side="left") -> int:
+def distribute_in_zones(x: number_t, split_points: Sequence[number_t], side="left") -> int:
     """
     Returns the index of a "zone" where to place x.
 
@@ -1050,8 +1051,8 @@ def seq_contains(seq, subseq) -> Optional[tuple[int, int]]:
     return None
 
 
-def pick_regularly(seq: Union[list[T], np.ndarray], numitems:int, start_idx:int=0,
-                   end_idx:int=0
+def pick_regularly(seq: Sequence[T] | np.ndarray, numitems: int, start_idx=0,
+                   end_idx=0
                    ) -> Union[np.ndarray, list[T]]:
     """
     Given a sequence, pick `numitems` from it at regular intervals
@@ -1070,7 +1071,7 @@ def pick_regularly(seq: Union[list[T], np.ndarray], numitems:int, start_idx:int=
         array if the input was an array)
     """
     if end_idx == 0:
-        end_idx = len(seq)-1
+        end_idx = len(seq) - 1
     indexes = np.linspace(start_idx, end_idx, numitems)
     np.round(indexes, out=indexes)
     if isinstance(seq, np.ndarray):
@@ -1480,7 +1481,7 @@ def open_with_app(path: str,
             dialog is created
         timeout: a timeout for wait_on_modified
     """
-    if app is None:
+    if not app:
         assert not shell
         _open_with_standard_app(path, wait=wait, min_wait=min_wait, timeout=timeout)
         return

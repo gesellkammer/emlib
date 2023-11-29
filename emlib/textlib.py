@@ -46,7 +46,7 @@ def splitAndStripLines(text: str, regexp: str = None) -> list[str]:
     return lines[startidx:len(lines)-endidx]
 
 
-def reindent(text:str, prefix:str="", stripEmptyLines=True) -> str:
+def reindent(text: str, prefix="", stripEmptyLines=True) -> str:
     """
     Reindent a given text. Replaces the indentation with a new prefix.
 
@@ -67,7 +67,7 @@ def reindent(text:str, prefix:str="", stripEmptyLines=True) -> str:
     return text
 
 
-def getIndentation(code:str) -> int:
+def getIndentation(code: str) -> int:
     """ get the number of spaces used to indent code """
     for line in code.splitlines():
         stripped = line.lstrip()
@@ -113,7 +113,7 @@ def joinPreservingIndentation(fragments: Sequence[str]) -> str:
         the joint code
 
     """
-    if any(not isinstance(fragment, str) for fragment in fragments):#
+    if any(not isinstance(fragment, str) for fragment in fragments):
         fragment = next(_ for _ in fragments if not isinstance(_, str))
         raise TypeError(f"Expected a string, got {fragment}")
     code = "\n".join(textwrap.dedent(code) for code in fragments if code)
@@ -148,7 +148,7 @@ def fuzzymatch(pattern: str, strings: list[str]
         return 100.0 / ((1 + match.start()) * (match.end() - match.start() + 1))
 
     matches = [(score, s) for s in strings
-               if (score:=calculate_score(pattern, s)) > 0]
+               if (score := calculate_score(pattern, s)) > 0]
     matches.sort(reverse=True)
     return matches
 
@@ -216,7 +216,6 @@ def firstSentence(txt: str) -> str:
     return lines[0].split('.', maxsplit=1)[0]
 
 
-
 def escapeAnsi(line: str) -> str:
     """
     Escape ansi codes
@@ -247,12 +246,16 @@ def splitInChunks(s: str|bytes, maxlen: int) -> list:
     return out
 
 
-def quoteIfNeeded(s: str, quote='"') -> str:
+def quoteIfNeeded(s: str, quote='', defaultquote='"') -> str:
     """
     Add quotation marks around `s` if needed
 
     Args:
         s: the string which might need quoting
+        quote: which quote sign to use. If not given, it will be detected
+            and if not found a default quote is used
+        defaultquote: quote used when autodetection is used and no quote was
+            found
 
     Returns:
         a string where it is ensured that it is surrounded by `quote`
@@ -266,6 +269,14 @@ def quoteIfNeeded(s: str, quote='"') -> str:
         'foo'
 
     """
-    if s.startswith(quote) and s.endswith(quote):
-        return s
-    return f'{quote}{s}{quote}'
+    if not quote:
+        s0 = s[0]
+        if s0 == s[-1] and (s0 == '"' or s0 == "'"):
+            return s
+        else:
+            return f'{defaultquote}{s}{defaultquote}'
+    else:
+        if s[0] == s[-1] == quote:
+            return s
+        return f'{quote}{s}{quote}'
+

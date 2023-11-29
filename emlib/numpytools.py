@@ -4,6 +4,7 @@ Miscellaneous utilities for working with numpy arrays
 from __future__ import annotations
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
+from typing import Iterator
 
 
 def interlace(*arrays: np.ndarray) -> np.ndarray:
@@ -92,7 +93,8 @@ def smooth(a: np.ndarray, kind="running", strength=0.05) -> np.ndarray:
     return a_smooth
 
 
-def overlapping_frames(y: np.ndarray, frame_length: int, hop_length: int):
+def overlapping_frames(y: np.ndarray, frame_length: int, hop_length: int
+                       ) -> np.ndarray:
     """
     Slice a time series into overlapping frames.
 
@@ -143,7 +145,8 @@ def overlapping_frames(y: np.ndarray, frame_length: int, hop_length: int):
     return y_frames
 
 
-def chunks(data: np.ndarray, chunksize: int, hop:int=None, padwith=0):
+def chunks(data: np.ndarray, chunksize: int, hop: int = None, padwith: int | None = None
+           ) -> Iterator[np.ndarray]:
     """
     Iterate over data in chunks of chunksize. Returns a generator
 
@@ -151,8 +154,7 @@ def chunks(data: np.ndarray, chunksize: int, hop:int=None, padwith=0):
         data: the array to be iterated in chunks
         chunksize: the size of each chunk
         hop: the amount of elements to skip between chunks
-        padwidth: value to pad when a chunk is not big enough
-            Give None to avoid padding
+        padwith: value to pad when a chunk is not big enough, None to avoid padding
 
     Returns:
         a generator with chunks of data of chunksize or less
@@ -178,9 +180,9 @@ def chunks(data: np.ndarray, chunksize: int, hop:int=None, padwith=0):
             n += hop
 
 
-def padarray(arr, numelements, padwith=0):
+def padarray(arr: np.ndarray, numelements: int, padwith=0) -> np.ndarray:
     """
-    Pad a 1D array to the right with 0s, or a 2D array down with zeros
+    Pad a 1D array to the right, or a 2D array down
 
     Pad 1D with 2 elements::
 
@@ -203,7 +205,7 @@ def padarray(arr, numelements, padwith=0):
         raise ValueError("Only 1D or 2D arrays supported")
 
 
-def linlin(xs:np.ndarray, x0:float, x1:float, y0:float, y1: float) -> np.ndarray:
+def linlin(xs: np.ndarray, x0: float, x1: float, y0: float, y1: float) -> np.ndarray:
     """
     Map xs from range x0-x1 to y0-y1
 
@@ -225,7 +227,7 @@ def linlin(xs:np.ndarray, x0:float, x1:float, y0:float, y1: float) -> np.ndarray
     return xs
 
 
-def astype(a: np.ndarray, typedescr):
+def astype(a: np.ndarray, typedescr) -> np.ndarray:
     """
     The same as: `if a.dtype != typedescr: a = as.astype(typedescr)`
     
