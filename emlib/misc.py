@@ -25,6 +25,7 @@ from fractions import Fraction
 import numbers
 from .envir import inside_jupyter
 from .common import runonce
+from . import iterlib
 
 
 from typing import TYPE_CHECKING
@@ -374,6 +375,9 @@ def duplicates(seq: Sequence[T], mincount=2) -> list[T]:
     """
     Find all elements in seq which are present at least `mincount` times
     """
+    if mincount == 2:
+        return list(iterlib.duplicates(seq))
+
     from collections import Counter
     counter = Counter(seq).items()
     return [item for item, count in counter if count >= mincount]

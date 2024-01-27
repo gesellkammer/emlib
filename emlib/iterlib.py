@@ -704,6 +704,25 @@ def _reversedenum(s: Sequence[T]) -> Iterator[tuple[int, T]]:
         yield lens - 1 - idx, item
 
 
+def duplicates(s: Iterable[T]) -> Iterator[T]:
+    """
+    Find duplicates in the iterable `s`
+
+    Example
+    -------
+
+        >>> l = [1, 2, 3, 1, 4, 2, 5, 6]
+        >>> list(duplicates(s))
+        [2, 1]
+    """
+    seen = set()
+    for item in s:
+        if item in seen:
+            yield item
+        else:
+            seen.add(item)
+
+
 def reversed_enumerate(s: Sequence[T]) -> Iterator[tuple[int, T]]:
     """
     The same as enumerate but reverses the sequence
