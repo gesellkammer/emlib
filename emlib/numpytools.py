@@ -9,7 +9,7 @@ from typing import Iterator
 
 def interlace(*arrays: np.ndarray) -> np.ndarray:
     """
-    Interweave multiple arrays into a flat array in the form
+    Interleave multiple arrays into a flat array in the form
 
     Example::
 
@@ -27,9 +27,9 @@ def interlace(*arrays: np.ndarray) -> np.ndarray:
         a 1D array with the elements of the given arrays interleaved
 
     """
-    assert all(a.size == arrays[0].size and a.dtype == arrays[0].dtype for a in arrays)
-    size = arrays[0].size * len(arrays)
-    out = np.empty((size,), dtype=arrays[0].dtype)
+    size = len(arrays[0].size)
+    assert all(arr.size == size and a.dtype == arrays[0].dtype for a in arrays)
+    out = np.empty((size * len(arrays),), dtype=arrays[0].dtype)
     for i, a in enumerate(arrays):
         out[i::len(arrays)] = a
     return out
@@ -285,3 +285,29 @@ def nearestindex(a: np.ndarray, grid: np.ndarray, left=True, right=True
     else:
         raise ValueError("At least left or right must be true")
 
+
+def arange_numvalues(step: float, numvalues: int, start=0.
+                     ) -> np.ndarray:
+    """
+    Construct an array of `numvalues` starting from `start` with `step`
+
+    Args:
+        step: the step between each value
+        numvalues: the number of values of the array
+        start: the starting value
+
+    Returns:
+        the new array
+
+    Example
+    -------
+
+    >>> arange_numvalues(0.1, 10)
+    array([0. , 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
+
+    >>> arange_numvalues(0.1, 20, 10)
+    array([10.  , 10.01, 10.02, 10.03, 10.04, 10.05, 10.06, 10.07, 10.08,
+           10.09, 10.1 , 10.11, 10.12, 10.13, 10.14, 10.15, 10.16, 10.17,
+           10.18, 10.19])
+    """
+    return np.arange(start, step * numvalues + start, step)
