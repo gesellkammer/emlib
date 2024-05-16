@@ -102,12 +102,52 @@ def matchIndentation(code: str, modelcode: str) -> str:
     return textwrap.indent(code, prefix=" " * indentation)
 
 
-def joinPreservingIndentation(fragments: Sequence[str]) -> str:
+def stripLinesTop(lines: list[str]) -> list[str]:
+    """
+    Remove empty lines from the top
+
+    Args:
+        lines: lines already split
+
+    Returns:
+        a list of lines without any empty lines at the beginning
+    """
+    for i, line in enumerate(lines):
+        if line.strip():
+            break
+    else:
+        return []
+    return lines[i:]
+
+
+def stripLinesBottom(lines: list[str], maxlines: int = 0) -> list[str]:
+    """
+    Strip empty lines from the end of the list
+
+    Args:
+        lines: lines already split
+        maxlines: the max. number of empty lines to leave at the end
+
+    Returns:
+        a list of lines with at most `maxlines` empty lines at the end
+
+
+    """
+    for i, line in enumerate(reversed(lines)):
+        if line.strip():
+            break
+    if i - maxlines > 0:
+        return lines[:-i+maxlines]
+    return lines
+
+
+def joinPreservingIndentation(fragments: Sequence[str], maxEmptyLinesBetweenFragments: int = None) -> str:
     """
     Like join, but preserving indentation
 
     Args:
         fragments: a list of code strings
+        maxEmptyLinesBetweenFragments: if given, the max. number of empty lines between fragments
 
     Returns:
         the joint code
@@ -116,11 +156,20 @@ def joinPreservingIndentation(fragments: Sequence[str]) -> str:
     if any(not isinstance(fragment, str) for fragment in fragments):
         fragment = next(_ for _ in fragments if not isinstance(_, str))
         raise TypeError(f"Expected a string, got {fragment}")
-    code = "\n".join(textwrap.dedent(code) for code in fragments if code)
+    if maxEmptyLinesBetweenFragments is not None:
+        if maxEmptyLinesBetweenFragments == 0:
+            fragments = [stripLines(frag) for frag in fragments]
+        else:
+            splitfragments = [fragment.splitlines() for fragment in fragments]
+            splitfragments = [stripLinesTop(frag) for frag in splitfragments]
+            splitfragments = [stripLinesBottom(frag, maxlines=maxEmptyLinesBetweenFragments)
+                              for frag in splitfragments]
+            fragments = ["\n".join(frag) for frag in splitfragments]
+    jointtext = "\n".join(textwrap.dedent(frag) for frag in fragments if frag)
     numspaces = getIndentation(fragments[0])
     if numspaces:
-        code = textwrap.indent(code, prefix=" "*numspaces)
-    return code
+        jointtext = textwrap.indent(jointtext, prefix=" "*numspaces)
+    return jointtext
 
 
 def fuzzymatch(pattern: str, strings: list[str]
@@ -171,12 +220,13 @@ def makeReplacer(conditions: dict) -> Callable:
 
     Args:
         conditions: a dictionary mapping a string to its replacement
+^
+    Example
+    ~~~~~~~
 
-    Example::
-
-        >>> replacer = makeReplacer({"&":"&amp;", " ":"_", "(":"\\(", ")":"\\)"})
-        >>> replacer("foo & (bar)")
-        "foo_&amp;_\(bar\)"
+        >>> replacer = makeReplacer({"&":"&amp;", " ":"_"})
+        >>> replacer("foo & bar")
+        "foo_&amp;_bar"
 
     """
     rep = {re.escape(k): v for k, v in conditions.items()}
@@ -194,8 +244,9 @@ def firstSentence(txt: str) -> str:
     Returns:
         the first sentence
 
+
     Example
-    -------
+    ~~~~~~~
 
         >>> firstSentence('''
         ...
