@@ -141,13 +141,13 @@ def stripLinesBottom(lines: list[str], maxlines: int = 0) -> list[str]:
     return lines
 
 
-def joinPreservingIndentation(fragments: Sequence[str], maxEmptyLinesBetweenFragments: int = None) -> str:
+def joinPreservingIndentation(fragments: Sequence[str], maxEmptyLines: int = None) -> str:
     """
     Like join, but preserving indentation
 
     Args:
         fragments: a list of code strings
-        maxEmptyLinesBetweenFragments: if given, the max. number of empty lines between fragments
+        maxEmptyLines: if given, the max. number of empty lines between fragments
 
     Returns:
         the joint code
@@ -156,13 +156,13 @@ def joinPreservingIndentation(fragments: Sequence[str], maxEmptyLinesBetweenFrag
     if any(not isinstance(fragment, str) for fragment in fragments):
         fragment = next(_ for _ in fragments if not isinstance(_, str))
         raise TypeError(f"Expected a string, got {fragment}")
-    if maxEmptyLinesBetweenFragments is not None:
-        if maxEmptyLinesBetweenFragments == 0:
+    if maxEmptyLines is not None:
+        if maxEmptyLines == 0:
             fragments = [stripLines(frag) for frag in fragments]
         else:
             splitfragments = [fragment.splitlines() for fragment in fragments]
             splitfragments = [stripLinesTop(frag) for frag in splitfragments]
-            splitfragments = [stripLinesBottom(frag, maxlines=maxEmptyLinesBetweenFragments)
+            splitfragments = [stripLinesBottom(frag, maxlines=maxEmptyLines)
                               for frag in splitfragments]
             fragments = ["\n".join(frag) for frag in splitfragments]
     jointtext = "\n".join(textwrap.dedent(frag) for frag in fragments if frag)
