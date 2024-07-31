@@ -88,7 +88,7 @@ import enum
 import re
 
 
-logger = logging.getLogger("emlib.doctools")
+logger = logging.getLogger("doctools")
 
 
 @dataclasses.dataclass
@@ -1023,11 +1023,18 @@ def getModuleMembers(module, exclude: list[str] = None, classesFirst=True
         a dictionary of all the members defined in this module
 
     """
+
     members = inspect.getmembers(module)
 
     if exclude:
+        logger.info(f"Excluding patterns: {exclude}")
+        excluded = [name for name, item in members if _matchAnyRegex(exclude, name)]
+        if excluded:
+            logger.info(f"Excluded members: {excluded}")
+        else:
+            logger.info(f"No excluded members with patterns: {exclude}")
         members = [(name, item) for name, item in members
-                   if _matchAnyRegex(exclude, name)]
+                   if name not in excluded]
 
     if classesFirst:
         members.sort(key=lambda item: int(inspect.isclass(item)))
@@ -1138,7 +1145,9 @@ def generateModuleTOC(members: dict[str, Any]) -> str:
         for name, cls in classes.items():
             docdef = parseDef(cls)
             descr = docdef.shortDescr if docdef else '-'
-            blocks.append(f"| `{name}` | {descr} |")
+
+            # blocks.append(f"| `{name}` | {descr} |")
+            blocks.append(f"|  [{name}](#{name.lower()}) | {descr} |")
         blocks.append("")
 
     if funcs:
