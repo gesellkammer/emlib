@@ -56,7 +56,7 @@ def npunzip(a: np.ndarray) -> np.ndarray:
     return a.transpose()
 
 
-def zipsort(a: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+def zipsort(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Sort one array, keep the other synched
 

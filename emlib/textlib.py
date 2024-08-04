@@ -220,14 +220,9 @@ def makeReplacer(conditions: dict) -> Callable:
 
     Args:
         conditions: a dictionary mapping a string to its replacement
-^
-    Example
-    ~~~~~~~
 
-        >>> replacer = makeReplacer({"&":"&amp;", " ":"_"})
-        >>> replacer("foo & bar")
-        "foo_&amp;_bar"
-
+    Returns:
+        a function to be called to produce the given transformation
     """
     rep = {re.escape(k): v for k, v in conditions.items()}
     pattern = re.compile("|".join(rep.keys()))

@@ -13,16 +13,13 @@ def _comments_replacer(match):
 
 def remove_comments(json_like: str):
     """
-    Removes C-style comments from *json_like* and returns the result.  Example::
+    Removes C-style comments from *json_like* and returns the result.
 
-        >>> test_json = r'''
-        ... {
-        ...    "foo": "bar", // This is a single-line comment
-        ...    "baz": "blah" /* Multi-line
-        ...    Comment */
-        ... }'''
-        >>> remove_comments('{"foo":"bar","baz":"blah",}')
-        '{\n    "foo":"bar",\n    "baz":"blah"\n}'
+    Args:
+        json_like: a fragment of valid json
+
+    Returns:
+        the json text with any comments removed
     """
     comments_re = re.compile(
         r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
@@ -33,7 +30,9 @@ def remove_comments(json_like: str):
 
 def remove_trailing_commas(json_like: str):
     """
-    Removes trailing commas from *json_like* and returns the result.  Example::
+    Removes trailing commas from *json_like* and returns the result.
+
+    Example::
 
         >>> remove_trailing_commas('{"foo":"bar","baz":["blah",],}')
         '{"foo":"bar","baz":["blah"]}'
@@ -70,7 +69,7 @@ def json_minify(json:str, strip_space=True) -> str:
     Returns:
         the minified json
     """
-    tokenizer = re.compile('"|(/\*)|(\*/)|(//)|\n|\r')
+    tokenizer = re.compile(r'"|(/\*)|(\*/)|(//)|\n|\r')
     in_string = False
     inmulticmt = False
     insinglecmt = False

@@ -354,8 +354,11 @@ def split_interval_at_values(start: T, end: T, offsets: Sequence[T]
         a list of (start, end) segments where no segment extends over any
         of the given offsets
 
+
     Example
     ~~~~~~~
+
+    .. code::
 
         >>> split_interval_at_values(1, 3, [1.5, 2])
         [(1, 1.5), (1.5,  2), (2, 3)]
@@ -500,12 +503,14 @@ def roundres(x, resolution=1.0):
     Round x with given resolution
 
     Example
-    ~~~~~~~
+    -------
 
-    >>> roundres(0.4, 0.25)
-    0.5
-    >>> roundres(1.3, 0.25)
-    1.25
+    .. code:: python
+
+        >>> roundres(0.4, 0.25)
+        0.5
+        >>> roundres(1.3, 0.25)
+        1.25
     """
     return round(x / resolution) * resolution
 
@@ -565,9 +570,9 @@ def rotate2d(point: tuple[float, float],
     A rotation function that rotates a point around an origin
 
     Args:
-        point:   the point to rotate as a tuple (x, y)
+        point: the point to rotate as a tuple (x, y)
         degrees: the angle to rotate (counterclockwise)
-        origin:  the point acting as pivot to the rotation
+        origin: the point acting as pivot to the rotation
 
     Returns:
         the rotated point, as a tuple (x, y)
@@ -712,7 +717,7 @@ def intersection_area_between_circles(x1: float, y1: float, r1: float,
                                       x2: float, y2: float, r2: float
                                       ) -> float:
     """
-    Calculate the are of the intersection between two circles
+    Calculate the area of the intersection between two circles
 
     Args:
         x1: x coord of the center of the 1st circle

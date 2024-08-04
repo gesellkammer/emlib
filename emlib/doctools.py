@@ -234,19 +234,28 @@ def _parseProperty(p) -> ParsedDef:
                      shortDescr=docs)
 
 
-_mdreplacer = textlib.makeReplacer({'_': '\_',
-                                    '*': '\*'})
+_mdreplacer = textlib.makeReplacer({'_': r'\_',
+                                    '*': r'\*'})
 
 
 def markdownEscape(s: str) -> str:
     """
     Escape s as markdown
 
-    Example
-    -------
+    Args:
+        s: the string to escape
+
+    Returns:
+        the escaped test
+
+
+    **Example**
+
+
+    .. code::
 
         >>> markdownEscape("my_title_with_underscore")
-        my\_title\_with\_underscore
+        my\\_title\\_with\\_underscore
     
     """
     return _mdreplacer(s)
@@ -674,7 +683,7 @@ def _guessDocFormat(docstring: str) -> str:
             formats.add("markdown")
         if linestrip.startswith(".. ") or linestrip.endswith("::"):
             formats.add("rst")
-        if re.search("``\w+``", linestrip) or ":meth:" in linestrip or ":class:" in linestrip:
+        if re.search(r"``\w+``", linestrip) or ":meth:" in linestrip or ":class:" in linestrip:
             formats.add("rst")
         if "~~" in linestrip:
             formats.add("rst")

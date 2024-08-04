@@ -245,7 +245,11 @@ def window_fixed_size(seq: Iterable[T], size: int, maxstep: int
         cursor += step
 
 
-def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
+class _Sentinel:
+    pass
+
+
+def iterchunks(seq, chunksize: int) -> Iterable[tuple]:
     """
     Returns an iterator over chunks of seq of at most `chunksize` size.
 
@@ -259,12 +263,11 @@ def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
     >>> list(iterchunks(seq, 3))
     [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, 10, 11), (12, 13, 14), (15, 16, 17), (18, 19)]
     """
-    class Sentinel(object):
-        pass
-    padded = chain(seq, repeat(Sentinel))
+
+    padded = chain(seq, repeat(_Sentinel))
     for chunk in window(padded, size=chunksize, step=chunksize):
         if chunk[-1] is Sentinel:
-            if chunk[0] is Sentinel:
+            if chunk[0] is _Sentinel:
                 break
             yield tuple((x for x in chunk if x is not Sentinel))
             break
@@ -272,7 +275,7 @@ def iterchunks(seq, chunksize: int) -> Iterable[Tuple]:
             yield chunk
 
 
-def parse_range(start, stop:int=None, step:int=None) -> tuple[int, int, int]:
+def parse_range(start, stop: int | None = None, step: int | None = None) -> tuple[int, int, int]:
     """
     Given arguments as passed to `range`, resolved them in `(start, stop, step)`
     """
