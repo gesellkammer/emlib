@@ -27,7 +27,7 @@ def interlace(*arrays: np.ndarray) -> np.ndarray:
         a 1D array with the elements of the given arrays interleaved
 
     """
-    size = len(arrays[0].size)
+    size = arrays[0].size
     assert all(arr.size == size and a.dtype == arrays[0].dtype for a in arrays)
     out = np.empty((size * len(arrays),), dtype=arrays[0].dtype)
     for i, a in enumerate(arrays):
