@@ -266,10 +266,10 @@ def iterchunks(seq, chunksize: int) -> Iterable[tuple]:
 
     padded = chain(seq, repeat(_Sentinel))
     for chunk in window(padded, size=chunksize, step=chunksize):
-        if chunk[-1] is Sentinel:
+        if chunk[-1] is _Sentinel:
             if chunk[0] is _Sentinel:
                 break
-            yield tuple((x for x in chunk if x is not Sentinel))
+            yield tuple((x for x in chunk if x is not _Sentinel))
             break
         else:
             yield chunk
