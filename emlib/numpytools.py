@@ -28,7 +28,7 @@ def interlace(*arrays: np.ndarray) -> np.ndarray:
 
     """
     size = arrays[0].size
-    assert all(arr.size == size and a.dtype == arrays[0].dtype for a in arrays)
+    assert all(array.size == size and array.dtype == arrays[0].dtype for array in arrays)
     out = np.empty((size * len(arrays),), dtype=arrays[0].dtype)
     for i, a in enumerate(arrays):
         out[i::len(arrays)] = a
@@ -69,7 +69,7 @@ def zipsort(a: np.ndarray, b: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     indices = a.argsort()
     return a[indices], b[indices]
 
-    
+
 def smooth(a: np.ndarray, kind="running", strength=0.05) -> np.ndarray:
     """
     Smooth the values in a
@@ -85,7 +85,7 @@ def smooth(a: np.ndarray, kind="running", strength=0.05) -> np.ndarray:
     """
     assert len(a) > 3
     if kind == "running":
-        N = len(a) if strength is None else min(len(a) * 0.5 * strength, 3)
+        N = len(a) if strength is None else min(round(len(a) * 0.5 * strength), 3)
         K = np.ones(N, dtype=float) / N
         a_smooth = np.convolve(a, K, mode='same')
     else:
@@ -145,7 +145,10 @@ def overlapping_frames(y: np.ndarray, frame_length: int, hop_length: int
     return y_frames
 
 
-def chunks(data: np.ndarray, chunksize: int, hop: int = None, padwith: int | None = None
+def chunks(data: np.ndarray,
+           chunksize: int,
+           hop: int | None = None,
+           padwith: int | None = None
            ) -> Iterator[np.ndarray]:
     """
     Iterate over data in chunks of chunksize. Returns a generator
@@ -153,7 +156,7 @@ def chunks(data: np.ndarray, chunksize: int, hop: int = None, padwith: int | Non
     Args:
         data: the array to be iterated in chunks
         chunksize: the size of each chunk
-        hop: the amount of elements to skip between chunks
+        hop: the amount of elements to skip between chunks, None to use chunksize as hop size
         padwith: value to pad when a chunk is not big enough, None to avoid padding
 
     Returns:
@@ -230,7 +233,7 @@ def linlin(xs: np.ndarray, x0: float, x1: float, y0: float, y1: float) -> np.nda
 def astype(a: np.ndarray, typedescr) -> np.ndarray:
     """
     The same as: `if a.dtype != typedescr: a = as.astype(typedescr)`
-    
+
     """
     return a if a.dtype == typedescr else a.astype(typedescr)
 
