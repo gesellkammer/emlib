@@ -326,3 +326,28 @@ def quoteIfNeeded(s: str, quote='', defaultquote='"') -> str:
             return s
         return f'{quote}{s}{quote}'
 
+
+_fractions = {
+    (1, 3): "⅓",
+    (2, 3): "⅔",
+    (1, 4): "¼",
+    (2, 4): "½",
+    (3, 4): "¾",
+    (1, 5): "⅕",
+    (2, 5): "⅖",
+    (3, 5): "⅗",
+    (4, 5): "⅘",
+    (1, 6): "⅙",
+    (2, 6): "⅔",
+    (3, 6): "½",
+    (4, 6): "⅔",
+    (5, 6): "⅚",
+    (1, 7): "⅐",
+}
+
+
+def unicode_fraction(numerator: int, denominator: int) -> str:
+    ufraction = _fractions.get((numerator, denominator))
+    if ufraction is not None:
+        return ufraction
+    return f"{numerator}/{denominator}"

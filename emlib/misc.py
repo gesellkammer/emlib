@@ -470,8 +470,6 @@ def sec2str(seconds:float, msdigits=3) -> str:
     Returns:
         the equivalent time as string
 
-
-
     """
     h = int(seconds // 3600)
     m = int((seconds - h * 3600) // 60)
