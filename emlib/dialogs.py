@@ -45,7 +45,6 @@ def _has_qt() -> bool:
         return False
 
 
-
 @runonce
 def _has_tk() -> bool:
     try:
@@ -55,11 +54,10 @@ def _has_tk() -> bool:
         return False
 
 
-@runonce
-def _resolveBackend(backend: str = None):
+def _resolveBackend(backend=''):
     if sys.platform == 'darwin':
         backend = 'qt'
-    elif backend is None:
+    elif not backend:
         if _has_qt():
             backend = 'qt'
         elif _has_tk():
@@ -67,11 +65,11 @@ def _resolveBackend(backend: str = None):
         else:
             raise RuntimeError("No backends available. Install pyqt5 via 'pip install pyqt5'")
     if backend == 'qt' and not _has_qt():
-        raise RuntimeError("pyqt5 is needed not installed. Install it via 'pip install pyqt5'")
+        raise RuntimeError("pyqt5 is needed, but is not installed. Install it via 'pip install pyqt5'")
     return backend
 
 
-def showInfo(msg: str, title: str = "Info", font=None, icon: str = None, backend: str = None
+def showInfo(msg: str, title: str = "Info", font=None, icon='', backend=''
              ) -> None:
     """
     Show a pop up dialog with some info
@@ -86,6 +84,7 @@ def showInfo(msg: str, title: str = "Info", font=None, icon: str = None, backend
     if backend == 'qt':
         from . import _dialogsqt
         return _dialogsqt.showInfo(msg=msg, title=title, font=font, icon=icon)
+
     from tkinter import ttk, Tk
     try:
         from ttkthemes import ThemedTk
@@ -97,7 +96,7 @@ def showInfo(msg: str, title: str = "Info", font=None, icon: str = None, backend
     bg = "#f5f5f5"
     frame = ttk.Frame(root)
     dx, dy = 8, 8
-    if font is None:
+    if not font:
         font = (_DEFAULT_FONT[0], int(_DEFAULT_FONT[1]*1.3))
     ttk.Label(frame, text="ℹ  " + msg, font=font, background=bg
               ).grid(column=0, row=0, padx=dx*2, pady=dy*2)
@@ -108,8 +107,8 @@ def showInfo(msg: str, title: str = "Info", font=None, icon: str = None, backend
     root.mainloop()
 
 
-def selectFile(directory: str = None, filter="All (*.*)", title="Open file",
-               backend: str = None
+def selectFile(directory='', filter="All (*.*)", title="Open file",
+               backend=''
                ) -> str:
     """
     Create a dialog to open a file and returns the file selected
@@ -150,7 +149,7 @@ def selectFile(directory: str = None, filter="All (*.*)", title="Open file",
     return path
 
 
-def _tkParseFilter(filter: str) -> List[Tuple[str, str]]:
+def _tkParseFilter(filter: str) -> list[Tuple[str, str]]:
     # A filter has the form <name1> (<wildcard1>, <wildcard2>, ...);; name2...
     parts = filter.split(";;")
     out = []
@@ -196,7 +195,7 @@ def _saveDialogTk(filter="All (*.*)", title="Save file", directory: str = "~") -
     return path
 
 
-def saveDialog(filter="All (*.*)", title="Save file", directory: str = "~", backend: str = None
+def saveDialog(filter="All (*.*)", title="Save file", directory: str = "~", backend=''
                ) -> str:
     """
     Open a dialog to save a file.
@@ -229,11 +228,17 @@ def saveDialog(filter="All (*.*)", title="Save file", directory: str = "~", back
         return _saveDialogTk(filter=filter, title=title, directory=directory)
 
 
-def selectItem(items: Sequence[str], title="Select", entryFont=('Arial', 15),
-               listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
-               caseSensitive=False, ensureSelection=False,
-               backend: str = None
-               ) -> Optional[str]:
+def selectItem(items: Sequence[str],
+               title="Select",
+               entryFont=('Arial', 15),
+               listFont=('Arial', 12),
+               scrollbar=True,
+               width=400,
+               numlines=20,
+               caseSensitive=False,
+               ensureSelection=False,
+               backend=''
+               ) -> str | None:
     """
     Select one item from a list
 
@@ -261,11 +266,17 @@ def selectItem(items: Sequence[str], title="Select", entryFont=('Arial', 15),
     return selected[0] if selected else None
 
 
-def selectItems(items: Sequence[str], title="Select", entryFont=('Arial', 14),
-                listFont=('Arial', 12), scrollbar=True, width=400, numlines=20,
-                caseSensitive=False, ensureSelection=False,
-                backend: str = None
-                ) -> List[str]:
+def selectItems(items: Sequence[str],
+                title="Select",
+                entryFont=('Arial', 14),
+                listFont=('Arial', 12),
+                scrollbar=True,
+                width=400,
+                numlines=20,
+                caseSensitive=False,
+                ensureSelection=False,
+                backend=''
+                ) -> list[str]:
     """
     Select one or multiple items from a list
 
@@ -280,7 +291,7 @@ def selectItems(items: Sequence[str], title="Select", entryFont=('Arial', 14),
         caseSensitive: if True, filtering is case sensitive
         ensureSelection: if True, raises a ValueError exception is no selection
             was done
-        backend: one of 'qt', 'tk' or None to use a default
+        backend: if given, one of 'qt', 'tk'
 
     Returns:
         a list of selected items, or an empty list if the user aborted
@@ -299,7 +310,7 @@ def selectItems(items: Sequence[str], title="Select", entryFont=('Arial', 14),
         from . import _dialogsqt
         out = _dialogsqt.selectItem(items=items, title=title, listFont=listFont,
                                     entryFont=entryFont)
-        return [out]
+        return [out] if out is not None else []
     else:
         raise ValueError("Backends supported: 'qt', 'tk'")
 

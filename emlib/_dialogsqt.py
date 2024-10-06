@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 __all__ = (
     'FilteredList',
     'selectItem',
@@ -31,7 +32,7 @@ def _makeApp():
 
 
 class _FilterEdit(QtWidgets.QLineEdit):
-    def __init__(self, parent: FilteredList, font:Tuple[str, int]=None):
+    def __init__(self, parent: FilteredList, font: tuple[str, int] = None):
         self.parent = parent
         super().__init__()
         if font:
@@ -54,7 +55,7 @@ class _FilterEdit(QtWidgets.QLineEdit):
 
 
 class _FilteredListView(QtWidgets.QListView):
-    def __init__(self, parent: FilteredList, font:Tuple[str, int]=None):
+    def __init__(self, parent: FilteredList, font: tuple[str, int] = None):
         self.parent = parent
         super().__init__()
         if font:
@@ -78,9 +79,11 @@ def _calculateTextWidth(s: str, fontfamily: str, size: int) -> float:
 
 
 class FilteredList(QtWidgets.QMainWindow):
-    def __init__(self, items:Sequence[str], title:str,
-                 listFont:Tuple[str, int]=None,
-                 entryFont:Tuple[str, int]=None):
+    def __init__(self,
+                 items: Sequence[str],
+                 title: str,
+                 listFont: tuple[str, int]=None,
+                 entryFont: tuple[str, int] = None):
         super().__init__()
         self.out = None
         self.view = _FilteredListView(self, font=listFont)  # QListView()
@@ -119,9 +122,9 @@ class FilteredList(QtWidgets.QMainWindow):
 
 
 def selectItem(items: Sequence[str], title='Select',
-               listFont:Tuple[str, int]=None,
-               entryFont: Tuple[str, int]=None
-               ) -> Optional[str]:
+               listFont: tuple[str, int] = None,
+               entryFont: tuple[str, int] = None
+               ) -> str | None:
     app = _makeApp()
     w = FilteredList(items, title=title, listFont=listFont, entryFont=entryFont)
     w.show()
@@ -130,7 +133,7 @@ def selectItem(items: Sequence[str], title='Select',
 
 
 class _FilteredComboBox(QtWidgets.QComboBox):
-    def __init__(self, parent=None, title:str=''):
+    def __init__(self, parent=None, title=''):
         super().__init__(parent)
         self.dismissed = False
         if title:
@@ -183,8 +186,8 @@ class _FilteredComboBox(QtWidgets.QComboBox):
             super().keyPressEvent(e)
 
 
-def selectFromCombobox(items: List[str], title="Select", width=300, height=40
-                       ) -> Optional[str]:
+def selectFromCombobox(items: list[str], title="Select", width=300, height=40
+                       ) -> str | None:
     app = _makeApp()
     combo = _FilteredComboBox(title=title)
     # either fill the standard model of the combobox
@@ -199,7 +202,7 @@ def selectFromCombobox(items: List[str], title="Select", width=300, height=40
     return None if combo.dismissed else combo.currentText()
 
 
-def selectFile(directory:str=None, filter="All (*.*)", title="Open file") -> str:
+def selectFile(directory='', filter="All (*.*)", title="Open file") -> str:
     app = _makeApp()
     options = QtWidgets.QFileDialog.Options()
     options |= QtWidgets.QFileDialog.DontUseNativeDialog
@@ -209,7 +212,7 @@ def selectFile(directory:str=None, filter="All (*.*)", title="Open file") -> str
     return name
 
 
-def saveDialog(filter="All (*.*)", title="Save file", directory:str=None) -> str:
+def saveDialog(filter="All (*.*)", title="Save file", directory='') -> str:
     app = _makeApp()
     filter = filter.replace(",", " ")
     name, mask = QtWidgets.QFileDialog.getSaveFileName(None, title, filter=filter,
@@ -217,7 +220,7 @@ def saveDialog(filter="All (*.*)", title="Save file", directory:str=None) -> str
     return name
 
 
-def showInfo(msg:str, title:str='Info', font:Tuple[str,int]=None, icon:str=None) -> None:
+def showInfo(msg:str, title:str='Info', font: tuple[str,int] = None, icon='') -> None:
     """
     Open a message box with a text
 
@@ -260,4 +263,3 @@ if sys.platform == 'darwin' and emlib.misc.inside_ipython() and not emlib.misc.i
                 f"emlib.dialogs needs the qt eventloop to be able to open qt dialogs"
                 f" without blocking the shell. ")
         ip.run_line_magic('gui', 'qt')
-
