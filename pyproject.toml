@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emlib"
-version = "1.16.5"
+version = "1.16.6"
 description = "Miscellaneous utilities (text handling, maths, iterators, etc.)"
 authors = [
     { name = "Eduardo Moguillansky", email = "eduardo.moguillansky@gmail.com" },
@@ -26,7 +26,7 @@ dependencies = [
     "send2trash",
     "matplotlib",
     "pillow",
-
+    "decorator",
 ]
 
 [tool.setuptools]
@@ -39,4 +39,3 @@ csoundengine = ['emlib/py.types']
 
 [project.urls]
 "Homepage" = "https://github.com/gesellkammer/emlib"
-

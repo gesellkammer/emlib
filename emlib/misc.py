@@ -34,7 +34,7 @@ if TYPE_CHECKING or 'sphinx' in _sys.modules:
     T = TypeVar("T")
     T2 = TypeVar("T2")
     number_t = Union[float, numbers.Rational]
-    
+
 
 # ------------------------------------------------------------
 #     CHUNKS
@@ -52,12 +52,13 @@ def reverse_recursive(seq: list):
         a reversed version of `seq` where all sub-lists are also reversed.
 
 
-    .. code::
+    Example
+    ~~~~~~~
 
         >>> reverse_recursive([1, 2, [3, 4], [5, [6, 7]]])
         [[[7, 6], 5], [4, 3], 2, 1]
 
-    **NB**: only lists will be reversed, other iterable collection remain untouched
+    .. note:: only lists will be reversed, other iterable collection remain untouched
 
     """
     out = []
@@ -90,7 +91,7 @@ def wrap_by_sizes(flatseq: list, packsizes: Sequence[int]) -> list[list]:
         a list of groups, where each group is of size as given by packsizes
 
     Example
-    -------
+    ~~~~~~~
 
         >>> flatseq = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         >>> wrap_by_sizes(flatseq, [3, 5, 2])
@@ -172,10 +173,10 @@ def nearest_unsorted(x: number_t, seq: list[number_t]) -> number_t:
     Returns:
         the item in seq. which is nearest to x
 
-    **NB**: for sorted seq. use `nearest_index`
+    .. note:: for sorted seq. use :func:`nearest_index`
 
     Example
-    -------
+    ~~~~~~~
 
         >>> assert nearest_unsorted(3.6, (1,2,3,4,5)) == 4
         >>> assert nearest_unsorted(4, (2,3,4)) == 4
@@ -195,15 +196,18 @@ def nearest_index(item: number_t, seq: Sequence[number_t]) -> int:
     Returns:
         the index of the nearest item
 
-    **NB**: Assumes that seq is sorted
+    .. note:: Assumes that seq is sorted
 
-    Example::
+    Example
+    ~~~~~~~
 
         >>> seq = [0, 3, 4, 8]
         >>> nearest_index(3.1, seq)
         1
         >>> nearest_index(6.5, seq)
         3
+
+    .. seealso:: :func:`nearest_unsorted`
     """
     ir = _bisect(seq, item)
     seqlen = len(seq)
@@ -235,15 +239,15 @@ def sort_natural(seq: list, key: Callable[[Any], str]=None) -> list:
     Examples
     ~~~~~~~~
 
-    >>> seq = ["e10", "e2", "f", "e1"]
-    >>> sorted(seq)
-    ['e1', 'e10', 'e2', 'f']
-    >>> sort_natural(seq)
-    ['e1', 'e2', 'e10', 'f']
+        >>> seq = ["e10", "e2", "f", "e1"]
+        >>> sorted(seq)
+        ['e1', 'e10', 'e2', 'f']
+        >>> sort_natural(seq)
+        ['e1', 'e2', 'e10', 'f']
 
-    >>> seq = [(2, "e10"), (10, "e2")]
-    >>> sort_natural(seq, key=lambda tup:tup[1])
-    [(10, 'e2'), (2, 'e10')]
+        >>> seq = [(2, "e10"), (10, "e2")]
+        >>> sort_natural(seq, key=lambda tup:tup[1])
+        [(10, 'e2'), (2, 'e10')]
     """
 
     def convert(text: str):
@@ -274,7 +278,7 @@ def sort_natural_dict(d: dict[str, Any], recursive=True) -> dict:
     return dict(sorted_rows)
 
 
-def issorted(seq: list, key=None) -> bool:
+def issorted(seq: Sequence, key=None) -> bool:
     """
     Returns True if seq is sorted
 
@@ -283,7 +287,7 @@ def issorted(seq: list, key=None) -> bool:
         key: an optional key to use
 
     Example
-    -------
+    ~~~~~~~
 
         >>> seq = [(10, "a"), (0, "b"), (45, None)]
         >>> issorted(seq, key=lambda item:item[0])
@@ -308,9 +312,13 @@ def issorted(seq: list, key=None) -> bool:
 
 def some(x, otherwise=False):
     """
+    Returns ``x`` if it is not None, else ``otherwise``
+
     This allows code like::
 
         myvar = some(myvar) or default
+        # If default does not need to be shortcircuited, then simply:
+        myvar = some(myvar, default)
 
     instead of::
 
@@ -328,8 +336,11 @@ def firstval(*values, sentinel=None):
     a callable can be given as value, in which case the function
     will only be evaluated if the previous values where `sentinel`
 
+    .. seealso:: :func:`some`
+
+
     Example
-    -------
+    ~~~~~~~
 
     .. code-block:: python
 
@@ -360,11 +371,11 @@ def zipsort(a: Sequence[T], b: Sequence[T2], key: Callable = None, reverse=False
     Example
     ~~~~~~~
 
-    >>> names = ['John', 'Mary', 'Nick']
-    >>> ages  = [20,      10,     34]
-    >>> ages, names = zipsort(ages, names)
-    >>> names
-    ('Mary', 'John', 'Nick')
+        >>> names = ['John', 'Mary', 'Nick']
+        >>> ages  = [20,      10,     34]
+        >>> ages, names = zipsort(ages, names)
+        >>> names
+        ('Mary', 'John', 'Nick')
     """
     zipped = sorted(zip(a, b), key=key, reverse=reverse)
     a, b = zip(*zipped)
@@ -394,13 +405,9 @@ def remove_duplicates(seq: Sequence[T]) -> list[T]:
     Returns:
         a new list with all the unique elements of seq in its
         original order
-        NB: list(set(...)) does not keep order
-    """
-    # Original implementation:
-    # seen = set()
-    # seen_add = seen.add
-    # return [x for x in seq if not (x in seen or seen_add(x))]
 
+    .. note:: list(set(...)) does not keep order
+    """
     # In python >= 3.7 we use the fact that dicts keep order:
     return list(dict.fromkeys(seq))
 
@@ -416,6 +423,14 @@ def remove_last_matching(seq: list[T], func: Callable[[T], bool]) -> T | None:
 
     Returns:
         the removed element, or None if the condition was never met
+
+    Example
+    ~~~~~~~
+
+        >>> a = [0, 1, 2, 3, 4, 5, 6]
+        >>> remove_last_matching(a, lambda item: item % 2 == 1)
+        >>> a
+        [0, 1, 2, 3, 4, 6]
     """
     seqlen = len(seq)
     for i, x in enumerate(reversed(seq)):
@@ -426,8 +441,7 @@ def remove_last_matching(seq: list[T], func: Callable[[T], bool]) -> T | None:
 
 def fractional_slice(seq: Sequence[T], step:float, start=0, end=-1) -> list[T]:
     """
-    Given a list of elements, take a slice similar to seq[start:end:step],
-    but allows step to be a fraction
+    Take a slice similar to seq[start:end:step] with fractional step
 
     Args:
         seq: the sequence of elements
@@ -438,14 +452,13 @@ def fractional_slice(seq: Sequence[T], step:float, start=0, end=-1) -> list[T]:
     Returns:
         the resulting list
 
-    
+
     Example
-    -------
+    ~~~~~~~
 
-    >>> fractional_slice(range(10), 1.5)
-    >>> [0, 2, 3, 5, 6, 8]
+        >>> fractional_slice(range(10), 1.5)
+        >>> [0, 2, 3, 5, 6, 8]
 
-    
     """
     if step < 1:
         raise ValueError("step should be >= 1 (for now)")
@@ -485,7 +498,7 @@ def sec2str(seconds:float, msdigits=3) -> str:
         return f"{m}:{sint:02}{msstr}"
 
 
-def parse_time(t:str) -> float:
+def parse_time(t: str) -> float:
     """
     Parse a time string ``HH:MM:SS.mmm`` and convert it to seconds
 
@@ -514,7 +527,7 @@ def parse_time(t:str) -> float:
 def sumlist(seq: Iterable[list[T]]) -> list[T]:
     """
     Concatenate multiple lists to one big list
-    
+
     Args:
         seq: a list or iterable of lists
 
@@ -531,7 +544,7 @@ def sumlist(seq: Iterable[list[T]]) -> list[T]:
 # ------------------------------------------------------------
 
 
-def namedtuple_addcolumn(namedtuples, seq, column_name, classname=""):  # type: ignore
+def namedtuple_addcolumn(namedtuples, seq, column_name: str, classname=""):  # type: ignore
     """
     Add a column to a sequence of named tuples
 
@@ -553,7 +566,8 @@ def namedtuple_addcolumn(namedtuples, seq, column_name, classname=""):  # type: 
     return newtuples
 
 
-def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # type: ignore
+def namedtuples_renamecolumn(namedtuples: list, oldname: str, newname: str, classname=''
+                             ) -> list:  # type: ignore
     """
     Rename the column of a seq of namedtuples
 
@@ -582,7 +596,7 @@ def namedtuples_renamecolumn(namedtuples, oldname, newname, classname=None):  # 
     return newtuples
 
 
-def namedtuple_extend(name:str, orig, columns: Union[str, Sequence[str]]):
+def namedtuple_extend(name: str, orig, columns: str | Sequence[str]):
     """
     Create a new namedtuple constructor with the added columns
 
@@ -594,7 +608,7 @@ def namedtuple_extend(name:str, orig, columns: Union[str, Sequence[str]]):
         name: new name for the type
         orig: an instance of the original namedtuple or the constructor itself
         columns : the columns to add
-    
+
     Returns:
         a tuple (newtype, newtype_from_old)
 
@@ -632,8 +646,10 @@ def namedtuple_extend(name:str, orig, columns: Union[str, Sequence[str]]):
 # ------------------------------------------------------------
 
 
-def isiterable(obj, exceptions:tuple[type, ...]=(str, bytes)) -> bool:
+def isiterable(obj, exceptions: tuple[type, ...]=(str, bytes)) -> bool:
     """
+    Is `obj` iterable?
+
     Example
     ~~~~~~~
 
@@ -653,8 +669,8 @@ def isgeneratorlike(obj):
 def asnumber(obj, accept_fractions=True, accept_expon=False
              ) -> int | float | Fraction | None:
     """
-    Return ``obj`` as number, or None of it cannot be converted
-    to a number
+    Convert ``obj`` to a number or None if it cannot be converted
+
 
     Example
     ~~~~~~~
@@ -719,7 +735,7 @@ def astype(type_, obj=None, factory=None):
     return obj if isinstance(obj, type_) else factory(obj)
 
 
-def str_is_number(s:str, accept_exp=False, accept_fractions=False):
+def str_is_number(s: str, accept_exp=False, accept_fractions=False) -> bool:
     """
     Returns True if the given string represents a number
 
@@ -753,14 +769,16 @@ def dictmerge(dict1: dict, dict2: dict) -> dict:
     If they have keys in common, the value in dict1 is overwritten
     by the value in dict2
 
-    >>> a, b = {'A': 1, 'B': 2}, {'B': 20, 'C': 30}
+    Example
+    ~~~~~~~
 
-    >>> dictmerge(a, b) == {'A': 1, 'B': 20, 'C': 30}
-    True
+        >>> a, b = {'A': 1, 'B': 2}, {'B': 20, 'C': 30}
+        >>> dictmerge(a, b) == {'A': 1, 'B': 20, 'C': 30}
+        True
     """
-    out = dict1.copy()
-    out.update(dict2)
-    return out
+    import warnings
+    warnings.warn("Deprecated, use dict1 | dict2")
+    return dict1 | dict2
 
 
 def moses(pred: Callable[[T], bool], seq: Iterable[T]
@@ -810,8 +828,8 @@ def dumpobj(obj) -> list[tuple[str, Any]]:
     """
     Return all 'public' attributes of this object
     """
-    return [(item, getattr(obj, item)) 
-            for item in dir(obj) 
+    return [(item, getattr(obj, item))
+            for item in dir(obj)
             if not item.startswith('__')]
 
 
@@ -827,18 +845,41 @@ def can_be_pickled(obj) -> bool:
     return obj == obj2
 
 
-def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True) -> number_t:
+def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True
+                 ) -> number_t:
     """
     Find the nearest slot in a grid
 
     Given a grid defined by offset + tick * N, find the nearest element
     of that grid to a given x
 
+    Args:
+        x: the number to snap to the grid
+        tick: distance between ticks of the grid
+        offset: offset of the grid
+        nearest: if True, snap to the nearest tick (the nearest
+            of the next floor or ceil tick), otherwise to the
+            floor tick
+
+    Returns:
+        the tick to which to snap x to
+
+
     .. note::
 
         the result will have the same type as *x*, so if *x* is float,
         the result will be float, if it is a Fraction, then the
         result will be a fraction
+
+    Example
+    ~~~~~~~
+
+        >>> snap_to_grid(1.6, 0.5)
+        1.5
+        >>> from fractions import Fraction
+        >>> snap_to_grid(Fraction(2, 3), Fraction(1, 5))
+        Fraction(3, 5)
+
     """
     t = x.__class__
     if nearest:
@@ -847,16 +888,17 @@ def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True) 
         return t(int((x - offset) / tick)) * tick + offset
 
 
-def snap_array(X: np.ndarray, tick:float, offset:float=0.,
-               out: Optional[np.ndarray] = None, nearest=True
+def snap_array(X: np.ndarray,
+               tick: float,
+               offset: float = 0.,
+               out: np.ndarray | None = None,
+               nearest=True
                ) -> np.ndarray:
     """
     Snap the values of X to the nearest slot in a grid
 
     Assuming a grid t defined by ``t(n) = offset + tick*n``, snap the values of X
     to the nearest value of t
-
-    **NB**: tick > 0
 
     Args:
         X: an array
@@ -878,9 +920,9 @@ def snap_array(X: np.ndarray, tick:float, offset:float=0.,
     return _snap_array_floor(X, tick, offset=float(offset), out=out)
 
 
-def _snap_array_nearest(X: np.ndarray, 
-                        tick: number_t, 
-                        offset: number_t = 0., 
+def _snap_array_nearest(X: np.ndarray,
+                        tick: number_t,
+                        offset: number_t = 0.,
                         out: Optional[np.ndarray] = None
                         ) -> np.ndarray:
     if out is None:
@@ -915,7 +957,7 @@ def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out: np.ndarray=None
     return arr
 
 
-def snap_to_grids(x: number_t, ticks: Sequence[number_t], 
+def snap_to_grids(x: number_t, ticks: Sequence[number_t],
                   offsets: Sequence[number_t] = None, mode='nearest'
                   ) -> number_t:
     """
@@ -1573,8 +1615,8 @@ def first_existing_path(*paths: str, default="~") -> str:
     return _os.path.expanduser(default)
 
 
-def html_table(rows: list, 
-               headers: list[str], 
+def html_table(rows: list,
+               headers: list[str],
                maxwidths: Optional[list[int]] = None,
                rowstyles: Optional[list[str]] = None,
                tablestyle='',
@@ -1783,7 +1825,7 @@ def simplify_breakpoints(bps: list[T],
 def rgb_to_hex(r: int, g: int, b: int) -> str:
     "Convert a color in rgb to its hex representation"
     return '#%02x%02x%02x'% (r, g, b)
-        
+
 
 _attrs_by_class: dict[type, list[str]] = {}
 
