@@ -137,7 +137,7 @@ def stripLinesBottom(lines: list[str], maxlines: int = 0) -> list[str]:
         if line.strip():
             break
     if i - maxlines > 0:
-        return lines[:-i+maxlines]
+        return lines[:maxlines - i]
     return lines
 
 
@@ -190,10 +190,10 @@ def fuzzymatch(pattern: str, strings: list[str]
     """
     pattern = '.*?'.join(map(re.escape, list(pattern)))
 
-    def calculate_score(pattern, s):
+    def calculate_score(pattern: str, s: str) -> float:
         match = re.search(pattern, s)
         if match is None:
-            return 0
+            return 0.
         return 100.0 / ((1 + match.start()) * (match.end() - match.start() + 1))
 
     matches = [(score, s) for s in strings
@@ -223,6 +223,16 @@ def makeReplacer(conditions: dict) -> Callable:
 
     Returns:
         a function to be called to produce the given transformation
+
+    Example
+    ~~~~~~~
+
+    Create a function to remove some unwanted characters
+
+        >>> import emlib.textlib
+        >>> replacer = emlib.textlib.makeReplacer({"[": "", "]": "", '"': '', "'": "", "{": "", "}": ""})
+        >>> replacer("[foo:'{bar}']")
+        foo:bar
     """
     rep = {re.escape(k): v for k, v in conditions.items()}
     pattern = re.compile("|".join(rep.keys()))
@@ -269,7 +279,7 @@ def escapeAnsi(line: str) -> str:
     return re.compile(r'(\x9B|\x1B\[)[0-?]*[ -\/]*[@-~]').sub('', line)
 
 
-def splitInChunks(s: str|bytes, maxlen: int) -> list:
+def splitInChunks(s: str, maxlen: int) -> list[str]:
     """
     Split `s` into strings of max. size `maxlen`
 
@@ -343,10 +353,27 @@ _fractions = {
     (4, 6): "⅔",
     (5, 6): "⅚",
     (1, 7): "⅐",
+    (1, 8): "⅛",
+    (2, 4): "¼",
+    (3, 8): "⅜",
+    (4, 8): "½",
+    (5, 8): "⅝",
+    (6, 8): "¾",
+    (7, 8): "⅞",
+    (1, 9): "⅑",
+    (3, 9): "⅓",
+    (6, 9): "⅔",
+    (1, 10): "⅒",
+    (2, 10): "⅕",
+    (4, 10): "⅖",
 }
 
 
-def unicode_fraction(numerator: int, denominator: int) -> str:
+def unicode_fraction(numerator: int, denominator: int, simplify=True) -> str:
+    if simplify:
+        from fractions import Fraction
+        frac = Fraction(numerator, denominator)
+        numerator, denominator = frac.numerator, frac.denominator
     ufraction = _fractions.get((numerator, denominator))
     if ufraction is not None:
         return ufraction
