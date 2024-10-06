@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emlib"
+version = "1.16.5"
+description = "Miscellaneous utilities (text handling, maths, iterators, etc.)"
+authors = [
+    { name = "Eduardo Moguillansky", email = "eduardo.moguillansky@gmail.com" },
+]
+license = { file = "LICENSE.md" }
+readme = "README.rst"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+requires-python = ">=3.9"
+
+dependencies = [
+    "numpy",
+    "appdirs",
+    "tabulate",
+    "watchdog",
+    "send2trash",
+    "matplotlib",
+    "pillow",
+
+]
+
+[tool.setuptools]
+include-package-data = true
+packages = ["emlib"]
+
+[tool.setuptools.package-data]
+csoundengine = ['emlib/py.types']
+
+
+[project.urls]
+"Homepage" = "https://github.com/gesellkammer/emlib"
+
