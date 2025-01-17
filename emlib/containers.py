@@ -7,7 +7,6 @@ import dataclasses
 from keyword import iskeyword as _iskeyword
 from collections import OrderedDict as _OrderedDict
 import itertools
-import tabulate
 from typing import Sequence
 
 
@@ -23,10 +22,16 @@ class IntPool:
     """
     A pool of intergers
 
-    A pool will contain the integers in the range [0, capacity)
+    A pool will contain the integers in the range [start, start + capacity)
 
     Args:
         capacity: the capacity (size) of the pool.
+        start: first element
+        fixedsize: if True, this pool cannot be extended. Otherwise, when
+            a pop operation would result in an empty pool the pool is doubled
+            in size, adding the new items. A pool cannot be extended by adding
+            elements outside its range, so a push operation might still fail
+            if the item is outside the range of the pool
 
     Example
     ~~~~~~~
@@ -42,23 +47,32 @@ class IntPool:
         >>> pool.push(4)
         ValueError: token 4 already in pool
     """
-    def __init__(self, capacity: int, start=0):
+    def __init__(self, capacity: int, start=0, fixedsize=True):
         self.capacity = capacity
         self.pool = set(range(start, start+capacity))
         self.tokenrange = (start, start+capacity)
+        self.fixedsize = fixedsize
 
     def pop(self) -> int:
+        """
+        Take an item from the pool
+        """
         if not self.pool:
-            raise EmptyError("This pool is empty")
+            if self.fixedsize:
+                raise EmptyError("This pool is empty")
+            else:
+                self._extend(self.capacity)
         return self.pool.pop()
 
     def push(self, token: int) -> None:
+        """
+        Return an item to the pool
+        """
         if token in self.pool:
             raise ValueError(f"token {token} already in pool")
-        if len(self.pool) == self.capacity:
-            raise FullError()
         if not self.tokenrange[0] <= token < self.tokenrange[1]:
             raise ValueError("This token is not part of the pool")
+        assert len(self.pool) < self.capacity
         self.pool.add(token)
 
     def __contains__(self, item):
@@ -66,6 +80,13 @@ class IntPool:
 
     def __len__(self) -> int:
         return len(self.pool)
+
+    def _extend(self, extrasize: int) -> None:
+        cap = self.capacity
+        self.capacity += extrasize
+        start, end = self.tokenrange
+        self.tokenrange = start, end + extrasize
+        self.pool.update(range(end, end+extrasize))
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -77,7 +98,7 @@ class RecordList(list):
     """
     A list of namedtuples / dataclasses
 
-    Args: 
+    Args:
         data: A seq of namedtuples or dataclass objects. A seq. of tuples or lists
             is also possible. In that case, fields must be given
         fields: a string as passed to namedtuple
@@ -90,7 +111,7 @@ class RecordList(list):
 
     .. code::
 
-        
+
         # generate a RecordList of measures
         >>> from dataclasses import dataclass
         >>> @dataclass
@@ -107,7 +128,7 @@ class RecordList(list):
                  data: list,
                  fields: str | Sequence[str] = '',
                  itemname=''):
-        
+
         if not data and not fields:
             raise ValueError("data is empty, fields must be given")
 
@@ -147,6 +168,7 @@ class RecordList(list):
         self.columns = fieldstup
 
     def __repr__(self):
+        import tabulate
         return tabulate.tabulate(
             self, self.columns, disable_numparse=True, showindex=True
         )
@@ -155,6 +177,7 @@ class RecordList(list):
         return self.to_html()
 
     def to_html(self, showindex=True) -> str:
+        import tabulate
         return tabulate.tabulate(
             self,
             self.columns,
@@ -188,8 +211,8 @@ class RecordList(list):
 
     def get_column(self, column: int | str) -> list:
         """
-        Return a column by name or index as a list of values. 
-        
+        Return a column by name or index as a list of values.
+
         Raises ValueError if column is not found
 
         Args:
@@ -222,7 +245,7 @@ class RecordList(list):
             missing: value to use when padding is needed
 
         Returns:
-            the resulting RecordList 
+            the resulting RecordList
         """
         itemname = itemname or self.item_name
         columns = tuple(self.columns) + (name,)
@@ -252,16 +275,16 @@ class RecordList(list):
     def merge_with(self, other: RecordList) -> RecordList:
         """
         A new list is returned with a union of the fields of self and other
-        
+
         If there are fields in common, other prevails (similar to dict.update)
-        If self and other have a different number of rows, the lowest 
+        If self and other have a different number of rows, the lowest
         is taken.
 
         Args:
             other: the RecordList to merge with
 
         Returns:
-            the merged RecordList 
+            the merged RecordList
         """
         if not isinstance(other, list) or not hasattr(other, "columns"):
             raise TypeError("other should be a RecordList")
@@ -355,15 +378,15 @@ class RecordList(list):
 def _validate_fields(field_names: list[str]) -> list[str]:
     """
     Validate the given field names
-    
+
     Args:
         field_names: a list of strings to be used as attributes.
-    
+
     Example
     =======
 
     .. code::
-    
+
         # Numbers are not valid identifiers
         # an object cannot have non-unique attributes
         >>> _validate_fields(["0", "field", "field"])

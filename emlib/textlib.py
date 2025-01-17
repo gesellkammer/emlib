@@ -214,7 +214,7 @@ def ljust(s: str, width: int, fillchar=" ") -> str:
     return s
 
 
-def makeReplacer(conditions: dict) -> Callable:
+def makeReplacer(conditions: dict) -> Callable[[str], str]:
     """
     Create a function to replace many subtrings at once
 
@@ -236,7 +236,7 @@ def makeReplacer(conditions: dict) -> Callable:
     """
     rep = {re.escape(k): v for k, v in conditions.items()}
     pattern = re.compile("|".join(rep.keys()))
-    return lambda txt: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
+    return lambda txt, pattern=pattern, rep=rep: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
 
 
 def firstSentence(txt: str) -> str:

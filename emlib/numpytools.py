@@ -148,7 +148,7 @@ def overlapping_frames(y: np.ndarray, frame_length: int, hop_length: int
 def chunks(data: np.ndarray,
            chunksize: int,
            hop: int | None = None,
-           padwith: int | None = None
+           padwith: float | int | None = None
            ) -> Iterator[np.ndarray]:
     """
     Iterate over data in chunks of chunksize. Returns a generator
@@ -157,7 +157,8 @@ def chunks(data: np.ndarray,
         data: the array to be iterated in chunks
         chunksize: the size of each chunk
         hop: the amount of elements to skip between chunks, None to use chunksize as hop size
-        padwith: value to pad when a chunk is not big enough, None to avoid padding
+        padwith: value to pad when a chunk is not big enough, None to avoid padding. The type
+            depends on the data type of the given array
 
     Returns:
         a generator with chunks of data of chunksize or less
