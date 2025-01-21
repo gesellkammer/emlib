@@ -22,7 +22,18 @@ def stripLines(text: str) -> str:
     return "\n".join(lines)
 
 
-def splitAndStripLines(text: str, regexp: str = None) -> list[str]:
+def stripLinesTopAndBottom(lines: list[str]) -> list[str]:
+    startidx, endidx = 0, 0
+    for startidx, line in enumerate(lines):
+        if line.strip():
+            break
+    for endidx, line in enumerate(reversed(lines)):
+        if line.strip():
+            break
+    return lines[startidx:len(lines)-endidx]
+
+
+def splitAndStripLines(text: str | list[str], regexp: str = None) -> list[str]:
     """
     Splits `text` into lines and removes empty lines at the beginning and end
 
@@ -35,15 +46,11 @@ def splitAndStripLines(text: str, regexp: str = None) -> list[str]:
     Returns:
         the list of lines
     """
-    lines = re.split(regexp, text) if regexp else text.splitlines()
-    startidx, endidx = 0, 0
-    for startidx, line in enumerate(lines):
-        if line.strip():
-            break
-    for endidx, line in enumerate(reversed(lines)):
-        if line.strip():
-            break
-    return lines[startidx:len(lines)-endidx]
+    if isinstance(text, list):
+        lines = text
+    else:
+        lines = re.split(regexp, text) if regexp else text.splitlines()
+    return linesStripLinesTopAndBottom(lines)
 
 
 def reindent(text: str, prefix="", stripEmptyLines=True) -> str:
@@ -214,7 +221,7 @@ def ljust(s: str, width: int, fillchar=" ") -> str:
     return s
 
 
-def makeReplacer(conditions: dict) -> Callable[[str], str]:
+def makeReplacer(conditions: dict) -> Callable:
     """
     Create a function to replace many subtrings at once
 
@@ -236,7 +243,7 @@ def makeReplacer(conditions: dict) -> Callable[[str], str]:
     """
     rep = {re.escape(k): v for k, v in conditions.items()}
     pattern = re.compile("|".join(rep.keys()))
-    return lambda txt, pattern=pattern, rep=rep: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
+    return lambda txt: pattern.sub(lambda m: rep[re.escape(m.group(0))], txt)
 
 
 def firstSentence(txt: str) -> str:
@@ -369,7 +376,7 @@ _fractions = {
 }
 
 
-def unicode_fraction(numerator: int, denominator: int, simplify=True) -> str:
+def unicodeFraction(numerator: int, denominator: int, simplify=True) -> str:
     if simplify:
         from fractions import Fraction
         frac = Fraction(numerator, denominator)
