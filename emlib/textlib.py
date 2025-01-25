@@ -23,12 +23,20 @@ def stripLines(text: str) -> str:
 
 
 def stripLinesTopAndBottom(lines: list[str]) -> list[str]:
+    """
+    Remove empty lines from the top and bottom
+
+    Args:
+        lines: lines already split
+
+    Returns:
+        a list of lines without any empty lines at the beginning and at the end
+    """
     startidx, endidx = 0, 0
     for startidx, line in enumerate(lines):
-        if line.strip():
-            break
+        if line and not line.isspace():
     for endidx, line in enumerate(reversed(lines)):
-        if line.strip():
+        if line and not line.isspace():
             break
     return lines[startidx:len(lines)-endidx]
 
@@ -120,7 +128,7 @@ def stripLinesTop(lines: list[str]) -> list[str]:
         a list of lines without any empty lines at the beginning
     """
     for i, line in enumerate(lines):
-        if line.strip():
+        if line and not line.isspace():
             break
     else:
         return []
@@ -141,7 +149,7 @@ def stripLinesBottom(lines: list[str], maxlines: int = 0) -> list[str]:
 
     """
     for i, line in enumerate(reversed(lines)):
-        if line.strip():
+        if line and not line.isspace():
             break
     if i - maxlines > 0:
         return lines[:maxlines - i]
