@@ -35,6 +35,7 @@ def stripLinesTopAndBottom(lines: list[str]) -> list[str]:
     startidx, endidx = 0, 0
     for startidx, line in enumerate(lines):
         if line and not line.isspace():
+            break
     for endidx, line in enumerate(reversed(lines)):
         if line and not line.isspace():
             break
