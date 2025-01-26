@@ -18,9 +18,10 @@ def stripLines(text: str) -> str:
     Removes empty lines at the beginning or end of text,
     without touching lines in between.
     """
-    lines = splitAndStripLines(text)
+    lines = text.striplines()
+    lines = stripLinesTopAndBottom(lines)
     return "\n".join(lines)
-
+ 
 
 def stripLinesTopAndBottom(lines: list[str]) -> list[str]:
     """
@@ -59,7 +60,7 @@ def splitAndStripLines(text: str | list[str], regexp: str = None) -> list[str]:
         lines = text
     else:
         lines = re.split(regexp, text) if regexp else text.splitlines()
-    return linesStripLinesTopAndBottom(lines)
+    return stripLinesTopAndBottom(lines)
 
 
 def reindent(text: str, prefix="", stripEmptyLines=True) -> str:
