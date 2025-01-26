@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emlib"
-version = "1.17.1"
+version = "1.17.2"
 description = "Miscellaneous utilities (text handling, maths, iterators, etc.)"
 authors = [
     { name = "Eduardo Moguillansky", email = "eduardo.moguillansky@gmail.com" },
