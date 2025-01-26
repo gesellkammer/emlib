@@ -11,19 +11,7 @@ if TYPE_CHECKING:
     from typing import Sequence, Callable
 
 
-def stripLines(text: str) -> str:
-    """
-    Like ``str.strip`` but operates on lines as a whole.
-
-    Removes empty lines at the beginning or end of text,
-    without touching lines in between.
-    """
-    lines = text.striplines()
-    lines = stripLinesTopAndBottom(lines)
-    return "\n".join(lines)
- 
-
-def stripLinesTopAndBottom(lines: list[str]) -> list[str]:
+def linesStrip(lines: list[str]) -> list[str]:
     """
     Remove empty lines from the top and bottom
 
@@ -41,26 +29,6 @@ def stripLinesTopAndBottom(lines: list[str]) -> list[str]:
         if line and not line.isspace():
             break
     return lines[startidx:len(lines)-endidx]
-
-
-def splitAndStripLines(text: str | list[str], regexp: str = None) -> list[str]:
-    """
-    Splits `text` into lines and removes empty lines at the beginning and end
-
-    Returns the split lines in between
-
-    Args:
-        text: the text to split
-        regexp: if given, use this regexp to split the lines. Otherwise uses ``str.splitlines``
-
-    Returns:
-        the list of lines
-    """
-    if isinstance(text, list):
-        lines = text
-    else:
-        lines = re.split(regexp, text) if regexp else text.splitlines()
-    return stripLinesTopAndBottom(lines)
 
 
 def reindent(text: str, prefix="", stripEmptyLines=True) -> str:
@@ -119,7 +87,7 @@ def matchIndentation(code: str, modelcode: str) -> str:
     return textwrap.indent(code, prefix=" " * indentation)
 
 
-def stripLinesTop(lines: list[str]) -> list[str]:
+def linesStripTop(lines: list[str]) -> list[str]:
     """
     Remove empty lines from the top
 
@@ -137,7 +105,7 @@ def stripLinesTop(lines: list[str]) -> list[str]:
     return lines[i:]
 
 
-def stripLinesBottom(lines: list[str], maxlines: int = 0) -> list[str]:
+def linesStripBottom(lines: list[str], maxlines: int = 0) -> list[str]:
     """
     Strip empty lines from the end of the list
 
@@ -178,8 +146,8 @@ def joinPreservingIndentation(fragments: Sequence[str], maxEmptyLines: int = Non
             fragments = [stripLines(frag) for frag in fragments]
         else:
             splitfragments = [fragment.splitlines() for fragment in fragments]
-            splitfragments = [stripLinesTop(frag) for frag in splitfragments]
-            splitfragments = [stripLinesBottom(frag, maxlines=maxEmptyLines)
+            splitfragments = [linesStripTop(frag) for frag in splitfragments]
+            splitfragments = [linesStripBottom(frag, maxlines=maxEmptyLines)
                               for frag in splitfragments]
             fragments = ["\n".join(frag) for frag in splitfragments]
     jointtext = "\n".join(textwrap.dedent(frag) for frag in fragments if frag)
