@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "emlib"
-version = "1.17.4"
+version = "1.17.6"
 description = "Miscellaneous utilities (text handling, maths, iterators, etc.)"
 authors = [
     { name = "Eduardo Moguillansky", email = "eduardo.moguillansky@gmail.com" },

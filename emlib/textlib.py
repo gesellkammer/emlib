@@ -11,6 +11,32 @@ if TYPE_CHECKING:
     from typing import Sequence, Callable
 
 
+def stripLines(text: str, which='all', splitregex=''):
+    """
+    Strip leading and trailing empty lines
+
+    Args:
+        text: the text to work on
+        which: one of 'all', 'top', 'bottom', where all removes all
+            empty lines at the top and bottom, top removes only
+            leading empty lines and bottom removes only
+            trailing empty lines
+
+    Returns:
+        the transformed text
+    """
+    lines = text.splitlines() if not splitregex else re.split(text, splitregex)
+    if which == 'all':
+        lines = linesStrip(lines)
+    elif which == 'top':
+        lines = linesStripTop(lines)
+    elif which == 'bottom':
+        lines = linesStripBottom(lines)
+    else:
+        raise ValueError(f"Expected one of 'all', 'top', 'bottom', got '{which}'")
+    return '\n'.join(lines)
+
+
 def linesStrip(lines: list[str]) -> list[str]:
     """
     Remove empty lines from the top and bottom
@@ -31,21 +57,17 @@ def linesStrip(lines: list[str]) -> list[str]:
     return lines[startidx:len(lines)-endidx]
 
 
-def reindent(text: str, prefix="", stripEmptyLines=True) -> str:
+def reindent(text: str, prefix: str) -> str:
     """
     Reindent a given text. Replaces the indentation with a new prefix.
 
     Args:
         text: the text to reindent
         prefix: the new prefix to add to each line
-        stripEmptyLines: if True, remove any empty lines at the beginning
-            or end of ``text``
 
     Returns:
         the reindented text
     """
-    if stripEmptyLines:
-        text = stripLines(text)
     text = textwrap.dedent(text)
     if prefix:
         text = textwrap.indent(text, prefix=prefix)
@@ -126,7 +148,7 @@ def linesStripBottom(lines: list[str], maxlines: int = 0) -> list[str]:
     return lines
 
 
-def joinPreservingIndentation(fragments: Sequence[str], maxEmptyLines: int = None) -> str:
+def joinPreservingIndentation(fragments: Sequence[str]) -> str:
     """
     Like join, but preserving indentation
 
@@ -141,15 +163,6 @@ def joinPreservingIndentation(fragments: Sequence[str], maxEmptyLines: int = Non
     if any(not isinstance(fragment, str) for fragment in fragments):
         fragment = next(_ for _ in fragments if not isinstance(_, str))
         raise TypeError(f"Expected a string, got {fragment}")
-    if maxEmptyLines is not None:
-        if maxEmptyLines == 0:
-            fragments = [stripLines(frag) for frag in fragments]
-        else:
-            splitfragments = [fragment.splitlines() for fragment in fragments]
-            splitfragments = [linesStripTop(frag) for frag in splitfragments]
-            splitfragments = [linesStripBottom(frag, maxlines=maxEmptyLines)
-                              for frag in splitfragments]
-            fragments = ["\n".join(frag) for frag in splitfragments]
     jointtext = "\n".join(textwrap.dedent(frag) for frag in fragments if frag)
     numspaces = getIndentation(fragments[0])
     if numspaces:
