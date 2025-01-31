@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import sys
 from emlib.common import runonce
+from functools import cache
 import logging
 
 
@@ -54,10 +55,9 @@ def _has_tk() -> bool:
         return False
 
 
+@cache
 def _resolveBackend(backend=''):
-    if sys.platform == 'darwin':
-        backend = 'qt'
-    elif not backend:
+    if not backend:
         if _has_qt():
             backend = 'qt'
         elif _has_tk():
@@ -165,17 +165,6 @@ def _tkParseFilter(filter: str) -> list[Tuple[str, str]]:
             # <wildcard>
             out.append(('', part))
     return out
-
-
-@runonce
-def _tkOk() -> bool:
-    try:
-        from ttkthemes import ThemedTk
-        from tkinter import filedialog
-        root = ThemedTk(theme='breeze')
-        return True
-    except:
-        return False
 
 
 def _saveDialogTk(filter="All (*.*)", title="Save file", directory: str = "~") -> str:

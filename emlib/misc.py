@@ -1555,7 +1555,7 @@ def open_with_app(path: str,
             dialogs.showInfo("Close this dialog when finished")
 
 
-def wait_for_file_modified(path:str, timeout:float=None) -> bool:
+def wait_for_file_modified(path: str, timeout: int | float = 0) -> bool:
     """
     Wait until file is modified.
 
@@ -1565,7 +1565,7 @@ def wait_for_file_modified(path:str, timeout:float=None) -> bool:
 
     Args:
         path: the path of the file to monitor
-        timeout: how long should we wait for
+        timeout: how long should we wait for, in seconds
 
     Returns:
         True if the file was modified, False if it wasn't or if the operation
@@ -1576,8 +1576,7 @@ def wait_for_file_modified(path:str, timeout:float=None) -> bool:
     directory, base = _os.path.split(path)
     if not directory:
         directory = "."
-    handler = PatternMatchingEventHandler([base], ignore_patterns="",
-                                          ignore_directories=True, case_sensitive=True)
+    handler = PatternMatchingEventHandler(patterns=[base], ignore_directories=True, case_sensitive=True)
     observer = Observer()
     modified = False
 

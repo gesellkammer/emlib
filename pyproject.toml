@@ -25,10 +25,10 @@ dependencies = [
     "appdirs",
     "tabulate",
     "watchdog",
-    "send2trash",
     "matplotlib",
     "pillow",
     "decorator",
+    "ttkthemes",
 ]
 
 [tool.setuptools]

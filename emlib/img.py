@@ -99,14 +99,12 @@ def pngRemoveTransparency(pngfile: str, outfile='', background=(255, 255, 255)
     if outfile:
         img.save(outfile)
     else:
-        # instead of overwriting, we send the old file to trash
-        import send2trash
-        send2trash.send2trash(pngfile)
+        os.remove(pngfile)
         img.save(pngfile)
 
 
-def readImageAsBase64(imgpath: str, 
-                      outformat='', 
+def readImageAsBase64(imgpath: str,
+                      outformat='',
                       removeAlpha=False
                       ) -> tuple[bytes, int, int]:
     """
@@ -171,18 +169,18 @@ def cropToBoundingBox(inputpath: str, outpath: str = '', margin: Union[int, tupl
 
 
 def htmlImgBase64(imgpath: str,
-                  width: Union[int, str] = None, 
+                  width: Union[int, str] = None,
                   maxwidth: Union[int,str] = None,
-                  margintop='14px', 
+                  margintop='14px',
                   padding='10px',
-                  removeAlpha=False, 
+                  removeAlpha=False,
                   scale=1.
                   ) -> str:
     """
     Read an image and return the data as base64 within an img html tag
-    
+
     Args:
-        imgpath: the path to the image 
+        imgpath: the path to the image
         width: the width of the displayed image. Either a width
             in pixels or a str as passed to css ('800px', '100%').
         maxwidth: similar to width
