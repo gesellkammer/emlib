@@ -121,8 +121,11 @@ def readImageAsBase64(imgpath: str,
     """
     import base64
     if not outformat:
-        outformat = os.path.splitext(imgpath)[1][1:].lower()
-    assert outformat in {'jpeg', 'png'}
+        ext = os.path.splitext(imgpath)[1][1:].lower()
+        outformat = {'png': 'png', 'jpg': 'jpeg', 'jpeg': 'jpeg'}.get(ext)
+        if outformat is None:
+            raise ValueError(f"Format unknown for file {imgpath}")
+    assert outformat in {'jpeg', 'png'}, f"Unsupported format: {outformat}. Formats supported: png, jpeg"
     buffer = BytesIO()
     im = Image.open(imgpath)
     if removeAlpha:
