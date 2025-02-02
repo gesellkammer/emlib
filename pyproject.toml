@@ -26,7 +26,7 @@ dependencies = [
     "tabulate",
     "watchdog",
     "matplotlib",
-    "pillow",
+    "pillow<11",
     "decorator",
     "ttkthemes",
 ]
