@@ -7,8 +7,9 @@ _T = TypeVar('_T')
 
 __all__ = ('Result',)
 
+
 class Result(Generic[_T]):
-    """
+    r"""
     A class to encapsulate the result of an operation
 
     This is useful for operations which can either return a value
@@ -24,8 +25,6 @@ class Result(Generic[_T]):
 
     .. code::
 
-        from emlib.result import Result
-        import re
         from fractions import Fraction
 
         def parsefraction(txt: str) -> Result[Fraction]:
@@ -50,8 +49,15 @@ class Result(Generic[_T]):
 
     def __init__(self, ok: bool, value: _T | None = None, info: str = ''):
         self.ok: bool = ok
-        self.value: _T | None = value
+        self._value: _T | None = value
         self.info: str = info
+
+    @property
+    def value(self) -> _T:
+        if not self.ok:
+            raise ValueError("Cannot access the value of a failed result")
+        assert self._value is not None
+        return self._value
 
     def __bool__(self) -> bool:
         return self.ok
@@ -63,18 +69,29 @@ class Result(Generic[_T]):
 
     def __repr__(self):
         if self.ok:
-            return f"Result(ok, value={self.value})"
+            return f"Ok(value={self._value})"
         else:
-            return f'Result(failed, info="{self.info}")'
+            if self.info:
+                return f'Fail(info="{self.info}")'
+            return 'Fail()'
 
     @classmethod
-    def Fail(cls, info: str, value=None) -> Result:
+    def Fail(cls, info='') -> Result[_T]:
         """Create a Result object for a failed operation."""
         if not isinstance(info, str):
             raise TypeError(f"The info parameter should be a str, got {info}")
-        return cls(False, value=value, info=info)
+        return cls(False, value=None, info=info)
 
     @classmethod
-    def Ok(cls, value: _T | None = None) -> Result:
+    def Ok(cls, value: _T | None = None) -> Result[_T]:
         """Create a Result object for a successful operation."""
         return cls(True, value=value)
+
+
+def _test():
+    r = Result.Ok(42)
+    assert r.value == 42
+    assert not r.failed
+    assert r.ok
+
+    r = Result.Fail()

@@ -9,15 +9,16 @@ Miscellaneous math utilities
 
 """
 from __future__ import annotations
+
 import operator as _operator
 import random as _random
-from functools import reduce
-from math import gcd, sqrt, cos, sin, radians, ceil, hypot, pi, asin, floor, factorial, e
 import sys as _sys
-import numpy as np
-from numbers import Rational, Number
-from typing import TYPE_CHECKING, TypeVar, Sequence, Callable
+from functools import reduce
+from math import asin, ceil, cos, e, factorial, floor, gcd, hypot, pi, radians, sin, sqrt
+from numbers import Rational
+from typing import TYPE_CHECKING, Callable, Sequence, TypeVar
 
+import numpy as np
 
 try:
     from quicktions import Fraction
@@ -25,7 +26,7 @@ except ImportError:
     from fractions import Fraction
 
 if TYPE_CHECKING:
-    from typing import Union, Iterator
+    from typing import Iterator, Union
     number_t = Union[Rational, float]
     T = TypeVar("T", bound=number_t)
     T2 = TypeVar("T2", bound=number_t)
@@ -169,14 +170,14 @@ def linspace(start: float, stop: float, numitems: int) -> list[float]:
     return [start + dx*i for i in range(numitems)]
 
 
-def linlin(x: T, x0:T, x1:T, y0:T, y1:T) -> T:
+def linlin(x: T, x0: T, x1: T, y0: T, y1: T) -> T:
     """
     Convert x from range x0-x1 to range y0-y1
     """
     return (x - x0) * (y1 - y0) / (x1-x0) + y0
 
 
-def clip(x:T, minvalue:T, maxvalue:T) -> T:
+def clip(x: T, minvalue: T, maxvalue: T) -> T:
     """
     clip the value of x between minvalue and maxvalue
     """
@@ -591,7 +592,7 @@ def periodic_float_to_fraction(s: str) -> Fraction:
     Convert a float with a periodic part to its fraction
 
     Args:
-        s: the numer as string. Notate the periodic part 
+        s: the numer as string. Notate the periodic part
            (for example 1/3=0.333...)
            as 0.(3, without repetitions. For example, 2.83333... as 2.8(3
 
@@ -833,3 +834,47 @@ def nextpowerof2(x) -> int:
     return 1 if x == 0 else 2 ** (x - 1).bit_length()
 
 
+
+def gini(xs: Sequence[T], eps=1e-12, normalize=True) -> float:
+    """
+    Calculate the Gini coefficient for a given sequence of values.
+
+    The Gini coefficient is a measure of statistical dispersion intended to represent
+    income or wealth distribution within a nation or a social group.
+
+    Args:
+        xs (Sequence[T]): A sequence of values for which the Gini coefficient is to be calculated.
+
+    Returns:
+        The Gini coefficient value. A value of 1 indicates perfect inequality, while a value of 0
+        indicates perfect equality.
+    """
+    # based on bottom eq:
+    # http://www.statsdirect.com/help/generatedimages/equations/equation154.svg
+    # from:
+    # http://www.statsdirect.com/help/default.htm#nonparametric_methods/gini.htm
+    # All values are treated equally, arrays must be 1d:
+    array = np.asarray(xs)
+    array = array.flatten()
+    if np.amin(array) < 0:
+        # Values cannot be negative:
+        array -= np.amin(array)
+    # Values cannot be 0:
+    array = array + eps
+    # Values must be sorted:
+    array = np.sort(array)
+    # Index per array element:
+    index = np.arange(1, array.shape[0]+1)
+    # Number of array elements:
+    n = array.shape[0]
+    # Gini coefficient:
+    index2 = 2 * index - (n + 1)
+    coeff = float((np.sum(index2 * array)) / (n * np.sum(array)))
+    if normalize:
+        maxcoeff = (array.shape[0] * 2 - (n+1)) / n
+        coeff /= maxcoeff
+        if coeff > 1:
+            coeff = 1
+    if coeff < eps:
+        coeff = 0
+    return coeff
