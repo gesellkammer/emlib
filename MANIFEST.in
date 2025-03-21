@@ -2,5 +2,5 @@ exclude MANIFEST.in
 exclude .gitignore
 exclude readthedocs.yml
 exclude pyrightconfig.json
-recursive-include emlib
+recursive-include emlib *.py *.typed
 prune docs

@@ -11,7 +11,7 @@ description = "Miscellaneous utilities (text handling, maths, iterators, etc.)"
 authors = [
     { name = "Eduardo Moguillansky", email = "eduardo.moguillansky@gmail.com" },
 ]
-license = { file = "LICENSE.md" }
+license-files = ["LICENSE.md"]
 readme = "README.rst"
 classifiers = [
     "Programming Language :: Python :: 3",
