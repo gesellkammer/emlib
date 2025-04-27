@@ -3,9 +3,7 @@ Diverse containers (IntPool, RecordList, ClassDict)
 """
 from __future__ import annotations
 from collections import namedtuple as _namedtuple
-import dataclasses
 from keyword import iskeyword as _iskeyword
-from collections import OrderedDict as _OrderedDict
 import itertools
 from typing import Sequence
 

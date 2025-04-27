@@ -16,7 +16,6 @@ import sys as _sys
 from functools import reduce
 from math import asin, ceil, cos, e, factorial, floor, gcd, hypot, pi, radians, sin, sqrt
 from numbers import Rational
-from typing import TYPE_CHECKING, Callable, Sequence, TypeVar
 
 import numpy as np
 
@@ -25,9 +24,12 @@ try:
 except ImportError:
     from fractions import Fraction
 
+from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
-    from typing import Iterator, Union
-    number_t = Union[Rational, float]
+    from typing import Iterator, Callable, Sequence, TypeVar, TypeAlias, Union
+
+    number_t: TypeAlias = Union[Rational, float]
     T = TypeVar("T", bound=number_t)
     T2 = TypeVar("T2", bound=number_t)
 
@@ -64,7 +66,8 @@ __all__ = ("PHI",
            )
 
 
-class NotFoundError(ValueError): pass
+class NotFoundError(ValueError):
+    pass
 
 
 # phi, in float (double) form and as Rational number with a precission of 2000
@@ -781,11 +784,11 @@ def roman(n: int) -> str:
     while n >= div:
         div *= 10
 
-    div /= 10
+    div //= 10
     res = ""
     while n:
         # main significant digit extracted into lastNum
-        lastNum = int(n / div)
+        lastNum = n // div
         if lastNum <= 3:
             res += (romans[div] * lastNum)
         elif lastNum == 4:
@@ -795,7 +798,7 @@ def roman(n: int) -> str:
         elif lastNum == 9:
             res += (romans[div] + romans[div * 10])
         n = floor(n % div)
-        div /= 10
+        div //= 10
     return res
 
 
@@ -878,3 +881,25 @@ def gini(xs: Sequence[T], eps=1e-12, normalize=True) -> float:
     if coeff < eps:
         coeff = 0
     return coeff
+
+
+def exponcurve(num: int, exp: float, x0: float, y0: float, x1: float, y1: float) -> np.ndarray:
+    """
+    Generate an exponential curve between two points
+
+    Args:
+        num: number of points to generate
+        exp: exponent of the curve
+        x0: start x-coordinate
+        y0: start y-coordinate
+        x1: end x-coordinate
+        y1: end y-coordinate
+
+    Returns:
+        a numpy array of shape (num,) containing the y-coordinates of the curve.
+
+    """
+    xs = np.linspace(x0, x1, num)
+    dxs = (xs - x0) / (x1 - x0)
+    ys = (dxs ** exp) * (y1 - y0) + y0
+    return ys

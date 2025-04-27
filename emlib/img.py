@@ -136,7 +136,7 @@ def readImageAsBase64(imgpath: str,
     return imgbytes, width, height
 
 
-def cropToBoundingBox(inputpath: str, outpath: str = '', margin: Union[int, tuple[int, int, int, int]] = 0) -> str | None:
+def cropToBoundingBox(inputpath: str, outpath: str = '', margin: int | tuple[int, int, int, int] = 0) -> None:
     """
     Crop an image to its content, trimming any empty space
 
@@ -154,7 +154,7 @@ def cropToBoundingBox(inputpath: str, outpath: str = '', margin: Union[int, tupl
     box = diff.getbbox()
 
     if not box:
-        return 'Could not find bounding box'
+        raise RuntimeError('Could not find bounding box')
 
     if margin:
         if isinstance(margin, int):
@@ -172,8 +172,8 @@ def cropToBoundingBox(inputpath: str, outpath: str = '', margin: Union[int, tupl
 
 
 def htmlImgBase64(imgpath: str,
-                  width: Union[int, str] = None,
-                  maxwidth: Union[int,str] = None,
+                  width: int | str = None,
+                  maxwidth: int | str = None,
                   margintop='14px',
                   padding='10px',
                   removeAlpha=False,
@@ -197,7 +197,7 @@ def htmlImgBase64(imgpath: str,
                                                   removeAlpha=removeAlpha)
     imgstr = imgstr.decode('utf-8')
     if scale and not width:
-        width = imwidth * scale
+        width = int(imwidth * scale)
     attrs = [f'padding:{padding}',
              f'margin-top:{margintop}']
     if maxwidth:

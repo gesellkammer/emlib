@@ -2,12 +2,12 @@
 Generate diverse number series (fibonacci, lucas, tribonacci, ...)
 """
 from __future__ import annotations
-from typing import List, Generator
+from typing import Generator
 
 PHI = 1.618033988749894848204586834
 
 
-def fibonacci(n:int, a=1, b=1) -> List[int]:
+def fibonacci(n: int, a=1, b=1) -> list[int]:
     """
     Calculate the first *n* numbers of the the fibonacci series
     """
@@ -31,14 +31,14 @@ def ifibonacci(a=1, b=1) -> Generator[int, None, None]:
         a, b = b, c
 
 
-def lucas(n: int, a=2, b=1) -> List[int]:
+def lucas(n: int, a=2, b=1) -> list[int]:
     """
     Calculate the first *n* numbers of the luca series
     """
     return fibonacci(n, a, b)
 
 
-def tribonacci(n:int, a=0, b=0, c=1) -> List[int]:
+def tribonacci(n: int, a=0, b=0, c=1) -> list[int]:
     """
     Calculate the first *n* numbers of the tribonacci series
     """
@@ -50,7 +50,7 @@ def tribonacci(n:int, a=0, b=0, c=1) -> List[int]:
     return out
 
 
-def padovan(n:int, a=1, b=1, c=1) -> List[int]:
+def padovan(n: int, a=1, b=1, c=1) -> list[int]:
     """
     Generate *n* elements of the padovan sequence
 
@@ -64,7 +64,7 @@ def padovan(n:int, a=1, b=1, c=1) -> List[int]:
     return out
 
 
-def geometric(n:int, start=1, expon=PHI) -> List[int]:
+def geometric(n: int, start=1, expon=PHI) -> list[int]:
     """
     Generates a geometric series. With expon==PHI, results in a fibonacci series
 

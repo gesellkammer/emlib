@@ -14,17 +14,12 @@ Miscellaneous functionality
 from __future__ import annotations
 import os as _os
 import sys as _sys
-import math
 from bisect import bisect as _bisect
 from collections import namedtuple as _namedtuple
 import re as _re
 import dataclasses
 
 import numpy as np
-from fractions import Fraction
-import numbers
-from .envir import inside_jupyter
-from .common import runonce
 from . import iterlib
 
 
@@ -33,6 +28,8 @@ if TYPE_CHECKING or 'sphinx' in _sys.modules:
     from typing import TypeVar, Sequence, Union, Optional, Callable, Any, Iterable
     T = TypeVar("T")
     T2 = TypeVar("T2")
+    from fractions import Fraction
+    import numbers
     number_t = Union[float, numbers.Rational]
 
 
@@ -359,7 +356,7 @@ def firstval(*values, sentinel=None):
     raise ValueError(f"All values are {sentinel}")
 
 
-def zipsort(a: Sequence[T], b: Sequence[T2], key: Callable = None, reverse=False
+def zipsort(a: Sequence[T], b: Sequence[T2], key: Callable | None = None, reverse=False
             ) -> tuple[list[T], list[T2]]:
     """
     Sort a and keep b in sync
@@ -560,8 +557,8 @@ def namedtuple_addcolumn(namedtuples, seq, column_name: str, classname=""):  # t
     t0 = namedtuples[0]
     assert isinstance(t0, tuple) and hasattr(t0, "_fields"), "namedtuples should be a seq. of namedtuples"
     name = classname or namedtuples[0].__class__.__name__ + '_' + column_name  # type: str
-    New_Tup = _namedtuple(name, t0._fields + (column_name,))  # type: ignore
-    newtuples = [New_Tup(*(t + (value,)))
+    NewTup = _namedtuple(name, t0._fields + (column_name,))  # type: ignore
+    newtuples = [NewTup(*(t + (value,)))
                  for t, value in zip(namedtuples, seq)]
     return newtuples
 
@@ -591,8 +588,8 @@ def namedtuples_renamecolumn(namedtuples: list, oldname: str, newname: str, clas
         classname = "%s_R" % namedtuples[0].__class__.__name__
     newfields = [field if field != oldname else newname
                  for field in namedtuples[0]._fields]
-    New_Tup = _namedtuple(classname, newfields)
-    newtuples = [New_Tup(*t) for t in namedtuples]
+    NewTup = _namedtuple(classname, newfields)
+    newtuples = [NewTup(*t) for t in namedtuples]
     return newtuples
 
 
@@ -688,6 +685,7 @@ def asnumber(obj, accept_fractions=True, accept_expon=False
         return obj
     elif isinstance(obj, str):
         if accept_fractions and "/" in obj:
+            from fractions import Fraction
             return Fraction(obj)
         try:
             asint = int(obj)
@@ -955,69 +953,6 @@ def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out: np.ndarray=None
         arr = np.floor(arr, out=arr)
         arr *= tick
     return arr
-
-
-def snap_to_grids(x: number_t, ticks: Sequence[number_t],
-                  offsets: Sequence[number_t] = None, mode='nearest'
-                  ) -> number_t:
-    """
-    Snap x to the nearest slot within multiple overlapping grids
-
-    A regular grid is defined as ``x = offset + tick*n``, where ``n`` is an integer
-    from -inf to inf.
-
-    Args:
-        x: a number or a seq. of numbers
-        ticks: a seq. of ticks, each tick defines a grid
-        offsets: a seq. of offsets, or None to set offset to 0 for each grid
-        mode: one of 'floor', 'ceil', 'nearest'
-
-    Returns:
-        the snapped value
-
-    Given a list of regular grids, snap the value of x to this grid
-
-    Example
-    ~~~~~~~
-
-    snap a time to a grid of 16th notes
-    >>> snap_to_grids(0.3, [1/4])
-    0.25
-
-    snap a time to a multiple grid of 16ths, 8th note triplets, etc.
-    >>> snap_to_grids(0.3, [1/8, 1/6, 1/5])
-    0.3333333333333333
-
-    """
-    assert isinstance(ticks, (list, tuple))
-    assert offsets is None or isinstance(offsets, (list, tuple))
-
-    if offsets is None:
-        offsets = [Fraction(0)] * len(ticks)
-
-    if any(tick <= 0 for tick in ticks):
-        raise ValueError(f"all ticks must be > 0, got {ticks}")
-
-    def snap_round(x, tick, offset):
-        return round((x - offset) * (1 / tick)) * tick + offset
-
-    def snap_floor(x, tick, offset):
-        return math.floor((x - offset) * (1 / tick)) * tick + offset
-
-    def snap_ceil(x, tick, offset):
-        return math.ceil((x - offset) * (1 / tick)) * tick + offset
-
-    func = {
-        'floor': snap_floor,
-        'ceil': snap_ceil,
-        'nearest': snap_round,
-        'round': snap_round
-    }.get(mode)
-    if func is None:
-        raise ValueError(f"mode should be one of 'floor', 'ceil', 'round', but got {mode}")
-    quants = [func(x, t, o) for t, o in zip(ticks, offsets)]
-    quants.sort(key=lambda quant: abs(quant - x))
-    return quants[0]
 
 
 def distribute_in_zones(x: number_t, split_points: Sequence[number_t], side="left") -> int:
@@ -1699,6 +1634,7 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True, floatfmt
                         f", got {type(row0)}")
 
     import tabulate
+    from .envir import inside_jupyter
     if inside_jupyter():
         from IPython.display import HTML, display
         if not tablefmt:

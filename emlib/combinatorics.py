@@ -7,36 +7,35 @@ import random
 from . import iterlib as _iterlib
 import numpy as _np
 from . import misc
-import warnings as _warnings
 import itertools
-from itertools import combinations, permutations
 from functools import reduce
 import time as _time
 from collections.abc import Iterator
-from typing import Union as U, Generator, Sequence as Seq, TypeVar, Tuple, List
+from typing import TYPE_CHECKING
 
-seq_t = U[list, tuple, _np.ndarray]
-
-T = TypeVar("T")
-
-def all_combinations(seq: seq_t, size=2):
-    _warnings.warn("Use combinations")
-    return combinations(seq, size)
+if TYPE_CHECKING:
+    from typing import TypeVar, TypeAlias, Union, Iterator, Sequence
+    seq_t: TypeAlias = Union[list, tuple, _np.ndarray]
+    T = TypeVar("T")
 
 
-def combinations_with_repetition(seq: Iterator[T], size: int) -> Generator[Tuple[T, ...], None, None]:
+def combinations_with_repetition(seq: Iterator[T], size: int) -> Iterator[tuple[T, ...]]:
     """
     Yield all combinations of the elements of seq
 
     * items can be repeated: (0, 1, 1) is a valid answer
     * position is relevant: (0, 1, 2) is not the same as (2, 1, 0)
+
+    .. note:: this is in fact a product of the sequence with itself (see ``itertools.product``)
+
+    If position is not relevant, use ``itertools.combinations_with_replacement``
     """
     for group in itertools.product(seq, repeat=size):
         yield group
 
 
-def derangements(seq: Seq[T]) -> Generator[List[T], None, None]:
-    """compute permutations of seq where each element is not in its original position"""
+def derangements(seq: Sequence[T]) -> Iterator[list[T]]:
+    """Permutations of seq where each element is not in its original position"""
     queue = [-1]
     lenlst = len(seq)
     while queue:
@@ -52,7 +51,7 @@ def derangements(seq: Seq[T]) -> Generator[List[T], None, None]:
             queue[-1] = i
 
 
-def _distance_from_original(seqa: Seq[T], seqb: Seq[T]) -> float:
+def _distance_from_original(seqa: Sequence[T], seqb: Sequence[T]) -> float:
     distance = 0
     for ia, a in enumerate(seqa):
         ib = seqb.index(a)
@@ -60,13 +59,13 @@ def _distance_from_original(seqa: Seq[T], seqb: Seq[T]) -> float:
     return distance / len(seqa)
 
 
-def _max_distance(xs: Seq) -> float:
+def _max_distance(xs: Sequence) -> float:
     return _distance_from_original(xs, list(reversed(xs)))
 
 
 def random_range(length: int) -> _np.ndarray:
     """
-    Return an array of of ints from 0 to length-1, in random order
+    Return an array of ints from 0 to length-1, in random order
 
     Args:
         length: the length of the generated sequence
@@ -110,6 +109,7 @@ _cached_random_distances = [0,   0,  1,  2,  4,  8, 11, 15, 21, 26,
 def random_distance(length: int, numseqs=1000) -> float:
     """
     Calculate the distance between a sorted seq. and a random seq. for the given length.
+
     This is used to measure entropy in a seq.
     """
     if length < len(_cached_random_distances):
@@ -195,7 +195,7 @@ def _unsortx(seq, entropy, margin=0, debug=False, calculate_rating=False):
     return out, rating
 
 
-def unsort(seq: Seq, entropy:float, margin=0, tolerance=0.05, numiter=100, timeout:float=None
+def unsort(seq: list, entropy: float, margin=0, tolerance=0.05, numiter=100
            ) -> _np.ndarray:
     """
     Generate a permutation of xs unsorted according to the given entropy.
@@ -205,7 +205,6 @@ def unsort(seq: Seq, entropy:float, margin=0, tolerance=0.05, numiter=100, timeo
         entropy: 0=the original sequence is returned; 1=random sequence is returned
         margin: a number or tuple (left, right). These elements are left untouched
         numiter: the number of times the algorithm is run. The best result will be returned
-        timeout: alternatively, you can specify a timeout (numiter will be disregarded)
 
     Returns:
         un unsorted version of *seq*, as numpy array, or None if
@@ -230,18 +229,10 @@ def unsort(seq: Seq, entropy:float, margin=0, tolerance=0.05, numiter=100, timeo
     minentropy = entropy - tolerance*0.5
     maxentropy = entropy + tolerance*0.5
     results = []
-    t0 = _time.time()
-    if timeout is not None:
-        numiter = 9999999999999
-        checkint = 100 if len(seq) < 50 else 1
     for i in range(numiter):
         result, rating = _unsortx(seq, entropy, margin)
         if minentropy <= unsortedness(result) <= maxentropy:
             return result
-        if timeout is not None and i % checkint == 0:
-            t1 = _time.time()
-            if t1 - t0 > timeout:
-                break
         results.append((result, rating))
     if not results:
         raise ValueError("Could not unsort")
@@ -266,7 +257,7 @@ def unsort2(xs, entropy=1, margin=0, error=0.01, numiter=100):
     return bestsol
 
 
-def _unsort(xs, entropy=1, margin=0):
+def _unsort(xs: Sequence, entropy=1, margin: int | tuple[int, int] = 0):
     """
     generate a permutation of xs unsorted according to the given
     entropy.
@@ -289,9 +280,10 @@ def _unsort(xs, entropy=1, margin=0):
     """
 
     if margin != 0:
-        if not misc.isiterable(margin):
-            margin = (margin, margin)
-        margin0, margin1 = margin
+        if isinstance(margin, int):
+            margin0, margin1 = margin, margin
+        else:
+            margin0, margin1 = margin
         margin1 = len(xs) - margin1
         unsorted = unsort(xs[margin0:margin1], entropy, 0)
         out = misc.copyseq(xs)
@@ -352,7 +344,7 @@ def _unsort(xs, entropy=1, margin=0):
     return xs[indices]
 
 
-def permutation_further_than(xs: Seq[T], min_distance: float, rand=True) -> list[T]:
+def permutation_further_than(xs: Sequence[T], min_distance: float, rand=True) -> list[T]:
     """
     Return a permutation of xs with a min. distance to it
 
@@ -375,7 +367,7 @@ def permutation_further_than(xs: Seq[T], min_distance: float, rand=True) -> list
     scaled_distance = min_distance * _max_distance(xs)
     best_distance = _max_distance(xs)
     #best_result = range(len(xs))[::-1]
-    all_perm = permutations(len(xs))
+    all_perm = itertools.permutations(len(xs))
     if rand:
         num_perm = reduce(mul, range(1, len(xs) * 1), 1)
         i = random.randint(0, int(num_perm / 5 + 1))

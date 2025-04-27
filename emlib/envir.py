@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from .common import runonce
 import sys as _sys
 
 
-@runonce
+_cache = {}
+
+
 def session_type() -> str:
     """
     Returns the kind of python session
@@ -18,20 +19,25 @@ def session_type() -> str:
         "python" if running normal python.
 
     """
+    if session := _cache.get('session_type'):
+        return session
     try:
         # get_ipython should be available within an ipython/jupyter session
         shell = get_ipython().__class__.__name__   # type: ignore
         if shell == 'ZMQInteractiveShell':
+            _cache['session_type'] = "jupyter"
             return "jupyter"
         elif shell == 'TerminalInteractiveShell':
+            _cache['session_type'] = "ipython-terminal"
             return "ipython-terminal"
         else:
+            _cache['session_type'] = "ipython"
             return "ipython"
     except NameError:
+        _cache['session_type'] = "python"
         return "python"
-    
-    
-@runonce
+
+
 def inside_jupyter() -> bool:
     """
     Are we running inside a jupyter notebook?
@@ -39,7 +45,6 @@ def inside_jupyter() -> bool:
     return session_type() == 'jupyter'
 
 
-@runonce
 def inside_ipython() -> bool:
     """
     Are we running inside ipython?
@@ -49,13 +54,11 @@ def inside_ipython() -> bool:
     return session_type() in ('jupyter', 'ipython', 'ipython-terminal')
 
 
-@runonce
 def is_interactive_session() -> bool:
     """ Are we running inside an interactive session? """
     return _sys.flags.interactive == 1
 
 
-@runonce
 def running_inside_terminal() -> bool:
     """
     Are we running inside a terminal and not in the background?
@@ -70,12 +73,13 @@ def ipython_qt_eventloop_started() -> bool:
     ( %gui qt )
     """
     session = session_type()
-    if session == 'ipython-terminal' or session == 'jupyter':
-        # we are inside ipython so we can just call 'get_ipython'
-        ip = get_ipython()   # type: ignore
-        return ip.active_eventloop == "qt"
-    else:
+    if session != 'ipython-terminal' and session != 'jupyter':
         return False
+    from IPython.core.getipython import get_ipython
+    ip = get_ipython()   # type: ignore
+    if ip is None:
+        raise RuntimeError("IPython is not running")
+    return ip.active_eventloop == "qt"
 
 
 def get_platform() -> tuple[str, str]:

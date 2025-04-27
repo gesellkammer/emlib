@@ -4,7 +4,6 @@ Utilities to work with files and filenames
 from __future__ import annotations
 import datetime
 import os
-from typing import List, Optional as Opt
 from . import misc
 
 
@@ -14,7 +13,7 @@ def modifiedDate(filename: str) -> datetime.date:
 
     Args:
         filename: the file name for which to query the modified data
-        
+
     Returns:
         the modification date, as a datetime.date
     """
@@ -22,7 +21,7 @@ def modifiedDate(filename: str) -> datetime.date:
     return datetime.date.fromtimestamp(t)
 
 
-def filesBetween(files: List[str], start, end) -> List[str]:
+def filesBetween(files: list[str], start, end) -> list[str]:
     """
     Returns files between the given times
 
@@ -57,7 +56,7 @@ def fixLineEndings(filename:str) -> None:
         f.close()
 
 
-def findFile(path: str, file: str) -> Opt[str]:
+def findFile(path: str, file: str) -> str | None:
     """
     Look for file recursively starting at path.
 
@@ -91,7 +90,7 @@ def addSuffix(filename: str, suffix: str) -> str:
 
     Returns:
         the modified filename
-        
+
     Example
     -------
 
@@ -109,8 +108,7 @@ def addSuffix(filename: str, suffix: str) -> str:
 
 def withExtension(filename: str, extension: str) -> str:
     """
-    Return a new filename where the original extension has
-    been replaced with `extension`
+    Return a filename with its extension replaced
 
     Args:
         filename: the filename to modify
@@ -118,7 +116,7 @@ def withExtension(filename: str, extension: str) -> str:
 
     Returns:
         a filename with the given extension in place of the old extension
-    
+
 
     ============  ==========   =============
     filename      extension     output
@@ -127,7 +125,7 @@ def withExtension(filename: str, extension: str) -> str:
     foo.txt       md            foo.md
     foo.bar.baz   zip           foo.bar.zip
     ============  ==========   =============
-    
+
     """
     if not extension.startswith("."):
         extension = "." + extension
@@ -137,7 +135,7 @@ def withExtension(filename: str, extension: str) -> str:
 
 def increaseSuffix(filename: str) -> str:
     """
-    Given a filename, return a new filename with an increased suffix if 
+    Given a filename, return a new filename with an increased suffix if
     the filename already has a suffix, or a suffix if it hasn't
 
     =============  ===========
@@ -147,7 +145,7 @@ def increaseSuffix(filename: str) -> str:
     foo-01.txt     foo-02.txt
     foo-2.txt      foo-03.txt
     =============  ===========
-    
+
     """
     name, ext = os.path.splitext(filename)
     tokens = name.split("-")
@@ -169,9 +167,10 @@ def increaseSuffix(filename: str) -> str:
     return new_name + ext
 
 
-def normalizePath(path:str) -> str:
+def normalizePath(path: str) -> str:
     """
     Convert `path` to an absolute path with user expanded
+
     (something that can be safely passed to a subprocess)
     """
     return os.path.abspath(os.path.expandvars(os.path.expanduser(path)))

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     T2 = TypeVar("T2")
 
 # ----------------------------------------------------------------------------
-# 
+#
 #    protocol: seq, other parameters
 #
 #    Exception: functions that match the map protocol: func(predicate, seq)
@@ -35,7 +35,7 @@ def last(seq: Iterable[T]) -> T | None:
 
     if *seq* is an iterator, it will consume it
     """
-    if isinstance(seq, _collections.Sequence):
+    if hasattr(seq, '__getitem__'):
         try:
             return seq[-1]
         except IndexError:
@@ -66,7 +66,7 @@ def consume(iterator, n: int) -> None:
         # advance to the empty slice starting at position n
         next(islice(iterator, n, n), None)
 
-        
+
 def drop(seq: Iterable[T], n: int) -> Iterable[T]:
     """
     return an iterator over seq with n elements consumed
@@ -90,7 +90,7 @@ def pad(seq: Iterable[T], element:T2=None) -> Iterator[T | T2]:
     Returns the elements in *seq* and then return *element* indefinitely.
 
     Useful for emulating the behavior of the built-in map() function.
-    
+
     >>> take(pad(range(10), "X"), 15)
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 'X', 'X', 'X', 'X', 'X']
     """
@@ -154,13 +154,13 @@ def repeatfunc(func, times=None, *args):
 def pairwise(iterable: Iterable[T]) -> zip[tuple[T, T]]:
     """
     Similar to window(seq, size=2, step=1)
-    
+
     Example
     ~~~~~~~
 
         >>> list(pairwise(range(4)))
         [(0, 1), (1, 2), (2, 3)]
-    """    
+    """
     a, b = tee(iterable)
     try:
         next(b)
@@ -183,7 +183,7 @@ def window(iterable: Iterable[T], size=3, step=1) -> Iterator[tuple[T, ...]]:
 
     Example
     ~~~~~~~
-    
+
     >>> seq = range(6)
     >>> list(window(seq, 3, 1))
     [(0, 1, 2), (1, 2, 3), (2, 3, 4), (3, 4, 5)]
@@ -310,7 +310,7 @@ def isiterable(obj, exclude=(str,)) -> bool:
     if exclude:
         return hasattr(obj, '__iter__') and (not isinstance(obj, exclude))
     return hasattr(obj, '__iter__')
-    
+
 
 def random_combination(iterable: Iterable, r):
     """Random selection from itertools.combinations(iterable, r)"""
@@ -359,7 +359,7 @@ def partialmul(seq: Iterable[T], start=1) -> Iterable[T]:
         accum *= i
         yield accum
 
-        
+
 def partialavg(seq: Iterable[T]) -> T:
     """
     Return the partial average in seq
@@ -401,7 +401,7 @@ def avg(seq: Iterable[T], empty=0) -> T:
         i += 1
     return accum / i if i else empty
 
-        
+
 def flatten(s: Iterable[T | Iterable[T]], exclude=(str,), levels=inf) -> Iterator[T]:
     """
     Return an iterator to the flattened items of sequence s
@@ -427,7 +427,7 @@ def flatten(s: Iterable[T | Iterable[T]], exclude=(str,), levels=inf) -> Iterato
             yield item
         else:
             yield from flattened(item, exclude, levels-1)
-    
+
 
 def flatdict(d: dict) -> list:
     """
@@ -470,7 +470,7 @@ def flattened(s: Iterable[T | Iterable[T]], exclude=(str,), levels: int = None, 
         out = []
     _flattened2(s, out, exclude, levels=levels)
     return out
-    
+
 
 def _flattened2(s, out: list, exclude, levels: int = None) -> None:
     for item in s:
@@ -482,7 +482,7 @@ def _flattened2(s, out: list, exclude, levels: int = None) -> None:
 
 def flattenonly(l, types):
     """
-    Flatten only if subsequences are of type 'type' 
+    Flatten only if subsequences are of type 'type'
 
     Args:
         l: a seq
@@ -504,14 +504,14 @@ def flattenonly(l, types):
         else:
             yield elem
 
-            
+
 def zipflat(*seqs):
     """
     like izip but flat. It has the same effect as `flatten(zip(seqA, seqB), levels=1)`
-    
+
     Example
     -------
-    
+
     >>> list(zipflat(range(5), "ABCDE"))
     [0, 'A', 1, 'B', 2, 'C', 3, 'D', 4, 'E']
     """
@@ -519,11 +519,11 @@ def zipflat(*seqs):
         for elem in elems:
             yield elem
 
-            
+
 def butlast(seq: Iterable[T]) -> Iterator[T]:
     """
     iterate over seq[:-1]
-    
+
     >>> list(butlast(range(5)))
     [0, 1, 2, 3]
     """
@@ -533,7 +533,7 @@ def butlast(seq: Iterable[T]) -> Iterator[T]:
         yield lastitem
         lastitem = i
 
-        
+
 def butn(seq: Iterable[T], n: int) -> Iterable[T]:
     """
     iterate over seq[:-n]
@@ -545,7 +545,7 @@ def butn(seq: Iterable[T], n: int) -> Iterable[T]:
         yield d.popleft()
         d.append(x)
 
-        
+
 def intercalate(seq: Iterable[T], item:T2) -> Iterator[T|T2]:
     """
     Intercalate *item* between elements of *seq*
@@ -574,7 +574,7 @@ def partialreduce(seq: Iterable[T], func: Callable, start=0) -> Iterator[T]:
         except StopIteration:
             raise StopIteration
 
-        
+
 def mesh(xs: Iterable[T], ys: Iterable[T2]) -> Iterator[tuple[T, T2]]:
     """
     iterator over the lexicographical pairs
@@ -607,7 +607,7 @@ def mesh(xs: Iterable[T], ys: Iterable[T2]) -> Iterator[tuple[T, T2]]:
         for y in ys:
             yield (x, y)
 
-            
+
 def mesh3(A, B, C):
     """
     the same as mesh, but over 3 iterators
@@ -617,7 +617,7 @@ def mesh3(A, B, C):
             for c in C:
                 yield (a, b, c)
 
-                
+
 def unique(seq: Iterable[T]) -> Iterator[T]:
     """
     Return only unique elements of a sequence (keeps order)
@@ -639,9 +639,9 @@ def unique(seq: Iterable[T]) -> Iterator[T]:
             seen.add(item)
             yield item
 
-            
+
 def interleave(seqs, pass_exceptions=()):
-    """ 
+    """
     Interleave a sequence of sequences
 
     >>> list(interleave([[1, 2], [3, 4]]))
@@ -664,7 +664,7 @@ def interleave(seqs, pass_exceptions=()):
             except (StopIteration,) + tuple(pass_exceptions):
                 pass
         iters = newiters
-        
+
 
 def chunked(iterable, n):
     """Break *iterable* into lists of length *n*:

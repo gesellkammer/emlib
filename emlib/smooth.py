@@ -5,9 +5,8 @@ Routines for smoothing data
 """
 from __future__ import annotations
 import numpy
-from collections import deque
-from emlib.misc import isiterable
-from emlib.iterlib import window, izip
+from emlib.iterlib import window
+from typing import Iterator
 
 
 def wavg(values, weights):
@@ -22,138 +21,107 @@ def wavg(values, weights):
     """
     ac_v = 0
     ac_w = 0
-    for v, w in izip(values, weights):
+    for v, w in zip(values, weights):
         ac_v += v * w
         ac_w += w
     return ac_v / ac_w
 
 
-def windowed_moving_average(sequence, windowSize, weights=1, complete=True):
+def movavg(values, wsize=5, start_value=None) -> Iterator[float]:
     """
-    return the weighted moving average of sequence with a
-    window size = windowSize.
-    weights can be a tuple defining the weighting in the window
-    for instance if windowSize = 5, weights could be (0.1, 0.5, 1, 0.5, 0.1)
-    if only one number is defined, a tupled is generated following a 
-    interpol.halfcos curve
-    """
-    import interpoltools
-    import numpy
+    Moving average
 
-    def parse_coefs(n, coef):
-        # Asume que coef es un numero , definiendo una curva
-        n = n - 1 + n % 2
-        if n == 3:
-            return numpy.array((1., coef, 1.), 'd')
-        middle = int(n / 2)
-        coefs = []
-        for i in range(middle):
-            coefs.append(interpoltools.interpol_halfcos(i, 0, 1, middle, coef))
-        for i in range(middle, n):
-            coefs.append(interpoltools.interpol_halfcos(i, middle, coef, n - 1, 1))
-        return numpy.array(coefs)
-    l = len(sequence)
-    if not isiterable(weights):
-        weights = parse_coefs(windowSize, weights)
-    seq = numpy.array([sequence[i:l - (windowSize - i) + 1]
-                      for i in range(windowSize)], 'd').transpose()
-    return (seq * weights).sum(1) / sum(weights)
+    Args:
+        values: iterator (does not need to be a full formed sequence)
+        wsize: window size
+        start_value: initial value, will use the first value of values if not provided
+
+    Returns:
+        iterator of moving averages
+    """
+    from collections import deque
+    start_value = start_value if start_value is not None else values.next()
+    data = deque([start_value] * wsize)
+    datasum = sum(data)
+    _append = data.append
+    _pop = data.popleft
+    yield datasum / wsize
+    for i in values:
+        _append(i)
+        datasum += i - _pop()
+        yield datasum / wsize
 
 
 class MovingAverage:
 
     """
-    efficient class for calculating a moving average
-    it can be used as a function or as a generator
-    usage:
-    smoother = MovingAverage(5)
-    smoothed_data = [smoother(i) for i in data]
+    Class for calculating a moving average efficiently
 
-    or
+    Example
+    ~~~~~~~
 
-    smoothed_data = (x for x in smoother(data))
-
-    but it cannot be mixed. Once used as one of it,
-    it specializes itself.
+        smoother = MovingAverage(5)
+        smoothdata = [smoother(i) for i in data]
 
     """
 
     def __init__(self, wsize=5, start_value=None):
         self.start_value = start_value
-        self.wsize = int(wsize - 1 + wsize % 2)  # always odd
-
-        # self.__call__ = self.__first_call__
+        self.wsize = int(wsize - 1 + wsize % 2)
+        self._firstcall = True
+        self._sum = 0
 
     def __call__(self, n):
-        try:
-            return self._as_generator(iter(n))
-        except:
-            return self.__first_call__(n)
-
-    def __first_call__(self, n):
-        start_value = self.start_value if self.start_value is not None else n
-        self.data = deque([start_value] * self.wsize)
-        self._data_append = self.data.append
-        self._data_popleft = self.data.popleft
-        self.__call__ = self.__next_calls__
-        return self(n)
-        # return sum(self.data) / self.wsize
-
-    def __next_calls__(self, n):
-        self._data_append(n)
-        self._data_popleft()
-        return sum(self.data) / self.wsize
-
-    def _as_generator(self, seq):
-        start_value = self.start_value if self.start_value is not None else seq.next()
-        wsize = self.wsize
-        data = deque([start_value] * wsize)
-        _data_append = data.append
-        _data_popleft = data.popleft
-        yield sum(data) / wsize
-        for i in seq:
-            _data_append(i)
-            _data_popleft()
-            yield sum(data) / wsize
+        if self._firstcall:
+            from collections import deque
+            start_value = self.start_value if self.start_value is not None else n
+            self.data = deque([start_value] * self.wsize)
+            self._sum = start_value * self.wsize
+            self._firstcall = False
+        self.data.append(n)
+        self._sum = sum = self._sum + n - self.data.popleft()
+        return sum / self.wsize
 
 
 def smooth(x, window_len=0.5, window='hanning', fixed=True):
-    """smooth the data using a window with requested size.
+    """
+    Smooth the data using a window with requested size.
 
     This method is based on the convolution of a scaled window with the signal.
     The signal is prepared by introducing reflected copies of the signal
     (with the window size) in both ends so that transient parts are minimized
     in the begining and end part of the output signal.
 
-    input:
+    Args:
         x: the input signal (a sequence)
         window_len: the dimension of the smoothing window
             if it is a float, it is indicates as a fraction of the length of the
             data sequence (0.5 = 0.5 * len(x)). The result must be always smaller
             than the size of the data array. 1 will be interpreted as a window size of 1!
-            (if it were 1 * len(x), then the window would not be smaller than 
+            (if it were 1 * len(x), then the window would not be smaller than
             the data array)
-        window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett', 
+        window: the type of window from 'flat', 'hanning', 'hamming', 'bartlett',
                 'blackman'
             flat window will produce a moving average smoothing.
-        fixed: if True, the beginning and the end match the beginning and end 
+        fixed: if True, the beginning and the end match the beginning and end
                of the original
 
-    output:
+    Returns:
         the smoothed signal
 
-    example:
+    Example
+    ~~~~~~~
 
-    t=linspace(-2,2,0.1)
-    x=sin(t)+randn(len(t))*0.1
-    y=smooth(x)
+        t = linspace(-2,2,0.1)
+        x = sin(t)+randn(len(t))*0.1
+        y = smooth(x)
 
-    see also:
+    .. seealso::
 
-    numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
-    scipy.signal.lfilter
+        numpy.hanning, numpy.hamming, numpy.bartlett, numpy.blackman, numpy.convolve
+        scipy.signal.lfilter
 
-    from: http://www.scipy.org/Cookbook/SignalSmooth
+    From: http://www.scipy.org/Cookbook/SignalSmooth
     """
     if fixed:
         return _smooth_fixed(x, window_len, window)
@@ -196,8 +164,9 @@ def unsmooth(x, ratio, smooth_ratio=0.5):
 
 
 class Unsmoother:
-    # TODO: implementar otro tipo de interpolacion que no sea lineal
-
+    """
+    Class to unsmooth data
+    """
     def __init__(self, x, smoothed_x):
         self.x = x
         self.smoothed_x = smoothed_x
@@ -218,13 +187,15 @@ class Unsmoother:
 
 def weighted_moving_average(values, weights, wsize):
     """
-    return an iterator to the sequence of moving averages of
+    Weighted moving average
+
+    Return an iterator to the sequence of moving averages of
     values weighted by weights with a window size = wsize
     the length of the returned iterator is len(values) - wsize + 1
     """
     grouped_values = window(values, wsize)
     grouped_weights = window(weights, wsize)
-    for v, w in izip(grouped_values, grouped_weights):
+    for v, w in zip(grouped_values, grouped_weights):
         yield wavg(v, w)
 
 
@@ -239,7 +210,7 @@ def rm3(s):
 
 
 def rm5(s):
-    temp = map(lambda a,b,c,d,e: 
+    temp = map(lambda a,b,c,d,e:
                [a,b,c,d,e], s[0:-4], s[1:-3], s[2:-2], s[3:-1], s[4:])
     temp2 = []
     for x in temp:

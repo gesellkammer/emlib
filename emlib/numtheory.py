@@ -9,13 +9,13 @@ number
 from __future__ import annotations
 import math
 from math import gcd
-from typing import Iterator as Iter, Tuple
+from typing import Iterator
 
 PRIMES_LE_31 = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31)
 PRIMONIAL_31 = 200560490130
 
 
-def isprime(n:int, pdivisors=None) -> bool:
+def isprime(n: int, pdivisors=None) -> bool:
     """
     Return True iff n is prime.
 
@@ -34,7 +34,7 @@ def isprime(n:int, pdivisors=None) -> bool:
         raise ValueError("only numbers below 10**12 are supported")
 
 """
-def gcd(a:int, b:int) -> int:
+def gcd(a: int, b: int) -> int:
     a = abs(a)
     b = abs(b)
     while b:
@@ -42,22 +42,24 @@ def gcd(a:int, b:int) -> int:
     return a
 """
 
-def small_spsp(n:int, s:int=None, t:int=None) -> bool:
+def small_spsp(n: int, s: int = None, t: int = None) -> bool:
     if s is None or t is None:
         s, t = vp(n - 1, 2)
     for p in (2, 13, 23, 1662803):
         if not spsp(n, p, s, t):
             return False
-    return True    
+    return True
 
 
-def vp(n:int, p:int, k=0) -> Tuple[int, int]:
+def vp(n: int, p: int, k=0) -> tuple[int, int]:
     """
     Return p-adic valuation and indivisible part of given integer.
 
-    For example:
-    >>> vp(100, 2)
-    (2, 25)
+    Example
+    ~~~~~~~
+
+        >>> vp(100, 2)
+        (2, 25)
 
     That means, 100 is 2 times divisible by 2, and the factor 25 of
     100 is indivisible by 2.
@@ -71,10 +73,12 @@ def vp(n:int, p:int, k=0) -> Tuple[int, int]:
     return (k, n // (q // p))
 
 
-def spsp(n:int, base:int, s:int=None, t:int=None) -> bool:
+def spsp(n: int, base: int, s: int = None, t: int = None) -> bool:
     """
-    Strong Pseudo-Prime test.  Optional third and fourth argument
-    s and t are the numbers such that n-1 = 2**s * t and t is odd.
+    Strong Pseudo-Prime test.
+
+    Optional third and fourth argument s and t are the numbers
+    such that n-1 = 2**s * t and t is odd.
     """
     if s is None or t is None:
         s, t = vp(n-1, 2)
@@ -91,7 +95,7 @@ def spsp(n:int, base:int, s:int=None, t:int=None) -> bool:
     return True
 
 
-def nextprime(n:int) -> int:
+def nextprime(n: int) -> int:
     """
     Return the smallest prime bigger than the given integer.
     """
@@ -105,10 +109,11 @@ def nextprime(n:int) -> int:
     return n
 
 
-def primeq(n:int) -> bool:
+def primeq(n: int) -> bool:
     """
-    A convenient function for primatilty test. It uses one of
-    trialDivision, smallSpsp or apr depending on the size of n.
+    A convenient function for primality test.
+
+    It uses one of trial_division, small_spsp or gcd depending on the size of n.
     """
     if int(n) != n:
         raise ValueError("non-integer for primeq()")
@@ -124,11 +129,12 @@ def primeq(n:int) -> bool:
         return True
     else:
         raise ValueError("only numbers below 10**12 are supported")
-    
 
-def trial_division(n:int, bound:int=0) -> bool:
+
+def trial_division(n: int, bound: int=0) -> bool:
     """
     Trial division primality test for an odd natural number.
+
     Optional second argument is a search bound of primes.
     If the bound is given and less than the sqaure root of n
     and True is returned, it only means there is no prime factor
@@ -145,7 +151,7 @@ def trial_division(n:int, bound:int=0) -> bool:
     return True
 
 
-def floorsqrt(a:int) -> int:
+def floorsqrt(a: int) -> int:
     """
     Return the floor of square root of the given integer.
     """
@@ -161,7 +167,7 @@ def floorsqrt(a:int) -> int:
             x = x_new
 
 
-def primes_generator() -> Iter[int]:
+def primes_generator() -> Iterator[int]:
     """
     Generate primes from 2 to infinity.
     """
@@ -177,23 +183,26 @@ def primes_generator() -> Iter[int]:
         times30 += 30
 
 
-def coprime(a:int, b:int) -> bool:
+def coprime(a: int, b: int) -> bool:
     """
     Return True if a and b are coprime, False otherwise.
 
-    For Example:
-    >>> coprime(8, 5)
-    True
-    >>> coprime(-15, -27)
-    False
-    >>>
+    Example
+    ~~~~~~~
+
+        >>> coprime(8, 5)
+        True
+        >>> coprime(-15, -27)
+        False
+        >>>
     """
     return gcd(a, b) == 1
 
 
-def lcm(a:int, b:int) -> int:
+def lcm(a: int, b: int) -> int:
     """
     Return the least common multiple of given 2 integers.
+
     If both are zero, it raises an exception.
     """
     return a // gcd(a, b) * b
