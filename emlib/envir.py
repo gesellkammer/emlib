@@ -19,22 +19,22 @@ def session_type() -> str:
         "python" if running normal python.
 
     """
-    if session := _cache.get('session_type'):
-        return session
+    if out := _cache.get('session_type'):
+        return out
+
     try:
         # get_ipython should be available within an ipython/jupyter session
         shell = get_ipython().__class__.__name__   # type: ignore
         if shell == 'ZMQInteractiveShell':
-            _cache['session_type'] = "jupyter"
-            return "jupyter"
+            out = "jupyter"
         elif shell == 'TerminalInteractiveShell':
-            _cache['session_type'] = "ipython-terminal"
-            return "ipython-terminal"
+            out = "ipython-terminal"
         else:
-            _cache['session_type'] = "ipython"
-            return "ipython"
+            out = "ipython"
+        _cache['session_type'] = out
+        return out
+
     except NameError:
-        _cache['session_type'] = "python"
         return "python"
 
 
@@ -51,7 +51,10 @@ def inside_ipython() -> bool:
 
     This includes any ipython session (ipython in terminal, jupyter, etc.)
     """
-    return session_type() in ('jupyter', 'ipython', 'ipython-terminal')
+    if out := _cache.get('inside_ipython'):
+        return out
+    _cache['inside_ipython'] = out = session_type() in ('jupyter', 'ipython', 'ipython-terminal')
+    return out
 
 
 def is_interactive_session() -> bool:
@@ -73,13 +76,12 @@ def ipython_qt_eventloop_started() -> bool:
     ( %gui qt )
     """
     session = session_type()
-    if session != 'ipython-terminal' and session != 'jupyter':
+    if session == 'ipython-terminal' or session == 'jupyter':
+        # we are inside ipython so we can just call 'get_ipython'
+        ip = get_ipython()   # type: ignore
+        return ip.active_eventloop == "qt"
+    else:
         return False
-    from IPython.core.getipython import get_ipython
-    ip = get_ipython()   # type: ignore
-    if ip is None:
-        raise RuntimeError("IPython is not running")
-    return ip.active_eventloop == "qt"
 
 
 def get_platform() -> tuple[str, str]:
@@ -104,9 +106,10 @@ def get_platform() -> tuple[str, str]:
         ("linux", one of i686|x86_64|armv7l|aarch64)
         ("windows", one of x86|x64|arm32|arm64
 
-
-
     """
+    if out := _cache.get('get_platform'):
+        return out
+
     import platform
     import sysconfig
 
@@ -140,7 +143,8 @@ def get_platform() -> tuple[str, str]:
         else:
             machine = "i386"
 
-    return system, machine
+    _cache['get_platform'] = out = (system, machine)
+    return out
 
 
 def get_base_prefix_compat() -> str:
@@ -148,8 +152,10 @@ def get_base_prefix_compat() -> str:
     return getattr(_sys, "base_prefix", None) or getattr(_sys, "real_prefix", None) or _sys.prefix
 
 
+
 def in_virtualenv() -> bool:
     """
     Are we inside a virtual environment?
     """
     return get_base_prefix_compat() != _sys.prefix
+
