@@ -4,29 +4,21 @@ Implements the concept of a plotting profile, which makes it easier to
 define sizes, colors, etc. for a series of elements.
 """
 from __future__ import annotations
+from functools import cache
 import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
 from matplotlib.patches import Rectangle
 from matplotlib.collections import PatchCollection
+import matplotlib.lines as mlines
 
 import numpy as np
-from emlib.misc import isiterable, pixels_to_inches
-from typing import Union
+import emlib.misc
 
-
-__all__ = (
-    'autoscaleAxis',
-    'defaultprofile',
-    'drawBracket',
-    'drawConnectedLines',
-    'drawLabel',
-    'drawLine',
-    'drawRect',
-    'drawRects',
-    'makeAxis',
-    'makeProfile',
-    'plotDurs',
-)
+import typing as _t
+if _t.TYPE_CHECKING:
+    from matplotlib.colors import Colormap
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+    _colort: _t.TypeAlias = float | tuple[float, float, float] | tuple[float, float, float, float]
 
 
 defaultprofile = {
@@ -42,11 +34,12 @@ defaultprofile = {
     'annotation_color': (0, 0, 0),
     'annotation_alpha': 0.3,
     'autoscale': True,
-    'background': (0, 0, 0)
+    'background': (0, 0, 0),
+    'colormap': 'jet'
 }
 
 
-def makeProfile(default: dict = None, **kws):
+def makeProfile(**kws):
     """
     Create a profile based on a default profile
 
@@ -60,25 +53,15 @@ def makeProfile(default: dict = None, **kws):
     ...     background=(10, 10, 10),
     ...     linewidth=2)
     """
-    out = (default or defaultprofile).copy()
-    for key, value in kws.items():
-        if key not in default:
-            raise KeyError(f"Key {key} not in default profile")
-        out[key] = value
+    out = defaultprofile.copy()
+    if kws:
+        assert all(key in defaultprofile for key in kws), f"Unknown keys: {[k for k in kws if k not in defaultprofile]}"
+        out |= kws
     return out
 
 
-_colormap = plt.get_cmap('jet')  
-
-
-def _get(profile: dict, key: str, value=None):
-    if profile is not None and key in profile:
-        return profile[key]
-    return defaultprofile.get(key, value)
-
-
-def drawLabel(ax: plt.Axes, x: float, y: float, text: str, size=None, alpha=None,
-              profile=None) -> None:
+def drawLabel(ax: Axes, x: float, y: float, text: str, size=None, alpha=None,
+              profile=defaultprofile) -> None:
     """
     Draw a text label at the given coordinates
 
@@ -92,20 +75,21 @@ def drawLabel(ax: plt.Axes, x: float, y: float, text: str, size=None, alpha=None
         profile: the profile used (None = default)
 
     """
-    family = _get(profile, 'label_font')
-    size = _fallback(size, profile, 'label_size')
-    alpha = _fallback(alpha, profile, 'label_alpha')
+    family = profile['label_font']
+    size = size if size is not None else profile['label_size']
+    alpha = alpha if alpha is not None else profile['label_alpha']
     ax.text(x, y, text, ha="center", family=family, size=size, alpha=alpha)
-    
 
-def drawLine(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float,
-             color: float=None, linestyle:str = 'solid', alpha: float=None,
-             linewidth:float=None, label: str=None, profile=None) -> None:
+
+def drawLine(ax: Axes, x0: float, y0: float, x1: float, y1: float,
+             color: float = None, linestyle='solid', alpha: float = None,
+             linewidth: float = None, label='', profile=defaultprofile, cmap='',
+             autoscale: bool | None = None) -> None:
     """
     Draw a line from ``(x0, y0)`` to ``(x1, y1)``
 
     Args:
-        ax: a plt.Axes to draw on
+        ax: a Axes to draw on
         x0: x coord of the start point
         y0: y coord of the start point
         x1: x coord of the end point
@@ -114,8 +98,8 @@ def drawLine(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float,
         linestyle: 'solid', 'dashed'
         alpha: a float 0-1
         label: if given, a label is plotted next to the line
-        profile: the profile (created via makeProfile) to use. Leave None to
-            use the default profile
+        autoscale: autoscale axis if True
+        profile: the profile (created via makeProfile) to use.
 
     Examples
     --------
@@ -126,16 +110,17 @@ def drawLine(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float,
     >>> matplotting.drawLine(ax, 0, 0, 1, 1)
     >>> plt.show()
     """
-    linewidth = _fallback(linewidth, profile, 'line_width')
-    alpha = _fallback(alpha, profile, 'line_alpha')
-    color = _fallback(color, profile, 'edgecolor')
+    linewidth = linewidth if linewidth is not None else profile['line_width']
+    alpha = alpha if alpha is not None else profile['line_alpha']
+    color = color if color is not None else profile['edgecolor']
     X, Y = np.array([[x0, x1], [y0, y1]])
     assert linestyle in ('solid', 'dashed')
-    line = mlines.Line2D(X, Y, lw=linewidth, alpha=alpha, color=_colormap(color), linestyle=linestyle)
+    colortup = _get_colormap(cmap or profile['colormap'])(color)
+    line = mlines.Line2D(X, Y, lw=linewidth, alpha=alpha, color=colortup, linestyle=linestyle)
     ax.add_line(line)
     if label is not None:
         drawLabel(ax, x=(x0+x1)*0.5, y=y0, text=label, profile=profile)
-    if _get(profile, 'autoscale'):
+    if autoscale or (autoscale is None and profile['autoscale']):
         autoscaleAxis(ax)
 
 
@@ -145,25 +130,30 @@ def _aslist(obj) -> list:
     return list(obj)
 
 
-def _getcolor(color: Union[float, tuple]) -> tuple[float, float, float, float]:
+@cache
+def _get_colormap(name: str) -> Colormap:
+    return plt.get_cmap(name)
+
+
+@cache
+def _getcolor(color: _colort, colormap: str
+              ) -> tuple[float, float, float, float]:
     if isinstance(color, tuple):
-        return color
-    return _colormap(color)
+        return color if len(color) == 4 else color + (1,)
+
+    return _get_colormap(colormap)(color)
 
 
-def _unzip(pairs):
-    return zip(*pairs)
-
-
-def drawConnectedLines(ax: plt.Axes, 
+def drawConnectedLines(ax: Axes,
                        pairs: list[tuple[float, float]],
-                       connectEdges=False, 
-                       color: Union[float, tuple] = None, 
+                       connectEdges=False,
+                       color: _colort = None,
                        alpha: float = None,
-                       linewidth: float = None, 
-                       label: str = None, 
-                       linestyle: str = None,
-                       profile: dict = None
+                       linewidth: float = None,
+                       label='',
+                       linestyle='',
+                       profile=defaultprofile,
+                       cmap=''
                        ) -> None:
     """
     Draw an open / closed poligon
@@ -179,27 +169,32 @@ def drawConnectedLines(ax: plt.Axes,
         linestyle: the line style, one of "solid", "dashed"
         profile: the profile used, or None for default
     """
-    linewidth = _fallback(linewidth, profile, 'line_width')
-    alpha = _fallback(alpha, profile, 'line_alpha')
-    color = _fallback(color, profile, 'edgecolor')
-    linestyle = _fallback(linestyle, profile, 'line_style')
+    cmap = cmap or profile['colormap']
+    if linewidth is None:
+        linewidth = profile['line_width']
+    if alpha is None:
+        alpha = profile['line_alpha']
+    if color is None:
+        color = profile['edgecolor']
+    if not linestyle:
+        linestyle = profile['line_style']
     if connectEdges:
-        pairs = pairs + pairs[0]
-    color = _getcolor(color)
-    xs, ys = _unzip(pairs)
-    line = mlines.Line2D(xs, ys, lw=linewidth, alpha=alpha, color=_getcolor(color), linestyle=linestyle)
+        pairs = pairs.copy()
+        pairs.append(pairs[0])
+    xs, ys = zip(*pairs)
+    line = mlines.Line2D(xs, ys, lw=linewidth, alpha=alpha, color=_getcolor(color, cmap), linestyle=linestyle)
     ax.add_line(line)
-    if label is not None:
+    if label:
         avgx = sum(xs)/len(xs)
         avgy = sum(ys)/len(ys)
         drawLabel(ax, x=avgx, y=avgy, text=label, profile=profile)
-    if _get(profile, 'autoscale'):
+    if profile['autoscale']:
         autoscaleAxis(ax)
 
 
-def drawRect(ax: plt.Axes, x0:float, y0:float, x1:float, y1:float,
-             color=None, alpha:float=None, edgecolor=None, label:str=None,
-             profile:dict=None) -> None:
+def drawRect(ax: Axes, x0: float, y0: float, x1: float, y1: float,
+             color: _colort, alpha: float = None, edgecolor: _colort = None, label='',
+             profile=defaultprofile) -> None:
     """
     Draw a rectangle from point (x0, y0) to (x1, y1)
 
@@ -216,29 +211,28 @@ def drawRect(ax: plt.Axes, x0:float, y0:float, x1:float, y1:float,
         profile: the profile used, or None for default
 
     """
-    facecolor = _fallback(color, profile, 'facecolor')
-    edgecolor = _fallback(edgecolor, profile, 'edgecolor')
-    facecolor = _getcolor(facecolor)
-    edgecolor = _getcolor(edgecolor)
-    alpha = alpha if alpha is not None else _get(profile, 'alpha')
+    cmap = profile['colormap']
+    facecolor = color if color is not None else profile['facecolor']
+    edgecolor = edgecolor if edgecolor is not None else profile['edgecolor']
+    facecolor = _getcolor(facecolor, cmap)
+    edgecolor = _getcolor(edgecolor, cmap)
+    alpha = alpha if alpha is not None else profile['alpha']
     rect = Rectangle((x0, y0), x1-x0, y1-y0, facecolor=facecolor, edgecolor=edgecolor, alpha=alpha)
     ax.add_patch(rect)
     if label is not None:
         drawLabel(ax, x=(x0+x1)*0.5, y=(y0+y1)*0.5, text=label, profile=profile)
-    if _get(profile, 'autoscale'):
+    if profile['autoscale']:
         autoscaleAxis(ax)
 
 
-def _many(value, numitems:int, key:str=None, profile:dict=None) -> list:
-    if isiterable(value):
-        return value
-    elif value is None:
-        return [_get(profile, key)] * numitems
-    return [value] * numitems
-
-
-def drawRects(ax: plt.Axes, data, facecolor=None, alpha:float=None, edgecolor=None,
-              linewidth:float=None, profile:dict=None, autolim=True) -> None:
+def drawRects(ax: Axes, data,
+              facecolor: _colort = None,
+              alpha: float = None,
+              edgecolor: _colort = None,
+              linewidth: float | None = None,
+              profile=defaultprofile,
+              autolim=True
+              ) -> None:
     """
     Draw multiple rectangles
 
@@ -252,10 +246,14 @@ def drawRects(ax: plt.Axes, data, facecolor=None, alpha:float=None, edgecolor=No
         label: if given, a label is plotted at the center of the rectangle
         profile: the profile used, or None for default
         autolim: autoscale view
+        linewidth: line width
     """
-    facecolor = _fallbackColor(facecolor, profile, key='facecolor')
-    edgecolor = _fallbackColor(edgecolor, profile, key='edgecolor')
-    linewidth = _fallback(linewidth, profile, 'linewidth')
+    facecolor = facecolor if facecolor is not None else profile['facecolor']
+    edgecolor = edgecolor if edgecolor is not None else profile['edgecolor']
+    linewidth = linewidth if linewidth is not None else profile['linewidth']
+    cmap = profile['colormap']
+    facecolor = _getcolor(facecolor, cmap)
+    edgecolor = _getcolor(edgecolor, cmap)
     rects = []
     for coords in data:
         x0, y0, x1, y1 = coords
@@ -267,12 +265,12 @@ def drawRects(ax: plt.Axes, data, facecolor=None, alpha:float=None, edgecolor=No
         ax.autoscale_view()
 
 
-def autoscaleAxis(ax: plt.Axes) -> None:
+def autoscaleAxis(ax: Axes) -> None:
     ax.relim()
     ax.autoscale_view(True,True,True)
 
 
-def makeAxis(pixels: tuple[int, int]=None, dpi=96) -> plt.Axes:
+def makeAxis(pixels: tuple[int, int] | None = None, dpi=96) -> Axes:
     """
     Create a plotting axes
 
@@ -281,7 +279,7 @@ def makeAxis(pixels: tuple[int, int]=None, dpi=96) -> plt.Axes:
         dpi: dots per inch
 
     Returns:
-        the plt.Axes
+        the Axes
 
     """
     # plt.subplots(figsize=(20, 10))
@@ -291,25 +289,15 @@ def makeAxis(pixels: tuple[int, int]=None, dpi=96) -> plt.Axes:
 
     if not isinstance(pixels, tuple):
         raise TypeError(f"pixels should be of the form (x, y), got {pixels}")
-    xinches = pixels_to_inches(pixels[0], dpi=dpi)
-    yinches = pixels_to_inches(pixels[1], dpi=dpi)
+    xinches = emlib.misc.pixels_to_inches(pixels[0], dpi=dpi)
+    yinches = emlib.misc.pixels_to_inches(pixels[1], dpi=dpi)
     fig,ax = plt.subplots(figsize=(xinches, yinches), dpi=dpi)
     return ax
 
 
-def _fallback(value, profile: dict, key: str):
-    return value if value is not None else _get(profile, key)
-
-
-def _fallbackColor(value, profile: dict, key: str) -> tuple[float, float, float, float]:
-    if value is not None:
-        return _getcolor(value)
-    return _getcolor(_get(profile, key))
-
-
-def drawBracket(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float,
-                label: str = None, color=None, linewidth: float = None, alpha: float = None,
-                profile: dict = None) -> None:
+def drawBracket(ax: Axes, x0: float, y0: float, x1: float, y1: float,
+                label='', color=None, linewidth: float = None, alpha: float = None,
+                profile=defaultprofile) -> None:
     """
     Draw a bracket from (x0, y0) to (x1, y1)
 
@@ -322,20 +310,28 @@ def drawBracket(ax: plt.Axes, x0: float, y0: float, x1: float, y1: float,
         color: the face color
         alpha: alpha value for the rectangle (both facecolor and edgecolor)
         label: if given, a label is plotted at the center of the rectangle
+        linewidth: line width
         profile: the profile used, or None for default
 
     """
-    linewidth = _fallback(linewidth, profile, 'linewidth')
-    color = _fallback(color, profile, 'edgecolor')
-    alpha = _fallback(alpha, profile, 'annotation_alpha')
+    if linewidth is None:
+        linewidth = profile['linewidth']
+    if color is None:
+        color = profile['edgecolor']
+    if alpha is None:
+        alpha = profile['annotation_alpha']
     data = [(x0, y0), (x0, y1), (x1, y1), (x1, y0)]
     drawConnectedLines(ax, data, color=color, linewidth=linewidth, label=label, alpha=alpha)
 
 
-def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels: list[str] = None,
-             color=None, ax=None, groupLabel: str = None, profile: dict = None,
+def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0,
+             labels: list[str] = None,
+             color: _colort | None = None,
+             ax: Axes = None,
+             groupLabel='',
+             profile=defaultprofile,
              stacked=False
-             ) -> plt.Axes:
+             ) -> Axes:
     """
     Plot durations as contiguous rectangles
 
@@ -359,9 +355,8 @@ def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels: list[str] = 
     """
     if ax is None:
         ax = makeAxis()
-    numitems = len(durs)
-    labels = labels if isiterable(labels) else [labels]*numitems
-    color = _fallbackColor(color, profile, 'facecolor')
+    if color is None:
+        color = profile['facecolor']
     if not stacked:
         x = x0
         data = []
@@ -369,12 +364,12 @@ def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels: list[str] = 
             data.append((x, y0, x+dur, y0+height))
             x += dur
         drawRects(ax, data, facecolor=color)
-        if groupLabel is not None:
+        if groupLabel:
             sep = height * 0.05
             y1 = y0 + height
             x1 = x0 + sum(durs)
-            drawBracket(ax, x0, y1+sep, x1, y1+sep*2, color=_get(profile, 'annotation_color'))
-            alpha = (_get(profile, 'annotation_alpha')+1)*0.5
+            drawBracket(ax, x0, y1+sep, x1, y1+sep*2, color=profile['annotation_color'])
+            alpha = (profile['annotation_alpha'] +1) * 0.5
             drawLabel(ax, (x0+x1) * 0.5, y1 + sep, text=groupLabel, alpha=alpha)
     else:
         data = []
@@ -384,3 +379,24 @@ def plotDurs(durs: list[float], y0=0.0, x0=0.0, height=1.0, labels: list[str] = 
             y += height
         drawRects(ax, data, facecolor=color)
     return ax
+
+
+def fig2data(fig: Figure) -> np.ndarray:
+    """
+    Convert a Matplotlib figure to a 4D numpy array with RGBA channels
+
+    Args:
+        fig: a matplotlib figure
+
+    Returns:
+        a numpy 3D array of RGBA values
+    """
+    fig.canvas.draw()        # draw the renderer
+    # Get the RGBA buffer from the figure
+    w, h = fig.canvas.get_width_height()
+    buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
+    buf.shape = (w, h, 4)
+    # canvas.tostring_argb give pixmap in ARGB mode.
+    # Roll the ALPHA channel to have it in RGBA mode
+    buf = np.roll(buf, 3, axis=2)
+    return buf

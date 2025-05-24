@@ -15,18 +15,15 @@ from __future__ import annotations
 import os as _os
 import sys as _sys
 from bisect import bisect as _bisect
-from collections import namedtuple as _namedtuple
 import re as _re
-import dataclasses
 
 import numpy as np
-from . import iterlib
 
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING or 'sphinx' in _sys.modules:
     from typing import TypeVar, Sequence, Union, Optional, Callable, Any, Iterable
-    T = TypeVar("T")
+    T = TypeVar("T", int, float)
     T2 = TypeVar("T2")
     from fractions import Fraction
     import numbers
@@ -67,8 +64,8 @@ def reverse_recursive(seq: list):
     return out
 
 
-def _partialsum(seq: Sequence[T]) -> list[T]:
-    accum = 0
+def _partialsum(seq: Sequence[T], init: T) -> list[T]:
+    accum: T = init
     out = []
     for i in seq:
         accum += i
@@ -95,7 +92,7 @@ def wrap_by_sizes(flatseq: list, packsizes: Sequence[int]) -> list[list]:
         [[1, 2, 3], [4, 5, 6, 7, 8], [9, 10]]
 
     """
-    offsets = [0] + _partialsum(packsizes)
+    offsets = [0] + _partialsum(packsizes, 0)
     start = offsets[0]
     out = []
     for i in range(1, len(offsets)):
@@ -384,6 +381,7 @@ def duplicates(seq: Sequence[T], mincount=2) -> list[T]:
     Find all elements in seq which are present at least `mincount` times
     """
     if mincount == 2:
+        from . import iterlib
         return list(iterlib.duplicates(seq))
 
     from collections import Counter
@@ -488,11 +486,7 @@ def sec2str(seconds:float, msdigits=3) -> str:
     sfrac = round((s - sint), msdigits)
     fmt = f"%.{msdigits}g"
     msstr = (fmt % sfrac)[1:2+msdigits]
-
-    if h > 0:
-        return f"{h}:{m:02}:{sint:02}{msstr}"
-    else:
-        return f"{m}:{sint:02}{msstr}"
+    return f"{h}:{m:02}:{sint:02}{msstr}" if h > 0 else f"{m}:{sint:02}{msstr}"
 
 
 def parse_time(t: str) -> float:
@@ -521,19 +515,6 @@ def parse_time(t: str) -> float:
         raise ValueError("Format not understood")
 
 
-def sumlist(seq: Iterable[list[T]]) -> list[T]:
-    """
-    Concatenate multiple lists to one big list
-
-    Args:
-        seq: a list or iterable of lists
-
-    Returns:
-        the concatenated list
-    """
-    return sum(seq, [])
-
-
 # ------------------------------------------------------------
 #
 #     namedtuple utilities
@@ -554,10 +535,11 @@ def namedtuple_addcolumn(namedtuples, seq, column_name: str, classname=""):  # t
     Returns:
         a list of namedtuples with the added column
     """
+    from collections import namedtuple
     t0 = namedtuples[0]
     assert isinstance(t0, tuple) and hasattr(t0, "_fields"), "namedtuples should be a seq. of namedtuples"
     name = classname or namedtuples[0].__class__.__name__ + '_' + column_name  # type: str
-    NewTup = _namedtuple(name, t0._fields + (column_name,))  # type: ignore
+    NewTup = namedtuple(name, t0._fields + (column_name,))  # type: ignore
     newtuples = [NewTup(*(t + (value,)))
                  for t, value in zip(namedtuples, seq)]
     return newtuples
@@ -588,7 +570,8 @@ def namedtuples_renamecolumn(namedtuples: list, oldname: str, newname: str, clas
         classname = "%s_R" % namedtuples[0].__class__.__name__
     newfields = [field if field != oldname else newname
                  for field in namedtuples[0]._fields]
-    NewTup = _namedtuple(classname, newfields)
+    from collections import namedtuple
+    NewTup = namedtuple(classname, newfields)
     newtuples = [NewTup(*t) for t in namedtuples]
     return newtuples
 
@@ -622,10 +605,12 @@ def namedtuple_extend(name: str, orig, columns: str | Sequence[str]):
         Vec3(x=10, y=20, z=30)
 
     """
+    from collections import namedtuple
+
     if isinstance(columns, str):
         columns = columns.split()
     fields = orig._fields + tuple(columns)
-    N = _namedtuple(name, fields)
+    N = namedtuple(name, fields)
 
     def new_from_orig(orig, *args, **kws):
         """
@@ -1030,35 +1015,6 @@ def seq_contains(seq, subseq) -> Optional[tuple[int, int]]:
     return None
 
 
-def pick_regularly(seq: Sequence[T] | np.ndarray, numitems: int, start_idx=0,
-                   end_idx=0
-                   ) -> Union[np.ndarray, list[T]]:
-    """
-    Given a sequence, pick `numitems` from it at regular intervals
-
-    The first and the last items are always included. The behaviour
-    is similar to numpy's linspace
-
-    Args:
-        seq: a sequence of items (a list of items or a numpy array)
-        numitems: the number of items to pick from seq
-        start_idx: if given, the index to start picking from
-        end_idx: if given, the index to stop
-
-    Returns:
-        a list of the picked items (as a list if the input was a list, or a numpy
-        array if the input was an array)
-    """
-    if end_idx == 0:
-        end_idx = len(seq) - 1
-    indexes = np.linspace(start_idx, end_idx, numitems)
-    np.round(indexes, out=indexes)
-    if isinstance(seq, np.ndarray):
-        return seq[indexes]
-    else:
-        return [seq[i] for i in indexes]
-
-
 def deepupdate(orig, updatewith):
     """
     recursively update orig with updatewith
@@ -1078,26 +1034,6 @@ def deepupdate(orig, updatewith):
 #
 # ------------------------------------------------------------
 
-
-def fig2data(fig) -> np.ndarray:
-    """
-    Convert a Matplotlib figure to a 4D numpy array with RGBA channels
-
-    Args:
-        fig: a matplotlib figure
-
-    Returns:
-        a numpy 3D array of RGBA values
-    """
-    fig.canvas.draw()        # draw the renderer
-    # Get the RGBA buffer from the figure
-    w, h = fig.canvas.get_width_height()
-    buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
-    buf.shape = (w, h, 4)
-    # canvas.tostring_argb give pixmap in ARGB mode.
-    # Roll the ALPHA channel to have it in RGBA mode
-    buf = np.roll(buf, 3, axis=2)
-    return buf
 
 
 def pixels_to_cm(pixels: int, dpi=300) -> float:
@@ -1191,63 +1127,7 @@ def page_dinsize_to_mm(pagesize: str, pagelayout: str) -> tuple[float, float]:
 #    Decorators
 #
 # ------------------------------------------------------------
-
-
-def returns_tuple(names, recname=None):
-    """
-    Decorator - Makes the function return a namedtuple with the given names.
-
-    Args:
-        names: as passed to namedtuple, either a space-divided string,
-            or a sequence of strings
-        recname: a name to be given to the result as a whole. If nothing is
-            given, the name of the decorated function is used.
-
-    Example::
-
-        >>> @returns_tuple("minval maxval")
-        ... def minmax(seq):
-        ...     return min(seq), max(seq)
-        >>> result = minmax([1, 2, 3, 4])
-        >>> result.minval
-        1
-        >>> result.maxval
-        4
-
-    """
-    from decorator import decorator
-    from collections import defaultdict
-    registry = {}
-    if recname:
-        nt = _namedtuple(recname, names)
-        registry = defaultdict(lambda: nt)
-    else:
-        registry = {}
-
-    @decorator
-    def wrapper(func, *args, **kws):
-        result = func(*args, **kws)
-        nt = registry.get(func.__name__)
-        if nt is None:
-            nt = _namedtuple(func.__name__, names)
-            registry[func.__name__] = nt
-        return nt(*result)
-    return wrapper
-
-
-def returns_tuples(names, recname):
-    """
-    Decorator to make a function return a RecordList instead of a list of tuples
-    """
-    from decorator import decorator
-    from .containers import RecordList
-
-    @decorator
-    def wrapper(func, *args, **kws):
-        result = func(*args, **kws)
-        return RecordList(result, recname)
-    return wrapper
-
+#
 
 def public(f):
     """
@@ -1398,30 +1278,30 @@ def _open_with_standard_app(path: str, wait:Union[str, bool]=False, min_wait=0.5
         timeout: a timeout for waiting on modified
 
     """
-    import subprocess, time
-    platform = _sys.platform
+    import subprocess
+    import time
     proc = None
-    if platform == 'linux':
+    if _sys.platform == 'linux':
         proc = subprocess.Popen(["xdg-open", path])
-    elif platform == "win32":
+    elif _sys.platform == "win32":
         # this function exists only in windows
-        _os.startfile(path)
-    elif platform == "darwin":
+        _os.startfile(path)  # type: ignore
+    elif _sys.platform == "darwin":
         proc = subprocess.Popen(["open", path])
         min_wait = max(min_wait, 1)
     else:
-        raise RuntimeError(f"platform {platform} not supported")
+        raise RuntimeError(f"platform {_sys.platform} not supported")
 
-    t0 = time.time()
     if wait == "modified":
         wait_for_file_modified(path, timeout=timeout or 36000)
     elif wait:
         from emlib import dialogs
-        if platform == "win32":
+        if _sys.platform == "win32":
             dialogs.showInfo("Close this dialog when finished")
-        else:
+        elif proc is not None:
+            t0 = time.time()
             proc.wait()
-            if time.time()-t0 < min_wait:
+            if time.time() - t0 < min_wait:
                 dialogs.showInfo("Close this dialog when finished")
 
 
@@ -1436,7 +1316,7 @@ def open_with_app(path: str,
                   wait: bool | str = False,
                   shell=False,
                   min_wait=0.5,
-                  timeout=None) -> None:
+                  timeout=0.) -> None:
     """
     Open a given file with a given app.
 
@@ -1551,8 +1431,8 @@ def first_existing_path(*paths: str, default="~") -> str:
 
 def html_table(rows: list,
                headers: list[str],
-               maxwidths: Optional[list[int]] = None,
-               rowstyles: Optional[list[str]] = None,
+               maxwidths: list[int] | None = None,
+               rowstyles: list[str] | None = None,
                tablestyle='',
                headerstyle=''
                ) -> str:
@@ -1584,14 +1464,14 @@ def html_table(rows: list,
     if maxwidths is None:
         maxwidths = [0] * len(headers)
     if rowstyles is None:
-        rowstyles = [None] * len(headers)
+        rowstyles = [''] * len(headers)
     for colname in headers:
         _(f'<th style="text-align:left">{colname}</th>')
     _("</tr></thead><tbody>")
     for row in rows:
         _("<tr>")
         for cell, maxwidth, rowstyle in zip(row, maxwidths, rowstyles):
-            if rowstyle is not None:
+            if rowstyle:
                 cell = f'<span style="{rowstyle}">{cell}</span>'
             if maxwidth > 0:
                 _(f'<td style="text-align:left;max-width:{maxwidth}px;">{cell}</td>')
@@ -1619,6 +1499,7 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True, floatfmt
     if not rows:
         raise ValueError("rows is empty")
 
+    import dataclasses
     row0 = rows[0]
     if dataclasses.is_dataclass(row0):
         if not headers:
@@ -1697,7 +1578,7 @@ class temporary_sigint_handler:
 
 def simplify_breakpoints(bps: list[T],
                          coordsfunc: Callable,
-                         tolerance: number_t = 0.01
+                         tolerance= 0.01
                          ) -> list[T]:
     """
     Simplify breakpoints in a breakpoint function

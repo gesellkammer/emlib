@@ -1,35 +1,22 @@
 """
-Diverse containers (IntPool, RecordList, ClassDict)
+Diverse containers (IntPool, RecordList)
 """
 from __future__ import annotations
 from collections import namedtuple as _namedtuple
-from keyword import iskeyword as _iskeyword
-import itertools
 from typing import Sequence
-
-
-class FullError(Exception):
-    pass
-
-
-class EmptyError(Exception):
-    pass
 
 
 class IntPool:
     """
-    A pool of intergers
+    A pool of unique intergers with fixed size
 
-    A pool will contain the integers in the range [start, start + capacity)
+    A pool will contain the integers in the range [start, start + capacity).
+    Internally an IntPool is really a set. This means that items within the
+    pool are unordered.
 
     Args:
         capacity: the capacity (size) of the pool.
         start: first element
-        fixedsize: if True, this pool cannot be extended. Otherwise, when
-            a pop operation would result in an empty pool the pool is doubled
-            in size, adding the new items. A pool cannot be extended by adding
-            elements outside its range, so a push operation might still fail
-            if the item is outside the range of the pool
 
     Example
     ~~~~~~~
@@ -45,30 +32,28 @@ class IntPool:
         >>> pool.push(4)
         ValueError: token 4 already in pool
     """
-    def __init__(self, capacity: int, start=0, fixedsize=True):
+    def __init__(self, capacity: int, start=0):
         self.capacity = capacity
         self.pool = set(range(start, start+capacity))
-        self.tokenrange = (start, start+capacity)
-        self.fixedsize = fixedsize
+        self.minvalue = start
+        self.maxvalue = start + capacity
 
     def pop(self) -> int:
         """
         Take an item from the pool
         """
-        if not self.pool:
-            if self.fixedsize:
-                raise EmptyError("This pool is empty")
-            else:
-                self._extend(self.capacity)
         return self.pool.pop()
 
     def push(self, token: int) -> None:
         """
         Return an item to the pool
+
+        Raises ValueError if the token is already in the pool or the
+        token is not within the range of the pool
         """
         if token in self.pool:
             raise ValueError(f"token {token} already in pool")
-        if not self.tokenrange[0] <= token < self.tokenrange[1]:
+        if not self.minvalue <= token < self.maxvalue:
             raise ValueError("This token is not part of the pool")
         assert len(self.pool) < self.capacity
         self.pool.add(token)
@@ -78,13 +63,6 @@ class IntPool:
 
     def __len__(self) -> int:
         return len(self.pool)
-
-    def _extend(self, extrasize: int) -> None:
-        cap = self.capacity
-        self.capacity += extrasize
-        start, end = self.tokenrange
-        self.tokenrange = start, end + extrasize
-        self.pool.update(range(end, end+extrasize))
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -247,6 +225,7 @@ class RecordList(list):
         """
         itemname = itemname or self.item_name
         columns = tuple(self.columns) + (name,)
+        import itertools
         padded = itertools.chain(data, itertools.repeat(missing))
         newdata = [row + (x,) for row, x in zip(self, padded)]
         r = RecordList(newdata, columns, itemname)
@@ -349,29 +328,6 @@ class RecordList(list):
         from .csvtools import writecsv
         writecsv(self, outfile, column_names=self.columns)
 
-    @classmethod
-    def from_dataframe(cls, dataframe, itemname="row") -> RecordList:
-        """
-        create a RecordList from a pandas.DataFrame
-        """
-        columns = _validate_fields(list(dataframe.keys()))
-        Row = _namedtuple(itemname, columns)
-        out = []
-        for i in range(dataframe.shape[0]):
-            row = list(dataframe.irow(i))
-            out.append(Row(*row))
-        return cls(out, itemname=itemname)
-
-    def to_dataframe(self):
-        """
-        create a pandas.DataFrame from this RecordList
-        """
-        try:
-            import pandas
-            return pandas.DataFrame(list(self), columns=self.columns)
-        except ImportError:
-            raise ImportError("pandas is needed to export to pandas.DataFrame!")
-
 
 def _validate_fields(field_names: list[str]) -> list[str]:
     """
@@ -393,10 +349,12 @@ def _validate_fields(field_names: list[str]) -> list[str]:
     """
     names = list(map(str, list(field_names)))
     seen = set()
+    from keyword import iskeyword
+
     for i, name in enumerate(names):
         if (
             not all(c.isalnum() or c == "_" for c in name)
-            or _iskeyword(name)
+            or iskeyword(name)
             or not name
             or name[0].isdigit()
             or name.startswith("_")

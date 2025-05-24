@@ -2,19 +2,13 @@
 Functions for combinatorics (combinations with repetitions, derangements, etc.)
 """
 from __future__ import annotations
-from operator import mul
-import random
-from . import iterlib as _iterlib
 import numpy as _np
-from . import misc
 import itertools
-from functools import reduce
-import time as _time
-from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import TypeVar, TypeAlias, Union, Iterator, Sequence
+    from numpy.typing import ArrayLike
     seq_t: TypeAlias = Union[list, tuple, _np.ndarray]
     T = TypeVar("T")
 
@@ -78,19 +72,15 @@ def random_range(length: int) -> _np.ndarray:
     return s
 
 
-def distance_from_sorted(seq: seq_t, offset=0) -> int:
+def distance_from_sorted(seq: ArrayLike, offset=0) -> int:
     """
     Distance between seq and a sorted seq. of the same length
     """
-    if isinstance(seq, (list, tuple)):
-        dist = sum(abs(x - i) for i, x in enumerate(seq, start=offset))
-    elif isinstance(seq, _np.ndarray):
-        indices = _np.arange(offset, offset+len(seq))
-        arr = _np.asarray(seq)
-        dist = _np.abs(arr - indices).sum()
-    else:
-        raise TypeError(f"Expected a seq or a np.ndarray, got {type(seq)}")
-    return dist
+    seq = _np.asarray(seq)
+    indices = _np.arange(offset, offset+len(seq))
+    arr = _np.asarray(seq)
+    dist = _np.abs(arr - indices).sum()
+    return int(dist)
 
 
 _cached_random_distances = [0,   0,  1,  2,  4,  8, 11, 15, 21, 26,
@@ -123,7 +113,7 @@ def random_distance(length: int, numseqs=1000) -> float:
     return avg
 
 
-def unsortedness(seq: seq_t) -> float:
+def unsortedness(seq: ArrayLike) -> float:
     """
     The entropy of the ordering in this seq.
 
@@ -195,7 +185,7 @@ def _unsortx(seq, entropy, margin=0, debug=False, calculate_rating=False):
     return out, rating
 
 
-def unsort(seq: list, entropy: float, margin=0, tolerance=0.05, numiter=100
+def unsort(seq: ArrayLike, entropy: float, margin=0, tolerance=0.05, numiter=100
            ) -> _np.ndarray:
     """
     Generate a permutation of xs unsorted according to the given entropy.
@@ -257,7 +247,7 @@ def unsort2(xs, entropy=1, margin=0, error=0.01, numiter=100):
     return bestsol
 
 
-def _unsort(xs: Sequence, entropy=1, margin: int | tuple[int, int] = 0):
+def _unsort(xs: ArrayLike, entropy=1, margin: int | tuple[int, int] = 0) -> _np.ndarray:
     """
     generate a permutation of xs unsorted according to the given
     entropy.
@@ -278,7 +268,7 @@ def _unsort(xs: Sequence, entropy=1, margin: int | tuple[int, int] = 0):
     # unsort the given seq., do not touch the first too elements
     unsort((1,3, 5, 4, 0), 0.2, margin=(2, 0))
     """
-
+    xs = _np.asarray(xs)
     if margin != 0:
         if isinstance(margin, int):
             margin0, margin1 = margin, margin
@@ -286,19 +276,20 @@ def _unsort(xs: Sequence, entropy=1, margin: int | tuple[int, int] = 0):
             margin0, margin1 = margin
         margin1 = len(xs) - margin1
         unsorted = unsort(xs[margin0:margin1], entropy, 0)
-        out = misc.copyseq(xs)
+        out = xs.copy()
         out[margin0:margin1] = unsorted
         return out
+
     if entropy == 0:
         return xs
+
     L = len(xs)
     idxs0 = _np.arange(L)
     random_distr = idxs0.copy()
     NAN = _np.nan
     _np.random.shuffle(random_distr)
     if entropy == 1:
-        return _np.asarray(xs)[random_distr]
-    random_distr_entropy = _np.abs(random_distr - idxs0).sum() / (L ** 2)
+        return xs[random_distr]
     out = _np.ones_like(idxs0) * NAN
     pick_order = idxs0.copy()
     _np.random.shuffle(pick_order)
@@ -330,7 +321,7 @@ def _unsort(xs: Sequence, entropy=1, margin: int | tuple[int, int] = 0):
         nans = [i for i in range(L) if _np.isnan(out[i])]
         distances = [(abs(i - j), i, j) for i in missing for j in nans]
         distances2 = sorted(distances)
-        missing_index = dict((m, True) for m in missing)
+        missing_index: dict[int, bool] = dict((m, True) for m in missing)
         for _, i, j in distances2:
             if missing_index[i]:
                 if _np.isnan(out[j]):
@@ -340,65 +331,9 @@ def _unsort(xs: Sequence, entropy=1, margin: int | tuple[int, int] = 0):
                     if n_missing <= 0:
                         break
     indices = out.astype(int)
-    xs = _np.asarray(xs)
     return xs[indices]
 
-
-def permutation_further_than(xs: Sequence[T], min_distance: float, rand=True) -> list[T]:
-    """
-    Return a permutation of xs with a min. distance to it
-
-    min_distance is an indication of entropy, where if min_distance == 0 then the seq
-    should be xs and if min_distance == 1 then the elements are ordered as far away
-    from the originals as poss.
-
-    Args:
-        xs: the seq. to permute
-        min_distance: a min. distance (a value between 0 and 1)
-        rand: ???
-
-    Returns:
-        the permuted seq.
-    """
-    acceptable_difference = _max_distance(xs) / len(xs) * 0.5
-
-    def distance_from_origin(seq):
-        return sum(abs(x - i) for i, x in enumerate(seq)) / len(seq)
-    scaled_distance = min_distance * _max_distance(xs)
-    best_distance = _max_distance(xs)
-    #best_result = range(len(xs))[::-1]
-    all_perm = itertools.permutations(len(xs))
-    if rand:
-        num_perm = reduce(mul, range(1, len(xs) * 1), 1)
-        i = random.randint(0, int(num_perm / 5 + 1))
-        i = min(i, 5000)
-        all_perm0 = _iterlib.take(i, all_perm)
-        all_perm = _iterlib.chain(all_perm, all_perm0)
-    perm = None
-    for perm0, perm1 in all_perm:
-        dist = distance_from_origin(perm0)
-        if scaled_distance <= dist <= best_distance:
-            best_result0 = perm0
-            best_distance0 = dist
-            if abs(dist - scaled_distance) < acceptable_difference:
-                perm = best_result0
-                distance = best_distance0
-                break
-        dist = distance_from_origin(perm1)
-        if scaled_distance <= dist <= best_distance:
-            best_result1 = perm1
-            best_distance1 = dist
-            if abs(dist - scaled_distance) < acceptable_difference:
-                perm = best_result1
-                distance = best_distance1
-                break
-    if not perm:
-        print("solution not found!")
-        perm = best_result0 if best_distance0 < best_distance1 else best_result1
-    return map(xs.__getitem__, perm)
 
 if __name__ == '__main__':
     import doctest
     doctest.testmod()
-
-del mul
