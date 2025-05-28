@@ -8,8 +8,9 @@ number
 """
 from __future__ import annotations
 import math
-from math import gcd
 from typing import Iterator
+
+
 
 PRIMES_LE_31 = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31)
 PRIMONIAL_31 = 200560490130
@@ -24,7 +25,7 @@ def isprime(n: int, pdivisors=None) -> bool:
     prime factorization of n - 1 is known (prime divisors are passed to
     the optional argument pdivisors as a sequence).
     """
-    if gcd(n, PRIMONIAL_31) > 1:
+    if math.gcd(n, PRIMONIAL_31) > 1:
         return (n in PRIMES_LE_31)
     elif n < 10 ** 12:
         # 1369 == 37**2
@@ -119,7 +120,7 @@ def primeq(n: int) -> bool:
         raise ValueError("non-integer for primeq()")
     if n <= 1:
         return False
-    if gcd(n, PRIMONIAL_31) > 1:
+    if math.gcd(n, PRIMONIAL_31) > 1:
         return (n in PRIMES_LE_31)
     if n < 2000000:
         return trial_division(n)
@@ -196,7 +197,7 @@ def coprime(a: int, b: int) -> bool:
         False
         >>>
     """
-    return gcd(a, b) == 1
+    return math.gcd(a, b) == 1
 
 
 def lcm(a: int, b: int) -> int:
@@ -205,4 +206,4 @@ def lcm(a: int, b: int) -> int:
 
     If both are zero, it raises an exception.
     """
-    return a // gcd(a, b) * b
+    return a // math.gcd(a, b) * b

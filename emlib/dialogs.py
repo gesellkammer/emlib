@@ -14,7 +14,7 @@ import logging
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import List, Tuple, Sequence, Optional
+    from typing import Sequence
 
 _DEFAULT_FONT = ("Helvetica", 11)
 
@@ -149,7 +149,7 @@ def selectFile(directory='', filter="All (*.*)", title="Open file",
     return path
 
 
-def _tkParseFilter(filter: str) -> list[Tuple[str, str]]:
+def _tkParseFilter(filter: str) -> list[tuple[str, str]]:
     # A filter has the form <name1> (<wildcard1>, <wildcard2>, ...);; name2...
     parts = filter.split(";;")
     out = []
@@ -167,7 +167,7 @@ def _tkParseFilter(filter: str) -> list[Tuple[str, str]]:
     return out
 
 
-def _saveDialogTk(filter="All (*.*)", title="Save file", directory: str = "~") -> str:
+def _saveDialogTk(filter="All (*.*)", title="Save file", directory="~") -> str:
     from tkinter import ttk, Tk
     try:
         from ttkthemes import ThemedTk
@@ -184,7 +184,7 @@ def _saveDialogTk(filter="All (*.*)", title="Save file", directory: str = "~") -
     return path
 
 
-def saveDialog(filter="All (*.*)", title="Save file", directory: str = "~", backend=''
+def saveDialog(filter="All (*.*)", title="Save file", directory="~", backend=''
                ) -> str:
     """
     Open a dialog to save a file.

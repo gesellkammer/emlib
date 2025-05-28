@@ -6,6 +6,7 @@ from collections import defaultdict
 import tabulate
 import random
 import logging
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import *
@@ -58,7 +59,7 @@ class TransitionMatrix:
             return col1sep.join(repr_key(state) for state in prestate)
 
         def repr_prob_noround(prob):
-            return str(prob) if prob > 0 else '--'   
+            return str(prob) if prob > 0 else '--'
 
         def repr_prob_round(prob):
             return str(round(prob, ndigits)) if prob > 0 else '--'
@@ -84,7 +85,7 @@ class TransitionMatrix:
     def _get_table_repr(self):
         return self.clone(round_ndigits=4, exclude_empty_rows=True)._get_table()
 
-    def __repr__(self): 
+    def __repr__(self):
         return self._get_table_repr().get_string()
 
 
@@ -125,7 +126,7 @@ class MarkovChain(_MarkovChain):
     def random_step(self, prestate):
         """
         do one transition from the prestate
-        
+
         prestate - a tuple, the prestate where to start.
         The class does not keep track of a current "position",
         so this must be passed as a parameter.
@@ -221,4 +222,3 @@ def _parse_state(state: t.U[str, t.Seq]) -> t.List[str]:
     if isiterable(state):
         return _aslist(state)
     return state.split(":")
-

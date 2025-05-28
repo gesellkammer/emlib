@@ -6,12 +6,10 @@ define sizes, colors, etc. for a series of elements.
 from __future__ import annotations
 from functools import cache
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-from matplotlib.collections import PatchCollection
 import matplotlib.lines as mlines
+from matplotlib.patches import Rectangle
 
 import numpy as np
-import emlib.misc
 
 import typing as _t
 if _t.TYPE_CHECKING:
@@ -259,6 +257,7 @@ def drawRects(ax: Axes, data,
         x0, y0, x1, y1 = coords
         rect = Rectangle((x0, y0), x1-x0, y1-y0)
         rects.append(rect)
+    from matplotlib.collections import PatchCollection
     coll = PatchCollection(rects, linewidth=linewidth, alpha=alpha, edgecolor=edgecolor, facecolor=facecolor)
     ax.add_collection(coll, autolim=True)
     if autolim:
@@ -289,6 +288,8 @@ def makeAxis(pixels: tuple[int, int] | None = None, dpi=96) -> Axes:
 
     if not isinstance(pixels, tuple):
         raise TypeError(f"pixels should be of the form (x, y), got {pixels}")
+
+    import emlib.misc
     xinches = emlib.misc.pixels_to_inches(pixels[0], dpi=dpi)
     yinches = emlib.misc.pixels_to_inches(pixels[1], dpi=dpi)
     fig,ax = plt.subplots(figsize=(xinches, yinches), dpi=dpi)

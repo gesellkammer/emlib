@@ -2,7 +2,6 @@
 Routines for working with text
 """
 from __future__ import annotations
-import sys
 import textwrap
 import re
 
@@ -352,7 +351,6 @@ _fractions = {
     (5, 6): "⅚",
     (1, 7): "⅐",
     (1, 8): "⅛",
-    (2, 4): "¼",
     (3, 8): "⅜",
     (4, 8): "½",
     (5, 8): "⅝",

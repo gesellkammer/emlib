@@ -1,6 +1,5 @@
 """ video routines based on ffmpeg and moviepy """
 
-from pitchtools import db2amp
 from emlib.filetools import addSuffix
 import numpy as np
 
@@ -9,6 +8,10 @@ try:
     import moviepy
 except ImportError:
     raise ImportError("This module needs moviepy")
+
+
+def _db2amp(db: float) -> float:
+    return 10.0 ** (0.05 * db)
 
 
 def normalizeClip(clip, peakdb=0.0):
@@ -24,7 +27,7 @@ def normalizeClip(clip, peakdb=0.0):
     """
     samples = clip.audio.to_soundarray()
     maxamp = np.abs(samples).max()
-    peakamp = db2amp(peakdb)
+    peakamp = _db2amp(peakdb)
     ratio = peakamp / maxamp
     return clip.volumex(ratio)
 

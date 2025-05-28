@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from typing import Iterator, Callable, Sequence, TypeVar, TypeAlias, Union
 
     number_t: TypeAlias = Union[Rational, float]
-    T = TypeVar("T", bound=number_t)
+    T = TypeVar("T", float, Rational)
     T2 = TypeVar("T2", bound=number_t)
 
 
@@ -98,7 +98,33 @@ def intersection(u1: T, u2: T, v1: T, v2: T) -> tuple[T | None, T]:
     """
     x0 = u1 if u1 > v1 else v1
     x1 = u2 if u2 < v2 else v2
-    return (x0, x1) if x0 < x1 else (None, 0)
+    return (x0, x1) if x0 < x1 else (None, 0.)
+
+def overlap(u1: T, u2: T, v1: T, v2: T) -> tuple[T, T] | None:
+    """
+    return the intersection of (u1, u2) and (v1, v2) or None if no intersection
+
+    Args:
+        u1: lower bound of range U
+        u2: higher bound of range U
+        v1: lower bound of range V
+        v2: higher bound of range V
+
+    Returns:
+        the intersection between range U and range V as a tuple (start, end). If no intersection is found,
+        start will be None.
+
+    Example::
+
+        >>> intersect = overlap(0, 3, 2, 5)
+        >>> if intersect is not None:
+        ...     x0, x1 = intersect
+        ...     # there is an intersection
+
+    """
+    x0 = u1 if u1 > v1 else v1
+    x1 = u2 if u2 < v2 else v2
+    return (x0, x1) if x0 < x1 else None
 
 
 def hasintersect(u1: T, u2: T, v1: T, v2: T) -> bool:

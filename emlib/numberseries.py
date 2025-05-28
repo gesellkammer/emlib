@@ -2,7 +2,7 @@
 Generate diverse number series (fibonacci, lucas, tribonacci, ...)
 """
 from __future__ import annotations
-from typing import Generator
+from typing import Iterator
 
 PHI = 1.618033988749894848204586834
 
@@ -19,7 +19,7 @@ def fibonacci(n: int, a=1, b=1) -> list[int]:
     return out
 
 
-def ifibonacci(a=1, b=1) -> Generator[int, None, None]:
+def ifibonacci(a=1, b=1) -> Iterator[int]:
     """
     Returns an iterator over the numbers of the fibonacci series
     """

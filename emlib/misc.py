@@ -22,11 +22,12 @@ import numpy as np
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING or 'sphinx' in _sys.modules:
-    from typing import TypeVar, Sequence, Union, Optional, Callable, Any, Iterable
-    T = TypeVar("T", int, float)
+    from typing import TypeVar, Sequence, Union, Callable, Any, Iterable
+    T = TypeVar("T")
     T2 = TypeVar("T2")
     from fractions import Fraction
     import numbers
+    num_t =  TypeVar("num_t", int, float, numbers.Rational)
     number_t = Union[float, numbers.Rational]
 
 
@@ -64,8 +65,8 @@ def reverse_recursive(seq: list):
     return out
 
 
-def _partialsum(seq: Sequence[T], init: T) -> list[T]:
-    accum: T = init
+def _partialsum(seq: Sequence[num_t], init: num_t) -> list[num_t]:
+    accum: num_t = init
     out = []
     for i in seq:
         accum += i
@@ -109,7 +110,7 @@ def wrap_by_sizes(flatseq: list, packsizes: Sequence[int]) -> list[list]:
 # ------------------------------------------------------------
 
 
-def nearest_element(item: float, seq: Union[list[float], np.ndarray]) -> float:
+def nearest_element(item: float, seq: list[float] | np.ndarray) -> float:
     """
     Find the nearest element (the element, not the index) in seq
 
@@ -156,7 +157,7 @@ def nearest_element(item: float, seq: Union[list[float], np.ndarray]) -> float:
     return element_l
 
 
-def nearest_unsorted(x: number_t, seq: list[number_t]) -> number_t:
+def nearest_unsorted(x: num_t, seq: list[num_t]) -> num_t:
     """
     Find nearest item in an unsorted sequence
 
@@ -179,7 +180,7 @@ def nearest_unsorted(x: number_t, seq: list[number_t]) -> number_t:
     return min((abs(x - y), y) for y in seq)[1]
 
 
-def nearest_index(item: number_t, seq: Sequence[number_t]) -> int:
+def nearest_index(item: num_t, seq: Sequence[num_t]) -> int:
     """
     Return the index of the nearest element in seq to item
 
@@ -403,7 +404,7 @@ def remove_duplicates(seq: Sequence[T]) -> list[T]:
 
     .. note:: list(set(...)) does not keep order
     """
-    # In python >= 3.7 we use the fact that dicts keep order:
+    # we use the fact that dicts keep order:
     return list(dict.fromkeys(seq))
 
 
@@ -783,14 +784,10 @@ def moses(pred: Callable[[T], bool], seq: Iterable[T]
         >>> moses(lambda x:x > 5, range(10))
         ([6, 7, 8, 9], [0, 1, 2, 3, 4, 5])
     """
-    trueitems = []
-    falseitems = []
+    trueseq, falseseq = [], []
     for x in seq:
-        if pred(x):
-            trueitems.append(x)
-        else:
-            falseitems.append(x)
-    return trueitems, falseitems
+        (trueseq if pred(x) else falseseq).append(x)
+    return trueseq, falseseq
 
 
 def allequal(xs: Sequence) -> bool:
@@ -828,8 +825,8 @@ def can_be_pickled(obj) -> bool:
     return obj == obj2
 
 
-def snap_to_grid(x: number_t, tick: number_t, offset: number_t=0, nearest=True
-                 ) -> number_t:
+def snap_to_grid(x: num_t, tick: num_t, offset: num_t = 0, nearest=True
+                 ) -> num_t:
     """
     Find the nearest slot in a grid
 
@@ -906,7 +903,7 @@ def snap_array(X: np.ndarray,
 def _snap_array_nearest(X: np.ndarray,
                         tick: number_t,
                         offset: number_t = 0.,
-                        out: Optional[np.ndarray] = None
+                        out: np.ndarray | None = None
                         ) -> np.ndarray:
     if out is None:
         out = X.copy()
@@ -940,7 +937,7 @@ def _snap_array_floor(X: np.ndarray, tick:float, offset=0., out: np.ndarray=None
     return arr
 
 
-def distribute_in_zones(x: number_t, split_points: Sequence[number_t], side="left") -> int:
+def distribute_in_zones(x: num_t, split_points: Sequence[num_t], side="left") -> int:
     """
     Returns the index of a "zone" where to place x.
 
@@ -981,7 +978,7 @@ def distribute_in_zones(x: number_t, split_points: Sequence[number_t], side="lef
     return imin
 
 
-def _distribute_in_zones_right(x: number_t, split_points: Sequence[number_t]) -> int:
+def _distribute_in_zones_right(x: num_t, split_points: Sequence[num_t]) -> int:
     """
     the same as distribute_in_zones, but with right inclusive zones
     """
@@ -996,7 +993,7 @@ def _distribute_in_zones_right(x: number_t, split_points: Sequence[number_t]) ->
     return imin
 
 
-def seq_contains(seq, subseq) -> Optional[tuple[int, int]]:
+def seq_contains(seq: Sequence[T], subseq: Sequence[T]) -> tuple[int, int] | None:
     """
     Returns the (start, end) indexes if seq contains subseq, or None
 
@@ -1015,7 +1012,7 @@ def seq_contains(seq, subseq) -> Optional[tuple[int, int]]:
     return None
 
 
-def deepupdate(orig, updatewith):
+def deepupdate(orig: dict, updatewith: dict) -> dict:
     """
     recursively update orig with updatewith
     """
@@ -1147,7 +1144,7 @@ def public(f):
     return f
 
 
-def singleton(cls):
+def singleton(cls: type):
     """
     A class decorator to create a singleton class
 
@@ -1176,68 +1173,6 @@ def singleton(cls):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def istype(obj, *types) -> bool:
-    """
-    Examples::
-
-        >>> istype(1, int, float)
-        True
-        >>> istype((4, 0.5), (int, float))
-        True
-        >>> istype([4, 3], [int])
-        True
-        >>> istype({"foo": 4, "bar": 3}, {str:int})
-        True
-    """
-    if len(types) > 1:
-        return isinstance(obj, types)
-
-    t = types[0]
-
-    if isinstance(t, type):
-        return isinstance(obj, t)
-
-    if isinstance(t, tuple):
-        return (isinstance(obj, tuple) and
-                len(obj) == len(t) and
-                all(istype(subobj, subt) for subobj, subt in zip(obj, t)))
-    elif isinstance(t, list):
-        if len(t) == 0:
-            return isinstance(obj, list)
-        elif len(t) == 1:
-            subt = t[0]
-            return isinstance(obj, list) and all(istype(subobj, subt)
-                                                 for subobj in obj)
-        else:
-            raise ValueError(f"T should be [type], but found: {t}")
-    elif isinstance(t, dict):
-        assert len(t) == 1
-        keyt, valt = list(t.items())[0]
-        return all(istype(key, keyt) and istype(value, valt)
-                   for key, value in obj.items())
-    else:
-        raise TypeError("T type not supported, see examples")
-
-
-def assert_type(x, *types) -> bool:
-    """
-    Returns True if x is of the given type, raises TypeError otherwise
-
-    See istype for examples
-
-    Can be used as::
-
-        assert_type(x, int, float)
-
-    or::
-
-        assert assert_type(x, [int])
-    """
-    if not istype(x, *types):
-        raise TypeError(type_error_msg(x, *types))
-    return True
-
-
 def type_error_msg(x, *expected_types):
     """
     To be used when raising a TypeError
@@ -1258,8 +1193,8 @@ def type_error_msg(x, *expected_types):
 
 # --- crossplatform ---
 
-def _open_with_standard_app(path: str, wait:Union[str, bool]=False, min_wait=0.5,
-                            timeout:float=None
+def _open_with_standard_app(path: str, wait: str | bool = False, min_wait=0.5,
+                            timeout=0.
                             ) -> None:
     """
     Open path with the app defined to handle it at the os level
@@ -1370,7 +1305,7 @@ def open_with_app(path: str,
             dialogs.showInfo("Close this dialog when finished")
 
 
-def wait_for_file_modified(path: str, timeout: int | float = 0) -> bool:
+def wait_for_file_modified(path: str, timeout: int | float = 0.) -> bool:
     """
     Wait until file is modified.
 
@@ -1409,7 +1344,7 @@ def wait_for_file_modified(path: str, timeout: int | float = 0) -> bool:
     return modified
 
 
-def first_existing_path(*paths: str, default="~") -> str:
+def first_existing_path(*paths: str) -> str | None:
     """
     Returns the first path in paths which exists
 
@@ -1419,14 +1354,15 @@ def first_existing_path(*paths: str, default="~") -> str:
             not checked that this default path exists.
 
     Returns:
-        the first existing path within the values given
+        the first existing path within the values given, None if no
+        match was found
 
     """
     for p in paths:
         p = _os.path.expanduser(p)
         if _os.path.exists(p):
             return p
-    return _os.path.expanduser(default)
+    return None
 
 
 def html_table(rows: list,
@@ -1482,7 +1418,7 @@ def html_table(rows: list,
     return "".join(parts)
 
 
-def print_table(rows:list, headers=(), tablefmt:str='', showindex=True, floatfmt: str|tuple[str, ...]='') -> None:
+def print_table(rows: list, headers=(), tablefmt='', showindex=True, floatfmt: str|tuple[str, ...]='g') -> None:
     """
     Print rows as table
 
@@ -1523,23 +1459,23 @@ def print_table(rows:list, headers=(), tablefmt:str='', showindex=True, floatfmt
         disable_numparse = not floatfmt
         s = tabulate.tabulate(rows, headers=headers, disable_numparse=disable_numparse,
                               tablefmt=tablefmt, showindex=showindex, stralign='left',
-                              floatfmt=floatfmt if floatfmt else tabulate._DEFAULT_FLOATFMT)
+                              floatfmt=floatfmt)
         if tablefmt == 'html':
             display(HTML(s))
         else:
             print(s)
     else:
         print(tabulate.tabulate(rows, headers=headers, showindex=showindex, tablefmt=tablefmt,
-                                floatfmt=floatfmt if floatfmt else tabulate._DEFAULT_FLOATFMT))
+                                floatfmt=floatfmt))
 
 
-def replace_sigint_handler(handler):
+def replace_sigint_handler(handler: Callable[[None], None]):
     """
     Replace current SIGINT hanler with the given one, return the old one
 
     Args:
         handler: the new handler. A handler is a function taking no
-        parameters and returning nothing
+            parameters and returning nothing
 
     Returns:
         the old handler
