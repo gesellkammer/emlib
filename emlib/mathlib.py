@@ -13,10 +13,8 @@ from __future__ import annotations
 import operator as _operator
 import random as _random
 import sys as _sys
-from functools import reduce
-from math import asin, ceil, cos, e, factorial, floor, gcd, hypot, pi, radians, sin, sqrt
-from numbers import Rational
-
+import functools as _functools
+import math
 import numpy as np
 
 try:
@@ -28,9 +26,9 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Iterator, Callable, Sequence, TypeVar, TypeAlias, Union
-
-    number_t: TypeAlias = Union[Rational, float]
-    T = TypeVar("T", float, Rational)
+    from fractions import Fraction
+    number_t: TypeAlias = Union[Fraction, float]
+    T = TypeVar("T", float, Fraction)
     T2 = TypeVar("T2", bound=number_t)
 
 
@@ -100,6 +98,7 @@ def intersection(u1: T, u2: T, v1: T, v2: T) -> tuple[T | None, T]:
     x1 = u2 if u2 < v2 else v2
     return (x0, x1) if x0 < x1 else (None, 0.)
 
+
 def overlap(u1: T, u2: T, v1: T, v2: T) -> tuple[T, T] | None:
     """
     return the intersection of (u1, u2) and (v1, v2) or None if no intersection
@@ -116,8 +115,7 @@ def overlap(u1: T, u2: T, v1: T, v2: T) -> tuple[T, T] | None:
 
     Example::
 
-        >>> intersect = overlap(0, 3, 2, 5)
-        >>> if intersect is not None:
+        >>> if intersect := overlap(0, 3, 2, 5):
         ...     x0, x1 = intersect
         ...     # there is an intersection
 
@@ -165,29 +163,25 @@ def frange(start: float, stop: float = None, step: float = 0.) -> Iterator[float
         yield start + step*i
 
 
-def asFraction(x) -> Fraction:
+def asfraction(x) -> Fraction:
     """ Convert x to a Fraction if it is not already one """
-    if isinstance(x, Fraction):
-        return x
-    elif isinstance(x, Rational):
-        return Fraction(x.numerator, x.denominator)
-    return Fraction(x)
+    return x if isinstance(x, Fraction) else Fraction(x)
 
 
 def fraction_range(start: number_t, stop: number_t = None, step: number_t = None
                    ) -> Iterator[Fraction]:
     """ Like range, but yielding Fractions """
     if stop is None:
-        stopF = asFraction(start)
+        stopF = asfraction(start)
         startF = Fraction(0)
     else:
-        startF = asFraction(start)
-        stopF = asFraction(stop)
+        startF = asfraction(start)
+        stopF = asfraction(stop)
 
     if step is None:
         step = Fraction(1)
     else:
-        step = asFraction(step)
+        step = asfraction(step)
     while startF < stopF:
         yield startF
         startF += step
@@ -229,9 +223,9 @@ def lcm(*numbers: int) -> int:
 
     """
     def lcm2(a, b):
-        return (a*b) // gcd(a, b)
+        return (a*b) // math.gcd(a, b)
 
-    return reduce(lcm2, numbers, 1)
+    return _functools.reduce(lcm2, numbers, 1)
 
 
 def min_common_denominator(floats: Iterator[float], limit: int = int(1e10)) -> int:
@@ -322,8 +316,8 @@ def euclidian_distance(values: Sequence[float], weights: Sequence[float]=None) -
     """
     if weights:
         s = sum(value*value * weight for value, weight in zip(values, weights))
-        return sqrt(s)
-    return sqrt(sum(value**2 for value in values))
+        return math.sqrt(s)
+    return math.sqrt(sum(value**2 for value in values))
 
 
 def weighted_euclidian_distance(pairs: list[tuple[float, float]]) -> float:
@@ -350,14 +344,14 @@ def prod(numbers: Sequence[number_t]) -> number_t:
 
         x0 * x1 * x2 ... * xn | x in numbers
     """
-    return reduce(_operator.mul, numbers)
+    return _functools.reduce(_operator.mul, numbers)
 
 
 def geometric_mean(numbers: Sequence[number_t]) -> float:
     """
     The geometric mean is often used to find the mean of data measured in different units.
     """
-    return prod(numbers) ** (1/len(numbers))
+    return float(prod(numbers)) ** (1/len(numbers))
 
 
 def harmonic_mean(numbers: Sequence[T]) -> T:
@@ -434,14 +428,13 @@ def derivative(func: Callable[[number_t], number_t], h=0) -> Callable[[number_t]
     return lambda x: (float(func(x+h*1.0j))).imag / h
 
 
-def logrange(start: float, stop: float, num=50, base=10) -> np.ndarray:
+def logrange(start: float, stop: float, num=50, base=10, minstart=1e-12) -> np.ndarray:
     """
     create an array [start, ..., stop] with a logarithmic scale
     """
-    log = np.log
     if start == 0:
-        start = 0.000000000001
-    return np.logspace(log(start, base), log(stop, base), num, base=base)
+        start = minstart
+    return np.logspace(math.log(start, base), math.log(stop, base), num, base=base)
 
 
 def randspace(begin: float, end: float, numsteps: int, include_end=True
@@ -545,7 +538,7 @@ def roundres(x, resolution=1.0):
     return round(x / resolution) * resolution
 
 
-def next_in_grid(x: number_t, step: number_t, offset: number_t = 0) -> float:
+def next_in_grid(x: T, step: T, offset: T) -> T:
     """
     The next value in the grid defined by step/offset which is >= x
 
@@ -554,7 +547,7 @@ def next_in_grid(x: number_t, step: number_t, offset: number_t = 0) -> float:
         step: the step of the grid
         offset: the offset of the grid
 
-    Returns
+    Returns:
         the next value within the grid higher or equal to x
 
     Example
@@ -566,7 +559,12 @@ def next_in_grid(x: number_t, step: number_t, offset: number_t = 0) -> float:
         >>> next_in_grid(1.31, Fraction(1, 3))
         Fraction(4, 3)
     """
-    return offset + ceil((x - offset) / step) * step
+    grididx = math.ceil((x - offset) / step)
+    if isinstance(step, Fraction):
+        return step * Fraction(grididx) + Fraction(offset)
+    else:
+        assert isinstance(step, (int, float)) and isinstance(offset, (int, float))
+        return float(step * grididx + offset)  # type: ignore
 
 
 def modulo_shortest_distance(x: number_t, origin: number_t, mod: int):
@@ -581,9 +579,10 @@ def modulo_shortest_distance(x: number_t, origin: number_t, mod: int):
 
     Calculate the interval between note D5 and B3, independently of octaves
 
+    .. code-block:: python
 
-    >>> interval = modulo_shortest_distance(74, 59, 12)
-    3
+        >>> interval = modulo_shortest_distance(74, 59, 12)
+        3
     """
     xclock = (x - origin) % mod
     xanti = (origin - x) % mod
@@ -609,8 +608,8 @@ def rotate2d(point: tuple[float, float],
     """
     x = point[0] - origin[0]
     yorz = point[1] - origin[1]
-    newx = (x*cos(radians(degrees))) - (yorz*sin(radians(degrees)))
-    newyorz = (x*sin(radians(degrees))) + (yorz*cos(radians(degrees)))
+    newx = (x*math.cos(math.radians(degrees))) - (yorz*math.sin(math.radians(degrees)))
+    newyorz = (x*math.sin(math.radians(degrees))) + (yorz*math.cos(math.radians(degrees)))
     newx += origin[0]
     newyorz += origin[1]
     return newx, newyorz
@@ -762,7 +761,7 @@ def intersection_area_between_circles(x1: float, y1: float, r1: float,
 
     from https://www.xarg.org/2016/07/calculate-the-intersection-area-of-two-circles/
     """
-    d = hypot(x2 - x1, y2 - y1)
+    d = math.hypot(x2 - x1, y2 - y1)
     if d >= r1 + r2:
         return 0
     a = r1 * r1
@@ -771,15 +770,15 @@ def intersection_area_between_circles(x1: float, y1: float, r1: float,
         x = (a - b + d*d) / (2*d)
     else:
         # They share the same center!
-        return pi*min(a, b)
+        return math.pi*min(a, b)
     z = x * x
     if a < z:
         # One circle is embedded in the other?
-        return pi * min(a, b)
-    y = sqrt(a - z)
+        return math.pi * min(a, b)
+    y = math.sqrt(a - z)
     if d <= abs(r2 - r1):
-        return pi * min(a, b)
-    return a * asin(y / r1) + b*asin(y / r2) - y * (x + sqrt(z + b - a))
+        return math.pi * min(a, b)
+    return a * math.asin(y / r1) + b*math.asin(y / r2) - y * (x + math.sqrt(z + b - a))
 
 
 def roman(n: int) -> str:
@@ -823,7 +822,7 @@ def roman(n: int) -> str:
             res += (romans[div * 5] + (romans[div] * (lastNum - 5)))
         elif lastNum == 9:
             res += (romans[div] + romans[div * 10])
-        n = floor(n % div)
+        n = math.floor(n % div)
         div //= 10
     return res
 
@@ -840,9 +839,9 @@ def fractional_factorial(x: float) -> float:
 
     """
     if isinstance(x, int):
-        return factorial(x)
+        return math.factorial(x)
 
-    fact = sqrt(pi)*(x/e)**x
+    fact = math.sqrt(math.pi)*(x/math.e)**x
     fact *= (((8*x + 4)*x + 1)*x + 1/30.)**(1./6.)
     return fact
 
@@ -861,7 +860,6 @@ def nextpowerof2(x) -> int:
     Return the lowest power of two >= x
     """
     return 1 if x == 0 else 2 ** (x - 1).bit_length()
-
 
 
 def gini(xs: Sequence[T], eps=1e-12, normalize=True) -> float:
