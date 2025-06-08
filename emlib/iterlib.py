@@ -151,9 +151,11 @@ def repeatfunc(func, times=None, *args):
         return starmap(func, repeat(args, times))
 
 
-def pairwise(iterable: Iterable[T]) -> zip[tuple[T, T]]:
+def _pairwise(iterable: Iterable[T]) -> zip[tuple[T, T]]:
     """
     Similar to window(seq, size=2, step=1)
+
+    Pairwise exists since 3.10
 
     Example
     ~~~~~~~
