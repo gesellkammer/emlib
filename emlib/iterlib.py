@@ -4,11 +4,12 @@ More itertools
 from __future__ import annotations
 
 import sys
-from itertools import *
+import itertools as it
 import operator as _operator
 import collections as _collections
 import random as _random
 from math import inf
+import warnings
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Iterable, Iterator, TypeVar, Callable, Sequence
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 
 def take(seq: Iterable[T], n:int) -> list[T]:
     """returns the first n elements of seq as a list"""
-    return list(islice(seq, n))
+    return list(it.islice(seq, n))
 
 
 def last(seq: Iterable[T]) -> T | None:
@@ -47,8 +48,8 @@ def last(seq: Iterable[T]) -> T | None:
         return x
 
 
-def first(it: Iterable[T], default=None) -> T | None:
-    return next(it, default)
+def first(seq: Iterable[T], default=None) -> T | None:
+    return next(seq, default)
 
 
 def consume(iterator, n: int) -> None:
@@ -64,7 +65,7 @@ def consume(iterator, n: int) -> None:
         _collections.deque(iterator, maxlen=0)
     else:
         # advance to the empty slice starting at position n
-        next(islice(iterator, n, n), None)
+        next(it.islice(iterator, n, n), None)
 
 
 def drop(seq: Iterable[T], n: int) -> Iterable[T]:
@@ -77,12 +78,12 @@ def drop(seq: Iterable[T], n: int) -> Iterable[T]:
         >>> list(drop(range(10), 3))
         [3, 4, 5, 6, 7, 8, 9]
     """
-    return islice(seq, n, None)
+    return it.islice(seq, n, None)
 
 
 def nth(seq: Iterable[T], n: int) -> T:
     """Returns the nth item"""
-    return next(islice(seq, n, n+1))
+    return next(it.islice(seq, n, n+1))
 
 
 def pad(seq: Iterable[T], element:T2=None) -> Iterator[T | T2]:
@@ -94,12 +95,12 @@ def pad(seq: Iterable[T], element:T2=None) -> Iterator[T | T2]:
     >>> take(pad(range(10), "X"), 15)
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 'X', 'X', 'X', 'X', 'X']
     """
-    return chain(seq, repeat(element))
+    return it.chain(seq, it.repeat(element))
 
 
 def ncycles(seq: Iterable[T], n: int) -> Iterable[T]:
     """Returns the sequence elements n times"""
-    return chain(*repeat(seq, n))
+    return it.chain(*it.repeat(seq, n))
 
 
 class Accum:
@@ -115,8 +116,8 @@ class Accum:
         >>> takewhile((lambda item, accum=Accum(): accum(item) < 100), seq)
     """
 
-    def __init__(self, init:T=0):
-        self.value:T = init
+    def __init__(self, init: T = 0):
+        self.value: T = init
 
     def __call__(self, value:T) -> T:
         self.value += value
@@ -146,9 +147,9 @@ def repeatfunc(func, times=None, *args):
     Example:  repeatfunc(random.random)
     """
     if times is None:
-        return starmap(func, repeat(args))
+        return it.starmap(func, it.repeat(args))
     else:
-        return starmap(func, repeat(args, times))
+        return it.starmap(func, it.repeat(args, times))
 
 
 def _pairwise(iterable: Iterable[T]) -> zip[tuple[T, T]]:
@@ -163,7 +164,7 @@ def _pairwise(iterable: Iterable[T]) -> zip[tuple[T, T]]:
         >>> list(pairwise(range(4)))
         [(0, 1), (1, 2), (2, 3)]
     """
-    a, b = tee(iterable)
+    a, b = it.tee(iterable)
     try:
         next(b)
     except StopIteration:
@@ -195,14 +196,67 @@ def window(iterable: Iterable[T], size=3, step=1) -> Iterator[tuple[T, ...]]:
     >>> list(window(range(5), 2, 1))
     [(0, 1), (1, 2), (2, 3), (3, 4)]
     """
-    iterators = tee(iterable, size)
+    iterators = it.tee(iterable, size)
     for skip_steps, itr in enumerate(iterators):
-        for _ in islice(itr, skip_steps):
+        for _ in it.islice(itr, skip_steps):
             pass
     winiter = zip(*iterators)
     if step != 1:
-        winiter = islice(winiter, 0, 99999999, step)
+        winiter = it.islice(winiter, 0, 99999999, step)
     return winiter
+
+
+def window_padded(seq: Iterable[T], size=3, step=1, paddingval=None) -> Iterator[tuple[T, ...]]:
+    """Similar to window, but the last window will be padded
+
+    Args:
+        seq: the sequence
+        size: the size of each window
+        step: how much to advance the window each iteration
+        paddingval: value used to pad the last iteration if there are not enough items
+
+    Returns:
+        an iterator of tuples, where each tuple has *size* elements
+
+    Example
+    ~~~~~~~
+
+    >>> list(windowed([1, 2, 3, 4, 5, 6], 3, 2))
+    [(1, 2, 3), (3, 4, 5), (5, None, None)]
+
+    """
+    if size < 0:
+        raise ValueError('n must be >= 0')
+
+    if size == 0:
+        yield ()
+        return
+
+    if step < 1:
+        raise ValueError('step must be >= 1')
+
+    iterator = iter(seq)
+
+    # Generate first window
+    window = _collections.deque(it.islice(iterator, size), maxlen=size)
+
+    # Deal with the first window not being full
+    if not window:
+        return
+
+    if len(window) < size:
+        yield tuple(window) + ((paddingval,) * (size - len(window)))
+        return
+    yield tuple(window)
+
+    # Create the filler for the next windows. The padding ensures
+    # we have just enough elements to fill the last window.
+    padding = (paddingval,) * (size - 1 if step >= size else step - 1)
+    filler = map(window.append, it.chain(iterator, padding))
+
+    # Generate the rest of the windows
+    for _ in it.islice(filler, step - 1, None, step):
+        yield tuple(window)
 
 
 def window_fixed_size(seq: Iterable[T], size: int, maxstep: int
@@ -221,7 +275,7 @@ def window_fixed_size(seq: Iterable[T], size: int, maxstep: int
         elements if they don't fit evenly in the window size
 
     Example
-    =======
+    ~~~~~~~
 
     >>> list(window_fixed_size(range(10)), 5,2)
     [[0, 1, 2, 3, 4], [2, 3, 4, 5, 6], [4, 5, 6, 7, 8], [5, 6, 7, 8, 9]]
@@ -266,7 +320,7 @@ def iterchunks(seq, chunksize: int) -> Iterable[tuple]:
     [(0, 1, 2), (3, 4, 5), (6, 7, 8), (9, 10, 11), (12, 13, 14), (15, 16, 17), (18, 19)]
     """
 
-    padded = chain(seq, repeat(_Sentinel))
+    padded = it.chain(seq, it.repeat(_Sentinel))
     for chunk in window(padded, size=chunksize, step=chunksize):
         if chunk[-1] is _Sentinel:
             if chunk[0] is _Sentinel:
@@ -340,6 +394,7 @@ def partialsum(seq: Iterable[T], start=0) -> Iterable[T]:
         n2 -> n0 + n1 + n2
         n3 -> n0 + n1 + n2 + n3
     """
+    warnings.warn("Use itertools.accumulate instead", DeprecationWarning, stacklevel=2)
     accum = start
     for i in seq:
         accum += i
@@ -378,7 +433,7 @@ def ilen(seq: Iterable) -> int:
     """
     Consume an iterable not reading it into memory; return the number of items.
     """
-    counter = count()
+    counter = it.count()
     _collections.deque(zip(seq, counter), maxlen=0)  # (consume at C speed)
     return next(counter)
 
@@ -558,7 +613,7 @@ def intercalate(seq: Iterable[T], item:T2) -> Iterator[T|T2]:
     >>> list(intercalate(range(5), "X"))
     [0, 'X', 1, 'X', 2, 'X', 3, 'X', 4]
     """
-    return butlast(zipflat(seq, repeat(item)))
+    return butlast(zipflat(seq, it.repeat(item)))
 
 
 def partialreduce(seq: Iterable[T], func: Callable, start=0) -> Iterator[T]:
@@ -668,8 +723,16 @@ def interleave(seqs, pass_exceptions=()):
         iters = newiters
 
 
-def chunked(iterable, n):
-    """Break *iterable* into lists of length *n*:
+def chunked(iterable, n: int, strict=False):
+    """Break *iterable* into lists of length *n*
+
+
+    Args:
+        iterable: the iterable to chunk
+        n: size of each chunk
+        strict: raises an error if iterable is not divisible by n
+
+    Example::
 
         >>> list(chunked([1, 2, 3, 4, 5, 6], 3))
         [[1, 2, 3], [4, 5, 6]]
@@ -687,6 +750,7 @@ def chunked(iterable, n):
     list is yielded.
 
     """
+    from functools import partial
     iterator = iter(partial(take, n, iter(iterable)), [])
     if strict:
         if n is None:
