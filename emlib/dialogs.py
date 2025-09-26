@@ -38,7 +38,7 @@ filters = {
 
 
 @runonce
-def _has_qt() -> bool:
+def _has_qt5() -> bool:
     try:
         from PyQt5 import QtWidgets
         return True
@@ -47,7 +47,19 @@ def _has_qt() -> bool:
 
 
 @runonce
+def _has_qt6() -> bool:
+    try:
+        from PyQt6 import QtWidgets
+        return True
+    except ImportError:
+        return False
+
+
+@runonce
 def _has_tk() -> bool:
+    # tk in linux with python 3.13 is often broken
+    if sys.platform == 'linux' and sys.version_info.minor >= 13:
+        return False
     try:
         import tkinter
         return True
@@ -56,15 +68,21 @@ def _has_tk() -> bool:
 
 
 @cache
-def _resolveBackend(backend=''):
+def _resolveBackend(backend='') -> str:
     if not backend:
-        if _has_qt():
-            backend = 'qt'
+        if _has_qt6():
+            backend = 'qt6'
+        elif _has_qt5():
+            backend = 'qt5'
         elif _has_tk():
             backend = 'tk'
         else:
             raise RuntimeError("No backends available. Install pyqt5 via 'pip install pyqt5'")
-    if backend == 'qt' and not _has_qt():
+
+    if backend == 'qt6' and not _has_qt6():
+        raise RuntimeError("pyqt6 is needed, but is not installed. Install it via 'pip install pyqt6'")
+
+    if backend == 'qt5' and not _has_qt5():
         raise RuntimeError("pyqt5 is needed, but is not installed. Install it via 'pip install pyqt5'")
     return backend
 
@@ -81,9 +99,13 @@ def showInfo(msg: str, title: str = "Info", font=None, icon='', backend=''
         icon: either None or one of 'question', 'information', 'warning', 'critical'
     """
     backend = _resolveBackend(backend)
-    if backend == 'qt':
+    if backend == 'qt5':
         from . import _dialogsqt
         return _dialogsqt.showInfo(msg=msg, title=title, font=font, icon=icon)
+
+    elif backend == 'qt6':
+        from . import _dialogsqt6
+        return _dialogsqt6.showInfo(msg=msg, title=title, font=font, icon=icon)
 
     from tkinter import ttk, Tk
     try:
@@ -125,9 +147,16 @@ def selectFile(directory='', filter="All (*.*)", title="Open file",
     """
     backend = _resolveBackend(backend)
 
-    if backend == 'qt':
+    if backend == 'qt5':
         from . import _dialogsqt
         return _dialogsqt.selectFile(directory=directory, filter=filter, title=title)
+
+    elif backend == 'qt6':
+        from . import _dialogsqt6
+        return _dialogsqt6.selectFile(directory=directory, filter=filter, title=title)
+
+    if not _has_tk():
+        raise ValueError("tk is not available")
 
     from tkinter import ttk, Tk
     try:
@@ -208,9 +237,13 @@ def saveDialog(filter="All (*.*)", title="Save file", directory="~", backend=''
     if not directory:
         directory = "~"
     directory = os.path.expanduser(directory)
-    if backend == 'qt':
+    if backend == 'qt5':
         from . import _dialogsqt
         return _dialogsqt.saveDialog(filter=filter, title=title, directory=directory)
+    if backend == 'qt6':
+        from . import _dialogsqt6
+        return _dialogsqt6.saveDialog(filter=filter, title=title, directory=directory)
+
     else:
         if sys.platform == 'darwin':
             raise RuntimeError("tk backend not supported in macos")
@@ -280,7 +313,7 @@ def selectItems(items: Sequence[str],
         caseSensitive: if True, filtering is case sensitive
         ensureSelection: if True, raises a ValueError exception is no selection
             was done
-        backend: if given, one of 'qt', 'tk'
+        backend: if given, one of 'qt6', 'qt5', 'tk'
 
     Returns:
         a list of selected items, or an empty list if the user aborted
@@ -292,16 +325,24 @@ def selectItems(items: Sequence[str],
                                  listFont=listFont, scrollbar=scrollbar, width=width,
                                  numlines=numlines, caseSensitive=caseSensitive,
                                  ensureSelection=ensureSelection)
-    elif backend == 'qt':
-        if not _has_qt():
-            raise RuntimeError("pyqt5 not installed. Install it via 'pip install pyqt5'")
+    elif backend == 'qt6':
+        if not _has_qt6():
+            raise RuntimeError("qt6 not installed. Install it via 'pip install pyqt6'")
+        logger.info("Multiple item selection is not supported in qt at the moment")
+        from . import _dialogsqt6
+        out = _dialogsqt6.selectItem(items=items, title=title, listFont=listFont,
+                                    entryFont=entryFont)
+        return [out] if out is not None else []
+    elif backend == 'qt5':
+        if not _has_qt5():
+            raise RuntimeError("qt5 not installed. Install it via 'pip install pyqt5'")
         logger.info("Multiple item selection is not supported in qt at the moment")
         from . import _dialogsqt
         out = _dialogsqt.selectItem(items=items, title=title, listFont=listFont,
                                     entryFont=entryFont)
         return [out] if out is not None else []
     else:
-        raise ValueError("Backends supported: 'qt', 'tk'")
+        raise ValueError("Backends supported: 'qt5', 'qt6', 'tk'")
 
 
 def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 15),
@@ -332,11 +373,12 @@ def _selectFromListTk(items: Sequence[str], title="Select", entryFont=('Arial', 
         logger.error("macOS is not supported")
 
     from tkinter import ttk, Tk
-    try:
-        from ttkthemes import ThemedTk
-        root = ThemedTk(theme="breeze")
-    except ImportError:
-        root = Tk()
+    root = Tk()
+    #try:
+    #    from ttkthemes import ThemedTk
+    #    root = ThemedTk(theme="breeze")
+    #except ImportError:
+    #    root = Tk()
 
     import tkinter as tk
     from tkinter.font import Font
