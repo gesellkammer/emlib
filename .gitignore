@@ -12,3 +12,4 @@ old/
 .*
 docs/_build
 docs/api
+uv.lock
