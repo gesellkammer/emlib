@@ -77,7 +77,7 @@ def _resolveBackend(backend='') -> str:
         elif _has_tk():
             backend = 'tk'
         else:
-            raise RuntimeError("No backends available. Install pyqt5 via 'pip install pyqt5'")
+            raise RuntimeError("No backends available. Install pyqt6 via 'pip install pyqt6'")
 
     if backend == 'qt6' and not _has_qt6():
         raise RuntimeError("pyqt6 is needed, but is not installed. Install it via 'pip install pyqt6'")

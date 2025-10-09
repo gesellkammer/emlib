@@ -29,6 +29,8 @@ if TYPE_CHECKING or 'sphinx' in _sys.modules:
     import numbers
     num_t =  TypeVar("num_t", int, float, numbers.Rational)
     number_t = Union[float, numbers.Rational]
+    import subprocess
+
 
 
 # ------------------------------------------------------------
@@ -1194,7 +1196,7 @@ def type_error_msg(x, *expected_types):
 # --- crossplatform ---
 
 def _open_with_standard_app(path: str, wait: str | bool = False, min_wait=0.5,
-                            timeout=0.
+                            timeout=0., capture_stdout=True, capture_stderr=True
                             ) -> None:
     """
     Open path with the app defined to handle it at the os level
@@ -1217,12 +1219,18 @@ def _open_with_standard_app(path: str, wait: str | bool = False, min_wait=0.5,
     import time
     proc = None
     if _sys.platform == 'linux':
-        proc = subprocess.Popen(["xdg-open", path])
+        proc = subprocess.Popen(
+            ["xdg-open", path],
+            stdout=subprocess.PIPE if capture_stdout else None,
+            stderr=subprocess.PIPE if capture_stderr else None)
     elif _sys.platform == "win32":
         # this function exists only in windows
         _os.startfile(path)  # type: ignore
     elif _sys.platform == "darwin":
-        proc = subprocess.Popen(["open", path])
+        proc = subprocess.Popen(
+            ["open", path],
+            stdout=subprocess.PIPE if capture_stdout else None,
+            stderr=subprocess.PIPE if capture_stderr else None)
         min_wait = max(min_wait, 1)
     else:
         raise RuntimeError(f"platform {_sys.platform} not supported")
@@ -1251,9 +1259,11 @@ def open_with_app(path: str,
                   wait: bool | str = False,
                   shell=False,
                   min_wait=0.5,
-                  timeout=0.) -> None:
+                  timeout=0.,
+                  capture_stdout=True,
+                  capture_stderr=True) -> subprocess.Popen | None:
     """
-    Open a given file with a given app.
+    Open a document with a given app.
 
     It can either wait on the app to exit or wait until the file
     was modified. The app can be either a command as a string or a
@@ -1277,7 +1287,8 @@ def open_with_app(path: str,
     """
     if not app:
         assert not shell
-        _open_with_standard_app(path, wait=wait, min_wait=min_wait, timeout=timeout)
+        _open_with_standard_app(path, wait=wait, min_wait=min_wait, timeout=timeout,
+                                capture_stderr=capture_stderr, capture_stdout=capture_stdout)
         return
 
     import subprocess
