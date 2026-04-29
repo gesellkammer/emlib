@@ -8,8 +8,8 @@ number
 """
 from __future__ import annotations
 import math
+import random
 from typing import Iterator
-
 
 
 PRIMES_LE_31 = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31)
@@ -207,3 +207,36 @@ def lcm(a: int, b: int) -> int:
     If both are zero, it raises an exception.
     """
     return a // math.gcd(a, b) * b
+
+
+def _pollard_rho(n: int) -> int | None:
+    """Returns a non-trivial factor of n."""
+    if n % 2 == 0:
+        return 2
+    x = random.randint(2, n - 1)
+    y, c, d = x, random.randint(1, n - 1), 1
+    while d == 1:
+        x = (x * x + c) % n
+        y = (y * y + c) % n
+        y = (y * y + c) % n  # y moves twice as fast (Floyd's cycle)
+        d = math.gcd(abs(x - y), n)
+    return d if d != n else None  # None = retry with different c
+
+
+def prime_factors(n: int) -> set[int]:
+    if n <= 1:
+        return set()
+    if isprime(n):
+        return {n}
+
+    # Try small factors first (cheap and often succeeds)
+    for p in PRIMES_LE_31:
+        if n % p == 0:
+            return {p} | prime_factors(n // p)
+
+    # Fall back to Pollard's rho
+    d = None
+    while d is None or d == n:
+        d = _pollard_rho(n)
+
+    return prime_factors(d) | prime_factors(n // d)
