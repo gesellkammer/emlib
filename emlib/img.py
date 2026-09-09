@@ -2,35 +2,20 @@ from __future__ import annotations
 
 import os.path
 from io import BytesIO
-from PIL import Image
-from typing import Union
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 
 def imgSize(path: str) -> tuple[int, int]:
     """ returns (width, height) """
+    from PIL import Image
     im = Image.open(path)
     return im.size
 
 
-def asImage(obj: Union[str, Image.Image]) -> Image.Image:
-    """
-    Returns `obj` if already a pillow Image or reads it from disk if given a path
-
-    Args:
-        obj: a pilllow Image or a path to an image file
-
-    Returns:
-        a pillow Image
-    """
-    if isinstance(obj, Image.Image):
-        return obj
-    elif isinstance(obj, str):
-        return Image.open(obj)
-    else:
-        raise TypeError(f"obj type {type(obj)} not supported")
-
-
-def hasTransparency(img: Union[str, Image.Image]) -> bool:
+def hasTransparency(img: str | Image.Image) -> bool:
     """
     Returns True if this image has an alpha channel
 
@@ -40,14 +25,17 @@ def hasTransparency(img: Union[str, Image.Image]) -> bool:
     Returns:
         True if the image has transparency
     """
-    img = asImage(img)
-    if img.mode == "P":
-        transparent = img.info.get("transparency", -1)
-        for _, index in img.getcolors():
+    from PIL import Image
+    pilimg = img if isinstance(img, Image.Image) else Image.open(img)
+    if pilimg.mode == "P":
+        transparent = pilimg.info.get("transparency", -1)
+        colors = pilimg.getcolors()
+        assert colors is not None
+        for _, index in colors:
             if index == transparent:
                 return True
-    elif img.mode == "RGBA":
-        extrema = img.getextrema()
+    elif pilimg.mode == "RGBA":
+        extrema = pilimg.getextrema()
         if extrema[3][0] < 255:
             return True
     return False
@@ -73,6 +61,7 @@ def removeTransparency(im: Image.Image, background=(255, 255, 255)) -> Image.Ima
         # Create a new background image of our matt color.
         # Must be RGBA because paste requires both images have the same format
         # (http://stackoverflow.com/a/8720632  and  http://stackoverflow.com/a/9459208)
+        from PIL import Image
         bg = Image.new("RGBA", im.size, background + (255,))
         bg.paste(im, mask=alpha)
         return bg
@@ -93,6 +82,7 @@ def pngRemoveTransparency(pngfile: str, outfile='', background=(255, 255, 255)
         background: the color to use as replacement for the background
 
     '''
+    from PIL import Image
     assert os.path.splitext(pngfile)[1] == '.png'
     img = Image.open(pngfile)
     img = removeTransparency(img, background=background)
@@ -127,6 +117,7 @@ def readImageAsBase64(imgpath: str,
             raise ValueError(f"Format unknown for file {imgpath}")
     assert outformat in {'jpeg', 'png'}, f"Unsupported format: {outformat}. Formats supported: png, jpeg"
     buffer = BytesIO()
+    from PIL import Image
     im = Image.open(imgpath)
     if removeAlpha:
         im = removeTransparency(im)
@@ -145,7 +136,7 @@ def cropToBoundingBox(inputpath: str, outpath: str = '', margin: int | tuple[int
         outpath: the path of the output. If not given the original image is modified
         margin: a margin in pixels. Can also be a tuple (x0, y0, x1, y1)
     """
-    from PIL import ImageChops
+    from PIL import Image, ImageChops
     img = Image.open(inputpath).convert('RGB')
     border = img.getpixel((0, 0))
     bg = Image.new(img.mode, img.size, border)
@@ -172,8 +163,8 @@ def cropToBoundingBox(inputpath: str, outpath: str = '', margin: int | tuple[int
 
 
 def htmlImgBase64(imgpath: str,
-                  width: int | str = None,
-                  maxwidth: int | str = None,
+                  width: int | str | None = None,
+                  maxwidth: int | str | None = None,
                   margintop='14px',
                   padding='10px',
                   removeAlpha=False,

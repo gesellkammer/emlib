@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "emlib"
-version = "1.21.0"
+version = "1.22.0"
 description = "Miscellaneous utilities (text handling, maths, iterators, etc.)"
 authors = [
     { name = "Eduardo Moguillansky", email = "eduardo.moguillansky@gmail.com" },
@@ -26,7 +26,7 @@ dependencies = [
     "tabulate",
     "watchdog",
     "matplotlib",
-    "pillow<11",
+    "pillow",
     "decorator",
     "ttkthemes",
 ]
